@@ -1,5 +1,5 @@
 /* example imports */
-take "./bar.p";
+take "./bar.p" as bar;
 /* we could also do partial ones like take foo from "./bar.p" */
 
 /* types */
@@ -64,7 +64,7 @@ pipe create_thing |> []
 }
 
 pipe fib |> [n: int] 
-         |> int 
+         |> int
 {
 	if n < 0 {
 		panic("err");
