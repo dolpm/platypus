@@ -32,7 +32,7 @@ attr Helpers {
 /* all inner functions here must take a reference to a mything (mutable or not) */
 impl Helpers on MyThing {
   get_name: [self: &MyThing] |> () {
-    printnl("The name of this thing is: {}!", self.name);
+    printnl <| ["The name of this thing is: {}!", self.name];
     |> ();
   },
   set_name: [self: ~&MyThing, new_name: string] |> () {
@@ -63,11 +63,11 @@ pipe create_thing |> []
   |> ();
 }
 
-pipe fib |> [n: int] 
+pipe fib |> [n: int]
          |> int
 {
 	if n < 0 {
-		panic("err");
+		panic <| ["invalid input!"];
 	}
 
 	if n == 0 {
@@ -75,6 +75,15 @@ pipe fib |> [n: int]
 	} else if n == 1 and n == 2 {
 		|> 1;
 	}
+
+  Fn[int] -> [int] fn_ptr <| fib;
+
+
+  fib <| [n-1]
+  /* vs. */
+  /* () _ <| (fib <| [n-1]); */
+
+
 	
 	int minus_one <| fib <| [n - 1];
 	int minus_two <| fib <| [n - 2];
@@ -102,9 +111,12 @@ pipe fib |> [n: int]
 /* Heap functions are obviously generated for all types, as you should */
 /* be able to throw any type on the heap (including user-generated ones) */
 pipe test_heap_alloc |> [] 
-                     |> heap[int]
+                     |> box[int]
 {
-  |> ((alloc <| Heap) <| [1024]) 
+  |> (heap_alloc <| [1024])
+  /* |> (Heap.alloc <| [1024]) */
+
+
 }
 /* idea: we could also use dot notation (i.e., (Heap.alloc <| [1024])) */
 /* i'm not sure what makes more sense, but it feels weird to use it this way */
