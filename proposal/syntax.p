@@ -77,7 +77,7 @@ pipe fib |> [n: int]
 	}
 	
 	int minus_one <| fib <| [n - 1];
-	int minus_two = <| fib <| [n - 2];
+	int minus_two <| fib <| [n - 2];
 
 	|> minus_one + minus_two;
 
