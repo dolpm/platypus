@@ -76,9 +76,6 @@ pipe fib |> [n: int]
 		|> 1;
 	}
 
-  Fn[int] -> [int] fn_ptr <| fib;
-
-
   fib <| [n-1]
   /* vs. */
   /* () _ <| (fib <| [n-1]); */
@@ -130,6 +127,29 @@ pipe test_heap_alloc |> []
 /* similarly, we can have an array type whose size is known at compile time. */
 /* this may add an extra layer of complexity, but could be done. */
 
+
+sig fn_ptr_example <| (pipe[int, bool] |> bool);
+
+pipe example_fn |> [x: int, y: bool] |> bool {
+  |> true;
+}
+
+pipe test_fn_ptr <| [x: &fn_ptr_example] |> () {
+  bool y <| (x <| [0, true]);
+  |> ();
+}
+
+
+thing my_thing {
+  x: int;
+}
+
+box[int] x <| heap_alloc <| [10];
+box[bool] y <| heap_alloc <| [false];
+box[my_thing] z <| heap_alloc <| [my_thing {
+  x: 0,
+}];
+
 pipe main |> [] |> () {
   /* can probably make <| [] implicit? */
   /* on contrary, what if we did something like the above to create a */
@@ -139,4 +159,8 @@ pipe main |> [] |> () {
 
   /* example fib call */
   int n <| fib <| [10];
+
+  fn_ptr_example ex <| example_fn;
+  bool y <| (test_fn_ptr <| [&ex]);
+
 }
