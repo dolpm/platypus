@@ -19,8 +19,11 @@ type defined_type =
   | Float
   | Bool
   | Tuple
-  | Char
   | Unit
+  | Char
+  | String of defined_type
+  | List of defined_type
+  | Vector of defined_type
   | Fluid of defined_type
   | Ref of defined_type
   | Sig of defined_type list * defined_type
@@ -62,11 +65,11 @@ type pipe_declaration = {
   (* lifetime delcarations, just a list of lifetimes for now *)
   (* will probably need lifetime comparisons as well, or they *)
   (* could also enforce sorting from large to small (left to right) *)
-    lifetimes : string list;
-    formals : type_binding list;
-    locals : type_binding list; (* ask richard *)
-    return_type : defined_type;
-    body : stmt list;
-  }
+  lifetimes : string list;
+  formals : type_binding list;
+  locals : type_binding list; (* ask richard *)
+  return_type : defined_type;
+  body : stmt list;
+}
 
-  type program = type_binding list * pipe_declaration list
+type program = type_binding list * pipe_declaration list
