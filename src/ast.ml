@@ -13,15 +13,29 @@ type binary_operator =
   | Or
 
 type unary_operator = Neg | Not
-type defined_type = Int | Float | Bool | Tuple | Char | Unit
+
+type defined_type =
+  | Int
+  | Float
+  | Bool
+  | Tuple
+  | Char
+  | Unit
+  | Fluid of defined_type
+  | Ref of defined_type
+  | Sig of defined_type list * defined_type
+  | Thing of (defined_type * string) list
+  | Box of defined_type
+  | Option of defined_type
+
+type fn_sig = defined_type list * defined_type
 type type_binding = defined_type * string
 
 type expr =
   | IntLiteral of int
   | FloatLiteral of float (* should this be string? *)
   | BoolLiteral of bool
-  (* tuple type name -> list of tuple children? not sure if there is a way to explicetly define a tuple *)
-  | TupleLiteral of string * expr list
+  | TupleLiteral of defined_type list * expr list
   | CharLiteral of char
   | UnitLiteral of unit
   | Ident of string
@@ -50,7 +64,9 @@ type pipe_declaration = {
   (* could also enforce sorting from large to small (left to right) *)
   lifetimes : string list;
   formals : type_binding list;
-  locals : type_binding list;
+  locals : type_binding list; (* ask richard *)
   return_type : defined_type;
   body : stmt list;
 }
+
+type program = type_binding list * pipe_declaration list
