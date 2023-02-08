@@ -2,8 +2,7 @@
 
 let digit = ['0' - '9']
 let number = digit+
-(* any number of ascii characters wrapped with "" *)
-let str = "[\x00-\x7F]*"
+let str_contents = [\x00-\x7F]*
 
 rule token = parse
   | [' ' '\t' '\r' '\n'] { token lexbuf } (* Whitespace *)
@@ -65,7 +64,7 @@ rule token = parse
   | number as lxm { LITERAL(int_of_string lxm) }
   | number '.'  digit* as lxm { FLIT(lxm) }
   | ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { ID(lxm) }
-  | str as lxm { STR(lxm) }
+  | '"' str_contents '"'  as lxm { STR(lxm) }
 
   | eof { EOF }
   | _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
