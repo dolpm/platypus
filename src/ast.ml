@@ -26,6 +26,7 @@ type defined_type =
   | Vector of defined_type
   | Fluid of defined_type
   | Ref of defined_type
+  | Deref of defined_type
   | Sig of defined_type list * defined_type
   | Thing of (defined_type * string) list
   | Box of defined_type

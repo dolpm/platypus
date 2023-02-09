@@ -16,6 +16,7 @@ rule token = parse
   | ']'      { RBRACKET }
   | ';'      { SEMI }
   | ','      { COMMA }
+  | ':'      { COLON }
 
   | '+'      { PLUS }
   | '-'      { MINUS }
@@ -23,6 +24,7 @@ rule token = parse
   | '/'      { DIVIDE }
 
   | '&'      { REF }
+  | '@'      { DEREF }
   | '~'      { FLUID }
 
   | "<|"     { LPIPE }
@@ -39,7 +41,7 @@ rule token = parse
 
   | '!'      { NOT }
 
-  | "on"     { ON }
+  | "as"     { AS }
   | "pipe"   { PIPE }
 
   | "if"     { IF }
@@ -58,6 +60,10 @@ rule token = parse
   | "string" { STRING }
   | "thing"  { THING }
 
+  | "box"    { BOX }
+  | "collection" { COLLECTION }
+  | "option" { OPTION }
+
   | "true"   { BLIT(true)  }
   | "false"  { BLIT(false) }
 
@@ -72,12 +78,3 @@ rule token = parse
 and comment = parse
   | "*/" { token lexbuf }
   | _    { comment lexbuf }
-
-
-(* 
-  TODO:
-    - signatures?
-    - user-defined types (e.g., things)?
-    - collection/array type?
-    - boxes?
-*)
