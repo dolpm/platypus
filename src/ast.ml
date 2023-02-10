@@ -21,12 +21,13 @@ type defined_type =
   | Tuple
   | Unit
   | Char
-  | String of defined_type
-  | List of defined_type
+  | String
+  (* | List of defined_type *)
   | Vector of defined_type
   | Fluid of defined_type
   | Ref of defined_type
-  | Deref of defined_type
+    (* why is this here? this is an operation.. should replace w/ mut keyword I think... *)
+  | Deref of defined_type (* why is this here? this is an operation *)
   | Sig of defined_type list * defined_type
   | Thing of (defined_type * string) list
   | Box of defined_type
@@ -68,7 +69,8 @@ type pipe_declaration = {
   (* could also enforce sorting from large to small (left to right) *)
   lifetimes : string list;
   formals : type_binding list;
-  locals : type_binding list; (* ask richard *)
+  (* locals : type_binding list; *)
+  (* ask richard about why locals need to be here? *)
   return_type : defined_type;
   body : stmt list;
 }
