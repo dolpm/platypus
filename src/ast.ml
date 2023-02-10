@@ -1,3 +1,17 @@
+type defined_type =
+  | Int
+  | Float
+  | Bool
+  | Tuple
+  | Unit
+  | Char
+  | String
+  | Vector of defined_type
+  | Sig of defined_type list * defined_type
+  | Thing of (defined_type * string) list
+  | Box of defined_type
+  | Option of defined_type
+
 type binary_operator =
   | Add
   | Sub
@@ -12,29 +26,11 @@ type binary_operator =
   | And
   | Or
 
-type unary_operator = Neg | Not
-
-type defined_type =
-  | Int
-  | Float
-  | Bool
-  | Tuple
-  | Unit
-  | Char
-  | String
-  (* | List of defined_type *)
-  | Vector of defined_type
-  | Fluid of defined_type
-  | Ref of defined_type
-    (* why is this here? this is an operation.. should replace w/ mut keyword I think... *)
-  | Deref of defined_type (* why is this here? this is an operation *)
-  | Sig of defined_type list * defined_type
-  | Thing of (defined_type * string) list
-  | Box of defined_type
-  | Option of defined_type
-
+type unary_operator = Neg | Not | Deref of defined_type | Ref of defined_type
 type fn_sig = defined_type list * defined_type
-type type_binding = defined_type * string
+
+(* is_fluid (mutable), type, name bound *)
+type type_binding = bool * defined_type * string
 
 type expr =
   | IntLiteral of int

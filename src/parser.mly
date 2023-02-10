@@ -2,7 +2,7 @@
 
 %token SEMI LPAREN RPAREN LBRACE RBRACE COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
 %token NOT EQ NEQ LT LEQ GT GEQ AND OR REF FLUID THING
-%token IF ELSE LOOP WHILE VIS CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
+%token IF ELSE LOOP WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> LITERAL
 %token <bool> BLIT
 %token <string> ID FLIT STR
@@ -38,16 +38,18 @@ typ:
   | TUPLE { Tuple }
   | UNIT  { Unit }
   | CHAR  { Char }
-  | String { String }
-  | Vector  { Vector($1) }
+  | STRING { String }
+  | VECTOR  { Vector($1) }
   | FLUID  { Fluid($1) }
   | REF  { Ref($1) }
   | THING  { Thing($1) }
+  | BOX  { Box($1) }
+  | OPTION  { Option($1) }
 
 
 decls:
  | /* nothing */ { ([], [])               }
- | decls vdecl { (($2 :: fst $1), snd $1) }
+ | decls tdecl { (($2 :: fst $1), snd $1) }
  | decls pdecl { (fst $1, ($2 :: snd $1)) }
 
 (* START pipe declarations *)
@@ -88,3 +90,20 @@ formal_list:
   | typ ID                   { [($1,$2)] }
   | formal_list COMMA typ ID { ($3,$4) :: $1 }
 (* END pipe declarations *)
+(* START thing declarations *)
+(*
+  gonna omit visibility keyword for now since
+  we don't have import/export
+
+  example:
+  thing MyThing <| {
+    x: int,
+    y: string,
+  }
+*)
+tdecl:
+  THING ID LPIPE
+  LBRACE
+
+  RBRACE
+(* END thing declarations *)
