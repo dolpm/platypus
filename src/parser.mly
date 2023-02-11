@@ -161,10 +161,9 @@ args_list:
   }
 *)
 tdecl:
-  THING ID LPIPE
-  LBRACE
-
-  RBRACE
+  | THING ID LPIPE LBRACE
+      thing_child_list
+    RBRACE
 
 (* todo how do we allow user-defined types in here (like other things)? *)
 thing_child_decl:
