@@ -151,13 +151,10 @@ args_list:
   | args_list COMMA expr { $3 :: $1 }
 
 (*
-  gonna omit visibility keyword for now since
-  we don't have import/export
-
   example:
   thing MyThing <| {
     x: int,
-    y: string,
+    y: string
   }
 *)
 tdecl:

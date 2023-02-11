@@ -51,7 +51,6 @@ rule token = parse
 
   | "loop"   { LOOP }
   | "while"  { WHILE }
-  | "vis"    { VIS }
 
   | "char"   { CHAR }
   | "int"    { INT }
