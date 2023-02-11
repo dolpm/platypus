@@ -26,7 +26,7 @@ type binary_operator =
   | And
   | Or
 
-type unary_operator = Neg | Not | Deref of defined_type | Ref of defined_type
+type unary_operator = Neg | Not | Deref | Ref
 type fn_sig = defined_type list * defined_type
 
 (* is_fluid (mutable), type, name bound *)
@@ -34,11 +34,13 @@ type type_binding = bool * defined_type * string
 
 type expr =
   | IntLiteral of int
-  | FloatLiteral of float (* should this be string? *)
+  | FloatLiteral of string
   | BoolLiteral of bool
   | TupleLiteral of defined_type list * expr list
   | CharLiteral of char
   | UnitLiteral of unit
+  | StringLiteral of
+      string (* just added this - I think maybe it'll be nice to have *)
   | Ident of string
   | Binop of expr * binary_operator * expr
   | Unop of unary_operator * expr

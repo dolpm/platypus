@@ -2,10 +2,12 @@
 
 %token SEMI DOT LPAREN RPAREN LBRACE RBRACE COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
 %token NOT EQ NEQ LT LEQ GT GEQ AND OR REF FLUID THING
-%token IF ELSE LOOP WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
-%token <int> LITERAL
-%token <bool> BLIT
-%token <string> ID FLIT STR
+%token IF ELSE WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
+%token <int> INTLIT
+%token <char> CHARLIT
+%token <bool> BOOLLIT
+%token <string> ID FLOATLIT STRINGLIT
+%token UNITLIT
 %token EOF
 
 %start program
@@ -108,9 +110,46 @@ stmt:
 expr_opt:
   | { Noexpr }
   | expr { $1 }
-(* END pipe declarations *)
 
-(* START thing declarations *)
+expr:
+  | INTLIT          { IntLitearl($1)            }
+  | FLOATLIT	           { Floatliteral($1)           }
+  | BOOLLIT             { BoolLiteral($1)            }
+  | CHARLIT            { CharLiteral($1) }
+  | STRINGLIT            { StringLiteral($1) }
+  | UNITLIT           { UnitLiteral }
+  | ID               { Id($1)                 }
+  
+  | expr PLUS   expr { Binop($1, Add,   $3)   }
+  | expr MINUS  expr { Binop($1, Sub,   $3)   }
+  | expr TIMES  expr { Binop($1, Mult,  $3)   }
+  | expr DIVIDE expr { Binop($1, Div,   $3)   }
+  | expr EQ     expr { Binop($1, Equal, $3)   }
+  | expr NEQ    expr { Binop($1, Neq,   $3)   }
+  | expr LT     expr { Binop($1, Lt,  $3)   }
+  | expr LEQ    expr { Binop($1, Leq,   $3)   }
+  | expr GT     expr { Binop($1, Gt, $3) }
+  | expr GEQ    expr { Binop($1, Geq,   $3)   }
+  | expr AND    expr { Binop($1, And,   $3)   }
+  | expr OR     expr { Binop($1, Or,    $3)   }
+
+  | MINUS expr %prec NOT { Unop(Neg, $2)      }
+  | NOT expr         { Unop(Not, $2)          }
+  | DEREF expr       { Unop(Deref, $2)      }
+  | REF expr         { Unop(Ref, $2)          }
+
+  | ID LPIPE expr   { Assign($1, $3)         }
+  | ID LPIPE LBRACKET args_opt RBRACKET { PipeIn($1, $4)  }
+  | LPAREN expr RPAREN { $2                   }
+
+args_opt:
+  | { [] }
+  | args_list  { List.rev $1 }
+
+args_list:
+  | expr                    { [$1] }
+  | args_list COMMA expr { $3 :: $1 }
+
 (*
   gonna omit visibility keyword for now since
   we don't have import/export
@@ -124,6 +163,13 @@ expr_opt:
 tdecl:
   THING ID LPIPE
   LBRACE
-  
+
   RBRACE
-(* END thing declarations *)
+
+(* todo how do we allow user-defined types in here (like other things)? *)
+thing_child_decl:
+  | ID COLON typ
+
+thing_child_list:
+  | thing_child_decl                        { [$1] }
+  | thing_child_list COMMA thing_child_decl { $3 :: $1 }

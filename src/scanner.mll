@@ -2,7 +2,8 @@
 
 let digit = ['0' - '9']
 let number = digit+
-let str_contents = [\x00-\x7F]*
+let character = [\x00-\x7F]
+let str = character*
 
 rule token = parse
   | [' ' '\t' '\r' '\n'] { token lexbuf } (* Whitespace *)
@@ -65,13 +66,14 @@ rule token = parse
   | "collection" { COLLECTION }
   | "option" { OPTION }
 
-  | "true"   { BLIT(true)  }
-  | "false"  { BLIT(false) }
-
-  | number as lxm { LITERAL(int_of_string lxm) }
-  | number '.'  digit* as lxm { FLIT(lxm) }
+  | "()"     { UNITLIT }
+  | "true"   { BOOLLIT(true)  }
+  | "false"  { BOOLLIT(false) }
+  | '\x27' character '\x27' as lxm { CHARLIT(lxm) }
+  | number as lxm { INTLIT(int_of_string lxm) }
+  | number '.'  digit* as lxm { FLOATLIT(lxm) }
   | ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { ID(lxm) }
-  | '"' str_contents '"'  as lxm { STR(lxm) }
+  | '\x22' str '\x22' { STRINGLIT(str) }
 
   | eof { EOF }
   | _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
