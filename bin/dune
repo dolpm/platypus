@@ -1,0 +1,20 @@
+(executable
+ (public_name platypus)
+ (name toplevel)
+ (libraries platypus))
+
+(rule
+ (target scanner.ml)
+ (deps scanner.mll)
+ (action
+  (chdir
+   %{workspace_root}
+   (run %{bin:ocamllex} -q -o %{target} %{deps}))))
+
+(rule
+ (targets parser.ml parser.mli)
+ (deps parser.mly)
+ (action
+  (chdir
+   %{workspace_root}
+   (run %{bin:ocamlyacc} %{deps}))))

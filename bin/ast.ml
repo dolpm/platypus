@@ -8,9 +8,12 @@ type defined_type =
   | String
   | Vector of defined_type
   | Sig of defined_type list * defined_type
-  | Thing of (defined_type * string) list
+  (* thing names are user-defined *)
+  (* | Thing of string *)
   | Box of defined_type
   | Option of defined_type
+  | Ref of defined_type
+  | Fluid of defined_type
 
 type binary_operator =
   | Add
@@ -37,8 +40,9 @@ type expr =
   | FloatLiteral of string
   | BoolLiteral of bool
   | TupleLiteral of defined_type list * expr list
+  | ThingLiteral of (bool * defined_type * string) list
   | CharLiteral of char
-  | UnitLiteral of unit
+  | UnitLiteral
   | StringLiteral of
       string (* just added this - I think maybe it'll be nice to have *)
   | Ident of string

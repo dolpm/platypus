@@ -2,7 +2,7 @@
 
 let digit = ['0' - '9']
 let number = digit+
-let character = [\x00-\x7F]
+let character = ['\x00'-'\x7F']
 let str = character*
 
 rule token = parse
@@ -62,7 +62,7 @@ rule token = parse
   | "thing"  { THING }
 
   | "box"    { BOX }
-  | "collection" { COLLECTION }
+  | "vector" { VECTOR }
   | "option" { OPTION }
 
   | "()"     { UNITLIT }

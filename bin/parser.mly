@@ -1,16 +1,12 @@
 %{ open Ast %}
 
-(*
-  todo we should have some notion of static variables
-*)
-
-%token SEMI DOT LPAREN RPAREN LBRACE RBRACE COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
-%token NOT EQ NEQ LT LEQ GT GEQ AND OR REF FLUID THING
-%token IF ELSE WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
+%token SEMI DOT COLON LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
+%token NOT EQ NEQ LT LEQ GT GEQ AND OR REF DEREF FLUID THING
+%token IF ELSE NOELSE WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> INTLIT
 %token <char> CHARLIT
 %token <bool> BOOLLIT
-%token <string> ID FLOATLIT STRINGLIT
+%token <string> IDENT FLOATLIT STRINGLIT
 %token UNITLIT
 %token EOF
 
@@ -45,26 +41,23 @@ typ:
   | UNIT  { Unit }
   | CHAR  { Char }
   | STRING { String }
-  | VECTOR  { Vector($1) }
-  | FLUID  { Fluid($1) }
-  | REF  { Ref($1) }
-  | THING  { Thing($1) }
-  | BOX  { Box($1) }
-  | OPTION  { Option($1) }
+  | VECTOR LBRACKET typ RBRACKET   { Vector($3) }
+  /* don't need Thing, but the defined thing's... */
+  /* | THING LBRACKET typ RBRACKET { Thing($3) } */
+  | BOX LBRACKET typ RBRACKET  { Box($3) }
+  | OPTION LBRACKET typ RBRACKET  { Option($3) }
+  | REF typ { Ref($2) }
+  | FLUID typ  { Fluid($2) }
 
 
 decls:
- | /* nothing */ { ([], [])               }
+ | { ([], [])                             } 
  | decls tdecl { (($2 :: fst $1), snd $1) }
  | decls pdecl { (fst $1, ($2 :: snd $1)) }
 
-(* START pipe declarations *)
-(*
-  TODO:
-    - should lifetimes be optional if they aren't needed?
-*)
+/* optional lifetimes? */
 pdecl:
-  PIPE ID RPIPE
+  PIPE IDENT RPIPE
     LBRACKET lifetime_opt RBRACKET RPIPE
     LBRACKET formals_opt RBRACKET RPIPE
     typ
@@ -73,7 +66,8 @@ pdecl:
     RBRACE
     {
       {
-        lifetiems = List.rev $5;
+        name = $2;
+        lifetimes = List.rev $5;
         formals = List.rev $9;
         return_type = $12;
         body = List.rev $14;
@@ -85,19 +79,20 @@ lifetime_opt:
   | lifetime_list   { $1 }
 
 lifetime_list:
-  | string                   { [$1] }
-  | lifetime_list COMMA string { $3 :: $1 }
+  | STRINGLIT                   { [$1] }
+  | lifetime_list COMMA STRINGLIT { $3 :: $1 }
 
 formals_opt:
   | { [] }
-  | formal_list   { [$1] }
+  | formal_list   { $1 }
 
+/* currently just doing false for mutable but this should be handled */
 formal_list:
-  | typ ID                   { [($1,$2)] }
-  | formal_list COMMA typ ID { ($3,$4) :: $1 }
+  | IDENT COLON typ                   { [(false,$3,$1)] }
+  | formal_list COMMA IDENT COLON typ { (false,$5,$3) :: $1 }
 
 stmt_list:
-    /* nothing */  { [] }
+  | { [] }
   | stmt_list stmt { $2 :: $1 }
 
 stmt:
@@ -107,22 +102,22 @@ stmt:
   | IF LPAREN expr RPAREN stmt %prec NOELSE { If($3, $5, Block([])) }
   | IF LPAREN expr RPAREN stmt ELSE stmt    { If($3, $5, $7)        }
   | LOOP expr DOT DOT expr AS
-    LPAREN expr COMMA expr RPAREN stmt      { For($2, $5, $8, $10, $12)   }
-  | LOOP expr DOT DOT expr AS expr stmt     { For($2, $5, $7, IntLiteral(1), $8) }
+    LPAREN expr COMMA expr RPAREN stmt      { Loop($2, $5, $8, $10, $12)   }
+  | LOOP expr DOT DOT expr AS expr stmt     { Loop($2, $5, $7, IntLiteral(1), $8) }
   | WHILE LPAREN expr RPAREN stmt           { While($3, $5)         }
 
 expr_opt:
-  | { Noexpr }
+  | { NoExpr }
   | expr { $1 }
 
 expr:
-  | INTLIT          { IntLitearl($1)            }
-  | FLOATLIT	           { Floatliteral($1)           }
+  | INTLIT          { IntLiteral($1)            }
+  | FLOATLIT	           { FloatLiteral($1)           }
   | BOOLLIT             { BoolLiteral($1)            }
   | CHARLIT            { CharLiteral($1) }
   | STRINGLIT            { StringLiteral($1) }
   | UNITLIT           { UnitLiteral }
-  | ID               { Id($1)                 }
+  | IDENT               { Ident($1)                 }
   
   | expr PLUS   expr { Binop($1, Add,   $3)   }
   | expr MINUS  expr { Binop($1, Sub,   $3)   }
@@ -142,8 +137,8 @@ expr:
   | DEREF expr       { Unop(Deref, $2)      }
   | REF expr         { Unop(Ref, $2)          }
 
-  | ID LPIPE expr   { Assign($1, $3)         }
-  | ID LPIPE LBRACKET args_opt RBRACKET { PipeIn($1, $4)  }
+  | IDENT LPIPE expr   { Assign($1, $3)         }
+  | IDENT LPIPE LBRACKET args_opt RBRACKET { PipeIn($1, $4)  }
   | LPAREN expr RPAREN { $2                   }
 
 args_opt:
@@ -154,22 +149,19 @@ args_list:
   | expr                    { [$1] }
   | args_list COMMA expr { $3 :: $1 }
 
-(*
+/*
   example:
   thing MyThing <| {
     x: int,
     y: string
   }
-*)
+*/
 tdecl:
-  | THING ID LPIPE LBRACE
+  | THING IDENT LPIPE LBRACE
       thing_child_list
-    RBRACE
+    RBRACE { ThingLiteral($5) }
 
-(* todo how do we allow user-defined types in here (like other things)? *)
-thing_child_decl:
-  | ID COLON typ
-
+/* currently just doing false for mutable but this should be handled */
 thing_child_list:
-  | thing_child_decl                        { [$1] }
-  | thing_child_list COMMA thing_child_decl { $3 :: $1 }
+  | IDENT COLON typ                        { [(false, $3, $1)] }
+  | thing_child_list COMMA IDENT COLON typ { (false, $5, $3) :: $1 }
