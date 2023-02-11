@@ -1,6 +1,6 @@
 %{ open Ast %}
 
-%token SEMI LPAREN RPAREN LBRACE RBRACE COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
+%token SEMI DOT LPAREN RPAREN LBRACE RBRACE COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
 %token NOT EQ NEQ LT LEQ GT GEQ AND OR REF FLUID THING
 %token IF ELSE LOOP WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> LITERAL
@@ -80,7 +80,7 @@ lifetime_opt:
 
 lifetime_list:
   | string                   { [$1] }
-  | formal_list COMMA string { $3 :: $1 }
+  | lifetime_list COMMA string { $3 :: $1 }
 
 formals_opt:
   | { [] }
@@ -89,7 +89,27 @@ formals_opt:
 formal_list:
   | typ ID                   { [($1,$2)] }
   | formal_list COMMA typ ID { ($3,$4) :: $1 }
+
+stmt_list:
+    /* nothing */  { [] }
+  | stmt_list stmt { $2 :: $1 }
+
+stmt:
+  | expr SEMI                               { Expr $1               }
+  | RPIPE expr_opt SEMI                     { PipeOut $2            }
+  | LBRACE stmt_list RBRACE                 { Block(List.rev $2)    }
+  | IF LPAREN expr RPAREN stmt %prec NOELSE { If($3, $5, Block([])) }
+  | IF LPAREN expr RPAREN stmt ELSE stmt    { If($3, $5, $7)        }
+  | LOOP expr DOT DOT expr AS
+    LPAREN expr COMMA expr RPAREN stmt      { For($2, $5, $8, $10, $12)   }
+  | LOOP expr DOT DOT expr AS expr stmt     { For($2, $5, $7, IntLiteral(1), $8) }
+  | WHILE LPAREN expr RPAREN stmt           { While($3, $5)         }
+
+expr_opt:
+  | { Noexpr }
+  | expr { $1 }
 (* END pipe declarations *)
+
 (* START thing declarations *)
 (*
   gonna omit visibility keyword for now since
@@ -104,6 +124,6 @@ formal_list:
 tdecl:
   THING ID LPIPE
   LBRACE
-
+  
   RBRACE
 (* END thing declarations *)

@@ -54,7 +54,7 @@ type stmt =
   | PipeOut of expr
   (* expression resolving to boolean, if true, if false *)
   | If of expr * stmt * stmt
-  (* range start, range end, var name, range step, statement *)
+  (* range start, range end, var name, range step if provided, statement *)
   | Loop of expr * expr * expr * expr * stmt
   | While of expr * stmt
 
