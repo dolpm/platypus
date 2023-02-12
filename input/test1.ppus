@@ -19,9 +19,19 @@ pipe fib |> ['a] |> [n: &'a int] |> int {
 }
 
 pipe main |> [] |> [] |> unit {
+  
   loop 0 -> 5 as i {
     printnl <| [int_to_string <| [fib <| [i]]];
   }
+
+  loop 0 -> 5 as i,2 {
+    printnl <| [int_to_string <| [fib <| [i]]];
+  }
+
+  thing[MyThing] t <| MyThing {
+    im_a_string: "string",
+    im_an_int: 0
+  };
 
   int x <| 0;
   while x < 5 {

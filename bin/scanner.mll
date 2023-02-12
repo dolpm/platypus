@@ -2,7 +2,8 @@
 
 let digit = ['0' - '9']
 let number = digit+
-let character = ['\x00'-'\x7F']
+(* todo: make sure all ascii's can be accepted here (0-255) MINUS \x22 *)
+let character = [^'\x22']
 let str = character*
 let ident = ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
@@ -75,7 +76,7 @@ rule token = parse
   | '\x27' ident  as lxm { LIFETIME(lxm) }
   (* todo tuple and thing literal regex *)
   | ident as lxm { IDENT(lxm) }
-  | '\x22' str '\x22' as lxm { STRINGLIT(String.sub lxm 1 (String.length lxm - 2)) }
+  | '\x22' str '\x22' as lxm { STRINGLIT(String.sub lxm 1 ((String.length lxm) - 2)) }
   | eof { EOF }
   | _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
 

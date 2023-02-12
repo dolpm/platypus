@@ -1,0 +1,24 @@
+thing MyThing <| {
+  im_a_string: string,
+  im_an_int: int
+}
+
+pipe fib |> ['a] |> [n: &'a int] |> int {
+  
+  'x';'y';
+  
+ 
+}
+
+pipe main |> [] |> [] |> unit {
+
+  'y';
+  thing[MyThing] t <| MyThing {
+    im_a_string: "string",
+    im_an_int: 0
+  };
+
+ 
+  
+  |> ();
+}

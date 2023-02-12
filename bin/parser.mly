@@ -42,14 +42,13 @@ typ:
   | CHAR  { Char }
   | STRING { String }
   | VECTOR LBRACKET typ RBRACKET   { Vector($3) }
-  /* don't need Thing, but the defined thing's... */
-  /* | THING LBRACKET typ RBRACKET { Thing($3) } */
   | BOX LBRACKET typ RBRACKET  { Box($3) }
   | OPTION LBRACKET typ RBRACKET  { Option($3) }
   | REF LIFETIME typ { Ref($3, $2) }
   /* infer lifetime as static if not provided? */
   | REF typ { Ref($2, "'static") }
   | FLUID typ  { Fluid($2) }
+  | THING LBRACKET IDENT RBRACKET { ThingInstance($3) }
 
 
 decls:
@@ -103,9 +102,9 @@ stmt:
   | LBRACE stmt_list RBRACE                 { Block(List.rev $2)    }
   | IF expr stmt %prec NOELSE { If($2, $3, Block([])) }
   | IF expr stmt ELSE stmt    { If($2, $3, $5)        }
-  | LOOP expr RANGE expr AS expr stmt       { Loop($2, $4, $6, IntLiteral(1), $7) }
+  | LOOP expr RANGE expr AS IDENT stmt       { Loop($2, $4, $6, IntLiteral(1), $7) }
   | LOOP expr RANGE expr AS
-    expr COMMA expr stmt      { Loop($2, $4, $6, $8, $9)   }
+    IDENT COMMA expr stmt      { Loop($2, $4, $6, $8, $9)   }
   | WHILE expr stmt                         { While($2, $3)         }
   | typ IDENT LPIPE expr SEMI   { Assign($1, $2, $4)         }
   | IDENT LPIPE expr SEMI   { ReAssign($1, $3)         }
@@ -113,6 +112,10 @@ stmt:
 expr_opt:
   | { NoExpr }
   | expr { $1 }
+
+thing_child_assn_list:
+  | IDENT COLON expr                              { [($1, $3)] }
+  | thing_child_assn_list COMMA IDENT COLON expr       { ($3, $5) :: $1 }
 
 expr:
   | INTLIT          { IntLiteral($1)            }
@@ -122,6 +125,9 @@ expr:
   | STRINGLIT            { StringLiteral($1) }
   | UNITLIT           { UnitLiteral }
   | IDENT               { Ident($1)                 }
+  | IDENT LBRACE
+     thing_child_assn_list
+    RBRACE              { ThingValue($1, $3) }
   /*
   | THINGLIT            { ThingLiteral($1) } 
   | TUPLELIT            { TupleLiteral($1) 

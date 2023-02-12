@@ -16,6 +16,7 @@ type defined_type =
   | Fluid of defined_type
   (* name, children names --> children types *)
   | Thing of string * (string * defined_type) list
+  | ThingInstance of string
 
 type binary_operator =
   | Add
@@ -43,12 +44,12 @@ type expr =
   | BoolLiteral of bool
   (*
   | TupleLiteral of defined_type list * expr list
-  | ThingLiteral of defined_type list * expr list
   *)
   | CharLiteral of char
   | UnitLiteral
-  | StringLiteral of
-      string (* just added this - I think maybe it'll be nice to have *)
+  | StringLiteral of string
+  (* assignable thing value *)
+  | ThingValue of string * (string * expr) list
   | Ident of string
   | Binop of expr * binary_operator * expr
   | Unop of unary_operator * expr
@@ -64,7 +65,7 @@ type stmt =
   (* expression resolving to boolean, if true, if false *)
   | If of expr * stmt * stmt
   (* range start, range end, var name, range step if provided, statement *)
-  | Loop of expr * expr * expr * expr * stmt
+  | Loop of expr * expr * string * expr * stmt
   | While of expr * stmt
   | Assign of defined_type * string * expr
   | ReAssign of string * expr
@@ -121,6 +122,7 @@ let rec string_of_typ = function
   | Fluid t -> "~[" ^ string_of_typ t ^ "]"
   (* do we want to print children here? *)
   | Thing (n, _) -> n
+  | ThingInstance v -> "thing[" ^ v ^ "]"
 
 let rec string_of_expr = function
   | IntLiteral l -> string_of_int l
@@ -130,6 +132,13 @@ let rec string_of_expr = function
   | CharLiteral c -> "\x27" ^ String.make 1 c ^ "\x27"
   | UnitLiteral -> "()"
   | StringLiteral s -> "\x22" ^ s ^ "\x22"
+  | ThingValue (name, children) ->
+      name ^ " {\n"
+      ^ String.concat ",\n"
+          (List.map
+             (fun (c_name, e) -> "    " ^ c_name ^ ": " ^ string_of_expr e)
+             children)
+      ^ "\n  }"
   | Ident s -> s
   | Binop (e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_op o ^ " " ^ string_of_expr e2
@@ -163,9 +172,8 @@ let rec string_of_stmt stmt pad =
       | If (_, _, _) -> string_of_stmt s2 pad
       | _ -> string_of_stmt s2 (pad + 1))
   | Loop (e1, e2, e3, e4, s) ->
-      (* todo figure out how to match both types (e.g., when step is omitted) *)
       indent pad ^ "loop " ^ string_of_expr e1 ^ " -> " ^ string_of_expr e2
-      ^ " as " ^ string_of_expr e3 ^ "," ^ string_of_expr e4
+      ^ " as " ^ e3 ^ "," ^ string_of_expr e4
       ^ string_of_stmt s (pad + 1)
   | While (e, s) ->
       indent pad ^ "while " ^ string_of_expr e ^ "\n"
