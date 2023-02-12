@@ -11,7 +11,7 @@ pipe fib |> ['a] |> [n: &'a int] |> int {
   
   if n == 0 {
     |> 0;
-  } else if n == 1 && n == 2 {
+  } else if n == 1 or n == 2 {
     |> 1;
   }
 
