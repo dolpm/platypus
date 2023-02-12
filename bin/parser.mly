@@ -101,11 +101,11 @@ stmt:
   | expr SEMI                               { Expr $1               }
   | RPIPE expr_opt SEMI                     { PipeOut $2            }
   | LBRACE stmt_list RBRACE                 { Block(List.rev $2)    }
-  | IF LPAREN expr RPAREN stmt %prec NOELSE { If($3, $5, Block([])) }
-  | IF LPAREN expr RPAREN stmt ELSE stmt    { If($3, $5, $7)        }
+  | IF expr stmt %prec NOELSE { If($2, $3, Block([])) }
+  | IF expr stmt ELSE stmt    { If($2, $3, $5)        }
   | LOOP expr RANGE expr AS expr stmt       { Loop($2, $4, $6, IntLiteral(1), $7) }
   | LOOP expr RANGE expr AS
-    LPAREN expr COMMA expr RPAREN stmt      { Loop($2, $4, $7, $9, $11)   }
+    expr COMMA expr stmt      { Loop($2, $4, $6, $8, $9)   }
   | WHILE expr stmt                         { While($2, $3)         }
   | typ IDENT LPIPE expr SEMI   { Assign($1, $2, $4)         }
   | IDENT LPIPE expr SEMI   { ReAssign($1, $3)         }
