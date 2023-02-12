@@ -118,6 +118,10 @@ expr:
   | STRINGLIT            { StringLiteral($1) }
   | UNITLIT           { UnitLiteral }
   | IDENT               { Ident($1)                 }
+  /*
+  | THINGLIT            { ThingLiteral($1) } 
+  | TUPLELIT            { TupleLiteral($1) 
+  */
   
   | expr PLUS   expr { Binop($1, Add,   $3)   }
   | expr MINUS  expr { Binop($1, Sub,   $3)   }
@@ -157,11 +161,11 @@ args_list:
   }
 */
 tdecl:
-  | THING IDENT LPIPE LBRACE
-      thing_child_list
-    RBRACE { ThingLiteral($5) }
+  THING IDENT LPIPE LBRACE
+    thing_child_list
+  RBRACE { Thing($2, List.rev $5) }
 
 /* currently just doing false for mutable but this should be handled */
 thing_child_list:
-  | IDENT COLON typ                        { [(false, $3, $1)] }
-  | thing_child_list COMMA IDENT COLON typ { (false, $5, $3) :: $1 }
+  | IDENT COLON typ                        { [($1, $3)] }
+  | thing_child_list COMMA IDENT COLON typ { ($3, $5) :: $1 }

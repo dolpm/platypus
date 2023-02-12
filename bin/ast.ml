@@ -14,6 +14,8 @@ type defined_type =
   | Option of defined_type
   | Ref of defined_type
   | Fluid of defined_type
+  (* name, children names --> children types *)
+  | Thing of string * (string * defined_type) list
 
 type binary_operator =
   | Add
@@ -39,8 +41,10 @@ type expr =
   | IntLiteral of int
   | FloatLiteral of string
   | BoolLiteral of bool
+  (*
   | TupleLiteral of defined_type list * expr list
-  | ThingLiteral of (bool * defined_type * string) list
+  | ThingLiteral of defined_type list * expr list
+  *)
   | CharLiteral of char
   | UnitLiteral
   | StringLiteral of
@@ -77,4 +81,6 @@ type pipe_declaration = {
   body : stmt list;
 }
 
-type program = type_binding list * pipe_declaration list
+type program = defined_type list * pipe_declaration list
+
+let string_of_program _p = ""

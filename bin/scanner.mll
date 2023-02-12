@@ -68,12 +68,12 @@ rule token = parse
   | "()"     { UNITLIT }
   | "true"   { BOOLLIT(true)  }
   | "false"  { BOOLLIT(false) }
-  | '\x27' character '\x27' as lxm { CHARLIT(lxm) }
+  | '\x27' character '\x27' as lxm { CHARLIT(String.get lxm 1) }
   | number as lxm { INTLIT(int_of_string lxm) }
   | number '.'  digit* as lxm { FLOATLIT(lxm) }
-  | ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { ID(lxm) }
-  | '\x22' str '\x22' { STRINGLIT(str) }
-
+  (* todo tuple and thing literal regex *)
+  | ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { IDENT(lxm) }
+  | '\x22' str '\x22' as lxm { STRINGLIT(String.sub lxm 1 (String.length lxm - 1)) }
   | eof { EOF }
   | _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
 
