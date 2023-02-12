@@ -20,7 +20,13 @@ pipe fib |> ['a] |> [n: &'a int] |> int {
 
 pipe main |> [] |> [] |> unit {
   loop 0 -> 5 as i {
-    printnl <| (int_to_string <| (fib <| [i]));
+    printnl <| [int_to_string <| [fib <| [i]]];
   }
+
+  int x <| 0;
+  while x < 5 {
+    x <| (x + 1);
+  }
+
   |> ();
 }

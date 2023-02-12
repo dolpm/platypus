@@ -1,6 +1,6 @@
 %{ open Ast %}
 
-%token SEMI RANGE COLON LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
+%token SEMI RANGE COLON LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN REASSIGN LPIPE RPIPE
 %token NOT EQ NEQ LT LEQ GT GEQ AND OR REF DEREF FLUID THING
 %token IF ELSE NOELSE WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> INTLIT
@@ -17,7 +17,7 @@
 %nonassoc ELSE
 
 %right LPIPE
-%right ASSIGN
+/* %right ASSIGN REASSIGN */
 
 %left OR
 %left AND
@@ -103,10 +103,12 @@ stmt:
   | LBRACE stmt_list RBRACE                 { Block(List.rev $2)    }
   | IF LPAREN expr RPAREN stmt %prec NOELSE { If($3, $5, Block([])) }
   | IF LPAREN expr RPAREN stmt ELSE stmt    { If($3, $5, $7)        }
-  | LOOP expr RANGE expr AS expr stmt     { Loop($2, $4, $6, IntLiteral(1), $7) }
+  | LOOP expr RANGE expr AS expr stmt       { Loop($2, $4, $6, IntLiteral(1), $7) }
   | LOOP expr RANGE expr AS
     LPAREN expr COMMA expr RPAREN stmt      { Loop($2, $4, $7, $9, $11)   }
-  | WHILE LPAREN expr RPAREN stmt           { While($3, $5)         }
+  | WHILE expr stmt                         { While($2, $3)         }
+  | typ IDENT LPIPE expr SEMI   { Assign($1, $2, $4)         }
+  | IDENT LPIPE expr SEMI   { ReAssign($1, $3)         }
 
 expr_opt:
   | { NoExpr }
@@ -143,7 +145,6 @@ expr:
   | DEREF expr       { Unop(Deref, $2)      }
   | REF expr         { Unop(Ref, $2)          }
 
-  | IDENT LPIPE expr   { Assign($1, $3)         }
   | IDENT LPIPE LBRACKET args_opt RBRACKET { PipeIn($1, $4)  }
   | LPAREN expr RPAREN { $2                   }
 

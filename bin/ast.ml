@@ -52,7 +52,6 @@ type expr =
   | Ident of string
   | Binop of expr * binary_operator * expr
   | Unop of unary_operator * expr
-  | Assign of string * expr
   (* function call, takes in fn name and a list of inputs *)
   | PipeIn of string * expr list
   | NoExpr
@@ -67,6 +66,8 @@ type stmt =
   (* range start, range end, var name, range step if provided, statement *)
   | Loop of expr * expr * expr * expr * stmt
   | While of expr * stmt
+  | Assign of defined_type * string * expr
+  | ReAssign of string * expr
 
 type pipe_declaration = {
   name : string;
@@ -105,6 +106,22 @@ let string_of_uop = function
   | Deref -> "@"
   | Ref -> "&"
 
+let rec string_of_typ = function
+  | Int -> "int"
+  | Float -> "float"
+  | Bool -> "bool"
+  | Tuple -> "tuple"
+  | Unit -> "unit"
+  | Char -> "char"
+  | String -> "string"
+  | Vector t -> "vector[" ^ string_of_typ t ^ "]"
+  | Box t -> "box[" ^ string_of_typ t ^ "]"
+  | Option t -> "option[" ^ string_of_typ t ^ "]"
+  | Ref (t, lt) -> "&" ^ lt ^ "[" ^ string_of_typ t ^ "]"
+  | Fluid t -> "~[" ^ string_of_typ t ^ "]"
+  (* do we want to print children here? *)
+  | Thing (n, _) -> n
+
 let rec string_of_expr = function
   | IntLiteral l -> string_of_int l
   | FloatLiteral l -> l
@@ -117,7 +134,6 @@ let rec string_of_expr = function
   | Binop (e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_op o ^ " " ^ string_of_expr e2
   | Unop (o, e) -> string_of_uop o ^ string_of_expr e
-  | Assign (v, e) -> v ^ " <| " ^ string_of_expr e
   | PipeIn (f, el) ->
       f ^ " <| [" ^ String.concat ", " (List.map string_of_expr el) ^ "]"
   | NoExpr -> ""
@@ -148,24 +164,10 @@ let rec string_of_stmt stmt pad =
       ^ " as (" ^ string_of_expr e3 ^ "," ^ string_of_expr e4 ^ ")"
       ^ string_of_stmt s (pad + 1)
   | While (e, s) ->
-      indent pad ^ "while (" ^ string_of_expr e ^ ") "
+      indent pad ^ "while " ^ string_of_expr e ^ "\n"
       ^ string_of_stmt s (pad + 1)
-
-let rec string_of_typ = function
-  | Int -> "int"
-  | Float -> "float"
-  | Bool -> "bool"
-  | Tuple -> "tuple"
-  | Unit -> "unit"
-  | Char -> "char"
-  | String -> "string"
-  | Vector t -> "vector[" ^ string_of_typ t ^ "]"
-  | Box t -> "box[" ^ string_of_typ t ^ "]"
-  | Option t -> "option[" ^ string_of_typ t ^ "]"
-  | Ref (t, lt) -> "&" ^ lt ^ "[" ^ string_of_typ t ^ "]"
-  | Fluid t -> "~[" ^ string_of_typ t ^ "]"
-  (* do we want to print children here? *)
-  | Thing (n, _) -> n
+  | Assign (t, v, e) -> indent pad ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
+  | ReAssign (v, e) -> indent pad ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
 
 let string_of_tdecl t =
   match t with
