@@ -1,13 +1,12 @@
 .PHONY : all
 all : platypus.native
 
-platypus.native :
+platypus.native : clean
 	opam exec -- \
 	dune build
-
-platypus.native.run : platypus.native
-	./_build/install/default/bin/platypus
+	cp ./_build/install/default/bin/platypus ./
 
 .PHONY : clean
 clean :
 	dune clean
+	rm -rf ./platypus

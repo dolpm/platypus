@@ -6,7 +6,7 @@
 %token <int> INTLIT
 %token <char> CHARLIT
 %token <bool> BOOLLIT
-%token <string> IDENT FLOATLIT STRINGLIT
+%token <string> IDENT FLOATLIT STRINGLIT LIFETIME
 %token UNITLIT
 %token EOF
 
@@ -46,7 +46,9 @@ typ:
   /* | THING LBRACKET typ RBRACKET { Thing($3) } */
   | BOX LBRACKET typ RBRACKET  { Box($3) }
   | OPTION LBRACKET typ RBRACKET  { Option($3) }
-  | REF typ { Ref($2) }
+  | REF LIFETIME typ { Ref($3, $2) }
+  /* infer lifetime as static if not provided? */
+  | REF typ { Ref($2, "'static") }
   | FLUID typ  { Fluid($2) }
 
 
@@ -79,8 +81,8 @@ lifetime_opt:
   | lifetime_list   { $1 }
 
 lifetime_list:
-  | STRINGLIT                   { [$1] }
-  | lifetime_list COMMA STRINGLIT { $3 :: $1 }
+  | LIFETIME                   { [$1] }
+  | lifetime_list COMMA LIFETIME { $3 :: $1 }
 
 formals_opt:
   | { [] }

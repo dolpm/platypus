@@ -4,6 +4,7 @@ let digit = ['0' - '9']
 let number = digit+
 let character = ['\x00'-'\x7F']
 let str = character*
+let ident = ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9' '_']*
 
 rule token = parse
   | [' ' '\t' '\r' '\n'] { token lexbuf } (* Whitespace *)
@@ -71,9 +72,10 @@ rule token = parse
   | '\x27' character '\x27' as lxm { CHARLIT(String.get lxm 1) }
   | number as lxm { INTLIT(int_of_string lxm) }
   | number '.'  digit* as lxm { FLOATLIT(lxm) }
+  | '\x27' ident  as lxm { LIFETIME(lxm) }
   (* todo tuple and thing literal regex *)
-  | ['a'-'z' 'A'-'Z']['a'-'z' 'A'-'Z' '0'-'9' '_']* as lxm { IDENT(lxm) }
-  | '\x22' str '\x22' as lxm { STRINGLIT(String.sub lxm 1 (String.length lxm - 1)) }
+  | ident as lxm { IDENT(lxm) }
+  | '\x22' str '\x22' as lxm { STRINGLIT(String.sub lxm 1 (String.length lxm - 2)) }
   | eof { EOF }
   | _ as char { raise (Failure("illegal character " ^ Char.escaped char)) }
 
