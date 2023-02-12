@@ -13,9 +13,9 @@ pipe fib |> ['a] |> [n: &'a int] |> int {
     |> 0;
   } else if n == 1 or n == 2 {
     |> 1;
+  } else {
+    |> (fib <| [n - 1]) + (fib <| [n - 2]);
   }
-
-  |> (fib <| [n - 1]) + (fib <| [n - 2]);
 }
 
 pipe main |> [] |> [] |> unit {

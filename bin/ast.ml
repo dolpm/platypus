@@ -147,17 +147,21 @@ let rec string_of_stmt stmt pad =
   | Block stmts ->
       indent (pad - 1)
       ^ "{\n"
-      ^ String.concat "" (List.map (fun s -> string_of_stmt s (pad + 1)) stmts)
+      ^ String.concat "" (List.map (fun s -> string_of_stmt s pad) stmts)
       ^ indent (pad - 1)
       ^ "}\n"
   | Expr expr -> indent pad ^ string_of_expr expr ^ ";\n"
   | PipeOut expr -> indent pad ^ "|> " ^ string_of_expr expr ^ ";\n"
   | If (e, s, Block []) ->
       indent pad ^ "if " ^ string_of_expr e ^ "\n" ^ string_of_stmt s (pad + 1)
-  | If (e, s1, s2) ->
+  | If (e, s1, s2) -> (
       indent pad ^ "if " ^ string_of_expr e ^ "\n"
       ^ string_of_stmt s1 (pad + 1)
-      ^ indent pad ^ "else\n" ^ string_of_stmt s2 pad
+      ^ indent pad ^ "else\n"
+      ^
+      match s2 with
+      | If (_, _, _) -> string_of_stmt s2 pad
+      | _ -> string_of_stmt s2 (pad + 1))
   | Loop (e1, e2, e3, e4, s) ->
       (* todo figure out how to match both types (e.g., when step is omitted) *)
       indent pad ^ "loop " ^ string_of_expr e1 ^ " -> " ^ string_of_expr e2
