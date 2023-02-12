@@ -144,7 +144,7 @@ let rec string_of_stmt stmt pad =
       ^ indent pad ^ "else\n" ^ string_of_stmt s2 pad
   | Loop (e1, e2, e3, e4, s) ->
       (* todo figure out how to match both types (e.g., when step is omitted) *)
-      indent pad ^ "loop " ^ string_of_expr e1 ^ ".." ^ string_of_expr e2
+      indent pad ^ "loop " ^ string_of_expr e1 ^ " -> " ^ string_of_expr e2
       ^ " as (" ^ string_of_expr e3 ^ "," ^ string_of_expr e4 ^ ")"
       ^ string_of_stmt s (pad + 1)
   | While (e, s) ->
@@ -172,8 +172,8 @@ let string_of_tdecl t =
   | Thing (s, l) ->
       "thing " ^ s ^ " |> {\n"
       ^ String.concat ",\n"
-          (List.map (fun (n, t) -> n ^ ": " ^ string_of_typ t) l)
-      ^ "}\n"
+          (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
+      ^ "\n}\n"
   | _ -> ""
 
 let string_of_pdecl pdecl =

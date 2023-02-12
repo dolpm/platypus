@@ -1,3 +1,8 @@
+thing MyThing <| {
+  im_a_string: string,
+  im_an_int: int
+}
+
 pipe fib |> ['a] |> [n: &'a int] |> int {
   
   if (n < 0) {
@@ -14,5 +19,8 @@ pipe fib |> ['a] |> [n: &'a int] |> int {
 }
 
 pipe main |> [] |> [] |> unit {
+  loop 0 -> 5 as i {
+    printnl <| (int_to_string <| (fib <| [i]));
+  }
   |> ();
 }

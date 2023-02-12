@@ -1,6 +1,6 @@
 %{ open Ast %}
 
-%token SEMI DOT COLON LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
+%token SEMI RANGE COLON LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN LPIPE RPIPE
 %token NOT EQ NEQ LT LEQ GT GEQ AND OR REF DEREF FLUID THING
 %token IF ELSE NOELSE WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> INTLIT
@@ -103,9 +103,9 @@ stmt:
   | LBRACE stmt_list RBRACE                 { Block(List.rev $2)    }
   | IF LPAREN expr RPAREN stmt %prec NOELSE { If($3, $5, Block([])) }
   | IF LPAREN expr RPAREN stmt ELSE stmt    { If($3, $5, $7)        }
-  | LOOP expr DOT DOT expr AS
-    LPAREN expr COMMA expr RPAREN stmt      { Loop($2, $5, $8, $10, $12)   }
-  | LOOP expr DOT DOT expr AS expr stmt     { Loop($2, $5, $7, IntLiteral(1), $8) }
+  | LOOP expr RANGE expr AS expr stmt     { Loop($2, $4, $6, IntLiteral(1), $7) }
+  | LOOP expr RANGE expr AS
+    LPAREN expr COMMA expr RPAREN stmt      { Loop($2, $4, $7, $9, $11)   }
   | WHILE LPAREN expr RPAREN stmt           { While($3, $5)         }
 
 expr_opt:
@@ -169,5 +169,5 @@ tdecl:
 
 /* currently just doing false for mutable but this should be handled */
 thing_child_list:
-  | IDENT COLON typ                        { [($1, $3)] }
-  | thing_child_list COMMA IDENT COLON typ { ($3, $5) :: $1 }
+  | IDENT COLON typ                              { [($1, $3)] }
+  | thing_child_list COMMA IDENT COLON typ       { ($3, $5) :: $1 }

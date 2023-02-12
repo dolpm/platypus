@@ -19,7 +19,7 @@ rule token = parse
   | ';'      { SEMI }
   | ','      { COMMA }
   | ':'      { COLON }
-  | '.'      { DOT }
+  | "->"     { RANGE }
 
   | '+'      { PLUS }
   | '-'      { MINUS }
