@@ -2,9 +2,11 @@
 all : platypus.native
 
 platypus.native : clean
-	opam exec -- \
-	dune build
+	opam exec -- dune build
 	cp ./_build/install/default/bin/platypus ./
+
+test : clean
+	opam exec -- dune test
 
 .PHONY : clean
 clean :

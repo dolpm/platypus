@@ -17,4 +17,4 @@
  (action
   (chdir
    %{workspace_root}
-   (run %{bin:ocamlyacc} %{deps}))))
+   (run %{bin:ocamlyacc} -v %{deps}))))

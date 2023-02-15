@@ -1,2 +1,3 @@
 (test
+ (deps test.py)
  (name platypus))

@@ -5,13 +5,13 @@ thing MyThing <| {
 
 pipe fib |> ['a] |> [n: &'a int] |> int {
   
-  if n < 0 {
+  if (n < 0) {
     panic <| ["invalid_input!"];
   }
   
-  if n == 0 {
+  if (n == 0) {
     |> 0;
-  } else if n == 1 or n == 2 {
+  } else if (n == 1 or n == 2) {
     |> 1;
   } else {
     |> (fib <| [n - 1]) + (fib <| [n - 2]);
@@ -24,17 +24,17 @@ pipe main |> [] |> [] |> unit {
     printnl <| [int_to_string <| [fib <| [i]]];
   }
 
-  loop 0 -> 5 as i,2 {
+  loop 0 -> 5 as (i,2) {
     printnl <| [int_to_string <| [fib <| [i]]];
   }
 
-  thing[MyThing] t <| MyThing {
+  MyThing t <| MyThing {
     im_a_string: "string",
     im_an_int: 0
   };
 
   int x <| 0;
-  while x < 5 {
+  while (x < 5) {
     x <| (x + 1);
   }
 

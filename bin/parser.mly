@@ -13,20 +13,17 @@
 %start program
 %type <Ast.program> program
 
-%nonassoc RPIPE
+%nonassoc NOELSE
 %nonassoc ELSE
-
 %right LPIPE
-/* %right ASSIGN REASSIGN */
-
 %left OR
 %left AND
 %left EQ NEQ
 %left LT GT LEQ GEQ
 %left PLUS MINUS
-%left TIMES DIVIDE 
-%right NOT
+%left TIMES DIVIDE
 %right REF FLUID DEREF
+%right NOT
 
 %%
 
@@ -48,7 +45,7 @@ typ:
   /* infer lifetime as static if not provided? */
   | REF typ { Ref($2, "'static") }
   | FLUID typ  { Fluid($2) }
-  | THING LBRACKET IDENT RBRACKET { ThingInstance($3) }
+  | IDENT { Ident($1) }
 
 
 decls:
@@ -100,12 +97,12 @@ stmt:
   | expr SEMI                               { Expr $1               }
   | RPIPE expr_opt SEMI                     { PipeOut $2            }
   | LBRACE stmt_list RBRACE                 { Block(List.rev $2)    }
-  | IF expr stmt %prec NOELSE { If($2, $3, Block([])) }
-  | IF expr stmt ELSE stmt    { If($2, $3, $5)        }
+  | IF LPAREN expr RPAREN stmt %prec NOELSE { If($3, $5, Block([])) }
+  | IF LPAREN expr RPAREN stmt ELSE stmt    { If($3, $5, $7)        }
   | LOOP expr RANGE expr AS IDENT stmt       { Loop($2, $4, $6, IntLiteral(1), $7) }
   | LOOP expr RANGE expr AS
-    IDENT COMMA expr stmt      { Loop($2, $4, $6, $8, $9)   }
-  | WHILE expr stmt                         { While($2, $3)         }
+    LPAREN IDENT COMMA expr RPAREN stmt      { Loop($2, $4, $7, $9, $11)   }
+  | WHILE LPAREN expr RPAREN stmt                    { While($3, $5)         }
   | typ IDENT LPIPE expr SEMI   { Assign($1, $2, $4)         }
   | IDENT LPIPE expr SEMI   { ReAssign($1, $3)         }
 
