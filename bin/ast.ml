@@ -2,7 +2,7 @@ type defined_type =
   | Int
   | Float
   | Bool
-  | Tuple
+  | Tuple of defined_type list
   | Unit
   | Char
   | String
@@ -111,7 +111,7 @@ let rec string_of_typ = function
   | Int -> "int"
   | Float -> "float"
   | Bool -> "bool"
-  | Tuple -> "tuple"
+  | Tuple tl -> "(" ^ String.concat " * " (List.map string_of_typ tl) ^ ")"
   | Unit -> "unit"
   | Char -> "char"
   | String -> "string"

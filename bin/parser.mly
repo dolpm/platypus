@@ -34,7 +34,8 @@ typ:
   | INT   { Int   }
   | FLOAT { Float }
   | BOOL  { Bool }
-  | TUPLE { Tuple }
+  /* using parens instead of brackets causes reduce/reduce conflict... */
+  | LBRACKET typ_list RBRACKET { Tuple(List.rev $2) }
   | UNIT  { Unit }
   | CHAR  { Char }
   | STRING { String }
@@ -47,6 +48,9 @@ typ:
   | FLUID typ  { Fluid($2) }
   | IDENT { Ident($1) }
 
+typ_list:
+  | typ                   { [$1] }
+  | typ_list TIMES typ { $3 :: $1 }
 
 decls:
  | { ([], [])                             } 

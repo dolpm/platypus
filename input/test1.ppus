@@ -38,5 +38,7 @@ pipe main |> [] |> [] |> unit {
     x <| (x + 1);
   }
 
+  [int * bool * int] dog <| 1;
+
   |> ();
 }
