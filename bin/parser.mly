@@ -1,7 +1,7 @@
 %{ open Ast %}
 
-%token SEMI RANGE COLON LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN REASSIGN LPIPE RPIPE
-%token NOT EQ NEQ LT LEQ GT GEQ AND OR REF DEREF FLUID THING
+%token SEMI RANGE COLON LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN REASSIGN LPIPE RPIPE MUT
+%token NOT EQ NEQ LT LEQ GT GEQ AND OR DEREF BORROW MUTBORROW THING
 %token IF ELSE NOELSE WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> INTLIT
 %token <char> CHARLIT
@@ -22,7 +22,7 @@
 %left LT GT LEQ GEQ
 %left PLUS MINUS
 %left TIMES DIVIDE
-%right REF FLUID DEREF
+%right BORROW MUTBORROW DEREF MUT
 %right NOT
 
 %%
@@ -42,10 +42,11 @@ typ:
   | VECTOR LBRACKET typ RBRACKET   { Vector($3) }
   | BOX LBRACKET typ RBRACKET  { Box($3) }
   | OPTION LBRACKET typ RBRACKET  { Option($3) }
-  | REF LIFETIME typ { Ref($3, $2) }
+  | BORROW LIFETIME typ { Borrow($3, $2) }
+  | MUTBORROW LIFETIME typ { MutBorrow($3, $2) }
   /* infer lifetime as static if not provided? */
-  | REF typ { Ref($2, "'static") }
-  | FLUID typ  { Fluid($2) }
+  | BORROW typ { Borrow($2, "'static") }
+  | MUTBORROW typ  { MutBorrow($2, "'static")}
   | IDENT { Ident($1) }
 
 typ_list:
@@ -97,6 +98,10 @@ stmt_list:
   | { [] }
   | stmt_list stmt { $2 :: $1 }
 
+is_mut:
+  | { false }
+  | MUT { true }
+
 stmt:
   | expr SEMI                               { Expr $1               }
   | RPIPE expr_opt SEMI                     { PipeOut $2            }
@@ -107,7 +112,7 @@ stmt:
   | LOOP expr RANGE expr AS
     LPAREN IDENT COMMA expr RPAREN stmt      { Loop($2, $4, $7, $9, $11)   }
   | WHILE LPAREN expr RPAREN stmt                    { While($3, $5)         }
-  | typ IDENT LPIPE expr SEMI   { Assign($1, $2, $4)         }
+  | is_mut typ IDENT LPIPE expr SEMI   { Assign($1, $2, $3, $5) }
   | IDENT LPIPE expr SEMI   { ReAssign($1, $3)         }
 
 expr_opt:
@@ -151,7 +156,7 @@ expr:
   | MINUS expr %prec NOT { Unop(Neg, $2)      }
   | NOT expr         { Unop(Not, $2)          }
   | DEREF expr       { Unop(Deref, $2)      }
-  | REF expr         { Unop(Ref, $2)          }
+  | BORROW expr         { Unop(Ref, $2)          }
 
   | IDENT LPIPE LBRACKET args_opt RBRACKET { PipeIn($1, $4)  }
   | LPAREN expr RPAREN { $2                   }

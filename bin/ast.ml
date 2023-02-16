@@ -12,8 +12,8 @@ type defined_type =
   | Box of defined_type
   | Option of defined_type
   (* type, lifetime of type --> todo maybe add more lifetime metadata *)
-  | Ref of defined_type * string
-  | Fluid of defined_type
+  | Borrow of defined_type * string
+  | MutBorrow of defined_type * string
   (* name, children names --> children types *)
   | Thing of string * (string * defined_type) list
   | Ident of string
@@ -68,7 +68,8 @@ type stmt =
   (* range start, range end, var name, range step if provided, statement *)
   | Loop of expr * expr * string * expr * stmt
   | While of expr * stmt
-  | Assign of defined_type * string * expr
+  (* is_mut ... *)
+  | Assign of bool * defined_type * string * expr
   | ReAssign of string * expr
 
 type pipe_declaration = {
@@ -119,8 +120,8 @@ let rec string_of_typ = function
   | Vector t -> "vector[" ^ string_of_typ t ^ "]"
   | Box t -> "box[" ^ string_of_typ t ^ "]"
   | Option t -> "option[" ^ string_of_typ t ^ "]"
-  | Ref (t, lt) -> "&" ^ lt ^ "[" ^ string_of_typ t ^ "]"
-  | Fluid t -> "~[" ^ string_of_typ t ^ "]"
+  | Borrow (t, lt) -> "&" ^ lt ^ " " ^ string_of_typ t
+  | MutBorrow (t, lt) -> "~&" ^ lt ^ " " ^ string_of_typ t
   (* do we want to print children here? *)
   | Thing (n, _) -> n
   | Ident v -> v
@@ -183,8 +184,10 @@ let rec string_of_stmt stmt pad =
   | While (e, s) ->
       indent pad ^ "while " ^ string_of_expr e ^ "\n"
       ^ string_of_stmt s (pad + 1)
-  | Assign (t, v, e) ->
-      indent pad ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
+  | Assign (is_mut, t, v, e) ->
+      indent pad
+      ^ (if is_mut then "mut " else "")
+      ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
   | ReAssign (v, e) -> indent pad ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
 
 let string_of_tdecl t =

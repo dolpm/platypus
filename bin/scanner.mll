@@ -27,9 +27,11 @@ rule token = parse
   | '*'      { TIMES }
   | '/'      { DIVIDE }
 
-  | '&'      { REF }
+  | '&'      { BORROW }
   | '@'      { DEREF }
-  | '~'      { FLUID }
+  | "~&"      { MUTBORROW }
+
+  | "mut"    { MUT }
 
   | "<|"     { LPIPE }
   | "|>"     { RPIPE }

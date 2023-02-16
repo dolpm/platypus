@@ -28,7 +28,7 @@ pipe main |> [] |> [] |> unit {
     printnl <| [int_to_string <| [fib <| [i]]];
   }
 
-  MyThing t <| x {
+  mut MyThing t <| x {
     im_a_string: "string",
     im_an_int: 0
   };
