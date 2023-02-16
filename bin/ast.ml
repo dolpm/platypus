@@ -49,7 +49,8 @@ type expr =
   | UnitLiteral
   | StringLiteral of string
   (* assignable thing value *)
-  | ThingValue of string * (string * expr) list
+  | ThingValue of (string * expr) list
+  | TupleValue of expr list
   | Ident of string
   | Binop of expr * binary_operator * expr
   | Unop of unary_operator * expr
@@ -111,7 +112,7 @@ let rec string_of_typ = function
   | Int -> "int"
   | Float -> "float"
   | Bool -> "bool"
-  | Tuple tl -> "(" ^ String.concat " * " (List.map string_of_typ tl) ^ ")"
+  | Tuple tl -> "[" ^ String.concat " * " (List.map string_of_typ tl) ^ "]"
   | Unit -> "unit"
   | Char -> "char"
   | String -> "string"
@@ -132,13 +133,17 @@ let rec string_of_expr = function
   | CharLiteral c -> "\x27" ^ String.make 1 c ^ "\x27"
   | UnitLiteral -> "()"
   | StringLiteral s -> "\x22" ^ s ^ "\x22"
-  | ThingValue (name, children) ->
-      name ^ " {\n"
+  | ThingValue children ->
+      "{\n"
       ^ String.concat ",\n"
           (List.map
              (fun (c_name, e) -> "    " ^ c_name ^ ": " ^ string_of_expr e)
              children)
       ^ "\n  }"
+  | TupleValue es ->
+      "("
+      ^ String.concat ", " (List.map (fun e -> "" ^ string_of_expr e) es)
+      ^ ")"
   | Ident s -> s
   | Binop (e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_op o ^ " " ^ string_of_expr e2

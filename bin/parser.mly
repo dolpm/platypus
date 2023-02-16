@@ -118,6 +118,10 @@ thing_child_assn_list:
   | IDENT COLON expr                              { [($1, $3)] }
   | thing_child_assn_list COMMA IDENT COLON expr       { ($3, $5) :: $1 }
 
+tpl_child_list:
+  | expr                          { [$1] }  
+  | tpl_child_list COMMA expr     { $3 :: $1 }
+
 expr:
   | INTLIT          { IntLiteral($1)            }
   | FLOATLIT	           { FloatLiteral($1)           }
@@ -126,14 +130,11 @@ expr:
   | STRINGLIT            { StringLiteral($1) }
   | UNITLIT           { UnitLiteral }
   | IDENT               { Ident($1)                 }
-  | IDENT LBRACE
-     thing_child_assn_list
-    RBRACE              { ThingValue($1, $3) }
-  /*
-  | THINGLIT            { ThingLiteral($1) } 
-  | TUPLELIT            { TupleLiteral($1) 
-  */
   
+  // we probably don't need to store the ident anywhere
+  | IDENT LBRACE thing_child_assn_list RBRACE { ThingValue(List.rev $3) }
+  | LPAREN tpl_child_list RPAREN { TupleValue(List.rev $2) }  
+
   | expr PLUS   expr { Binop($1, Add,   $3)   }
   | expr MINUS  expr { Binop($1, Sub,   $3)   }
   | expr TIMES  expr { Binop($1, Mult,  $3)   }
@@ -163,13 +164,6 @@ args_list:
   | expr                    { [$1] }
   | args_list COMMA expr { $3 :: $1 }
 
-/*
-  example:
-  thing MyThing <| {
-    x: int,
-    y: string
-  }
-*/
 tdecl:
   THING IDENT LPIPE LBRACE
     thing_child_list

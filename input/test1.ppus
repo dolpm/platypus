@@ -28,7 +28,7 @@ pipe main |> [] |> [] |> unit {
     printnl <| [int_to_string <| [fib <| [i]]];
   }
 
-  MyThing t <| MyThing {
+  MyThing t <| x {
     im_a_string: "string",
     im_an_int: 0
   };
@@ -38,7 +38,7 @@ pipe main |> [] |> [] |> unit {
     x <| (x + 1);
   }
 
-  [int * bool * int] dog <| 1;
+  [int * bool * int] dog <| (5, false, 1);
 
   |> ();
 }
