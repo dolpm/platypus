@@ -22,7 +22,7 @@
 %left LT GT LEQ GEQ
 %left PLUS MINUS
 %left TIMES DIVIDE
-%right BORROW MUTBORROW DEREF MUT
+%right BORROW MUTBORROW DEREF
 %right NOT
 
 %%
@@ -98,10 +98,6 @@ stmt_list:
   | { [] }
   | stmt_list stmt { $2 :: $1 }
 
-is_mut:
-  | { false }
-  | MUT { true }
-
 stmt:
   | expr SEMI                               { Expr $1               }
   | RPIPE expr_opt SEMI                     { PipeOut $2            }
@@ -112,7 +108,10 @@ stmt:
   | LOOP expr RANGE expr AS
     LPAREN IDENT COMMA expr RPAREN stmt      { Loop($2, $4, $7, $9, $11)   }
   | WHILE LPAREN expr RPAREN stmt                    { While($3, $5)         }
-  | is_mut typ IDENT LPIPE expr SEMI   { Assign($1, $2, $3, $5) }
+
+  | typ IDENT LPIPE expr SEMI   { Assign(false, $1, $2, $4) }
+  | MUT typ IDENT LPIPE expr SEMI   { Assign(true, $2, $3, $5) }
+  
   | IDENT LPIPE expr SEMI   { ReAssign($1, $3)         }
 
 expr_opt:
