@@ -38,7 +38,7 @@ pipe main |> [] |> [] |> unit {
     x <| (x + 1);
   }
 
-  [int * bool * int] dog <| (5, false, 1);
+  [int * bool * int] dog <| tuple(5, false, 1);
 
   |> ();
 }

@@ -138,7 +138,7 @@ expr:
   
   // we probably don't need to store the ident anywhere
   | IDENT LBRACE thing_child_assn_list RBRACE { ThingValue(List.rev $3) }
-  | LPAREN tpl_child_list RPAREN { TupleValue(List.rev $2) }  
+  | TUPLE LPAREN tpl_child_list RPAREN { TupleValue(List.rev $3) }  
 
   | expr PLUS   expr { Binop($1, Add,   $3)   }
   | expr MINUS  expr { Binop($1, Sub,   $3)   }
