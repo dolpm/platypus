@@ -142,7 +142,7 @@ let rec string_of_expr = function
              children)
       ^ "\n  }"
   | TupleValue es ->
-      "("
+      "tuple("
       ^ String.concat ", " (List.map (fun e -> "" ^ string_of_expr e) es)
       ^ ")"
   | Ident s -> s
