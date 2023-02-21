@@ -1,3 +1,6 @@
 (test
- (deps test.py)
+ (deps (:test test.py)
+       (glob_files ../platypus)
+       (glob_files ./test_cases/*)
+       )
  (name platypus))
