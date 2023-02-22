@@ -1,0 +1,4 @@
+thing MyThing <| {
+  im_a_string,
+  im_an_int
+}
