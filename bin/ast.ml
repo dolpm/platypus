@@ -193,10 +193,10 @@ let rec string_of_stmt stmt pad =
 let string_of_tdecl t =
   match t with
   | Thing (s, l) ->
-      "thing " ^ s ^ " |> {\n"
+      "thing " ^ s ^ " <| {\n"
       ^ String.concat ",\n"
           (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
-      ^ "\n}\n"
+      ^ "\n}"
   | _ -> ""
 
 let string_of_pdecl pdecl =
@@ -214,6 +214,5 @@ let string_of_pdecl pdecl =
   ^ "}\n"
 
 let string_of_program (things, funcs) =
-  String.concat "" (List.map string_of_tdecl things)
-  ^ "\n"
+  String.concat "\n" (List.map string_of_tdecl things)
   ^ String.concat "\n" (List.map string_of_pdecl funcs)
