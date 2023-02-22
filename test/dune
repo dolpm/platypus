@@ -1,5 +1,5 @@
 (test
- (deps (:test test.py)
+ (deps (:test test.sh)
        (glob_files ../platypus)
        (glob_files ./test_cases/*)
        )
