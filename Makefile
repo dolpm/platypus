@@ -5,7 +5,7 @@ platypus.native : clean
 	opam exec -- dune build
 	cp ./_build/install/default/bin/platypus ./
 
-test : clean platypus.native
+test : platypus.native
 	opam exec -- dune test
 
 .PHONY : clean
