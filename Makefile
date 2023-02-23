@@ -1,6 +1,9 @@
 .PHONY : all
 all : platypus.native
 
+install : 
+	opam install dune
+
 platypus.native : clean
 	opam exec -- dune build
 	cp ./_build/install/default/bin/platypus ./

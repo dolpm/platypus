@@ -4,6 +4,8 @@ thing MyThing <| {
   f: float,
   b: bool,
   boxint: box[int],
+  vbool: vector[bool],
+  optboxchar: option[box[char]],
   tpl: [int * int * string],
   c: char
 }

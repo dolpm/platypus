@@ -2,6 +2,9 @@ pipe main |> [] |> [] |> unit {
   loop 0 -> 5 as (i,1)  {
     printnl <| [int_to_string <| [i]];
   }
+  loop 0 -> 5 as (i,2)  {
+    printnl <| [int_to_string <| [i]];
+  }
   while i < 10
   {
     printnl <| [int_to_string <| [i]];

@@ -1,0 +1,5 @@
+pipe testing_derefs |> [] |> [the_original_god_on_the_mountain: &'static string] |> unit {
+  mut string new_val <| @the_original_god_on_the_mountain;
+  new_val <| "YOUR GOD IS NO MORE! MWHAHAHAHAHAHA *the mountains crumble*";
+  |> ();
+}
