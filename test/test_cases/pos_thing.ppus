@@ -1,4 +1,9 @@
 thing MyThing <| {
   im_a_string: string,
-  im_an_int: int
+  im_an_int: int,
+  f: float,
+  b: bool, 
+  boxint: box[int],
+  tpl: [int * int * string],
+  c: char
 }

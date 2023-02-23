@@ -1,0 +1,15 @@
+pipe fname |> ['a, 'b] |> [x: &'a int, y: &'b int] |> &'b int {
+  if (x > y)
+  {
+    |> x;
+  }
+  |> y;
+}
+
+pipe takes_in_tuple |> ['a] |> [x: &'a [int * bool * int]] |> unit {
+  if (x.1)
+  {
+    printnl <| [x.0 + x.2];
+  }
+  |> ();
+}

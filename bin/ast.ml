@@ -167,9 +167,9 @@ let rec string_of_stmt stmt pad =
   | Expr expr -> indent pad ^ string_of_expr expr ^ ";\n"
   | PipeOut expr -> indent pad ^ "|> " ^ string_of_expr expr ^ ";\n"
   | If (e, s, Block []) ->
-      indent pad ^ "if " ^ string_of_expr e ^ "\n" ^ string_of_stmt s (pad + 1)
+      indent pad ^ "if (" ^ string_of_expr e ^ ")\n" ^ string_of_stmt s (pad + 1)
   | If (e, s1, s2) -> (
-      indent pad ^ "if " ^ string_of_expr e ^ "\n"
+      indent pad ^ "if (" ^ string_of_expr e ^ ")\n"
       ^ string_of_stmt s1 (pad + 1)
       ^ indent pad ^ "else\n"
       ^
@@ -178,7 +178,7 @@ let rec string_of_stmt stmt pad =
       | _ -> string_of_stmt s2 (pad + 1))
   | Loop (e1, e2, e3, e4, s) ->
       indent pad ^ "loop " ^ string_of_expr e1 ^ " -> " ^ string_of_expr e2
-      ^ " as " ^ e3 ^ "," ^ string_of_expr e4
+      ^ " as (" ^ e3 ^ "," ^ string_of_expr e4 ^ ")"
       ^ string_of_stmt s (pad + 1)
   | While (e, s) ->
       indent pad ^ "while " ^ string_of_expr e ^ "\n"
@@ -213,5 +213,5 @@ let string_of_pdecl pdecl =
   ^ "}\n"
 
 let string_of_program (things, funcs) =
-  String.concat "\n" (List.map string_of_tdecl things)
-  ^ String.concat "\n" (List.map string_of_pdecl funcs)
+  String.concat "\n" (List.map string_of_tdecl (List.rev things))
+  ^ String.concat "\n" (List.map string_of_pdecl (List.rev funcs))

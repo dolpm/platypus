@@ -1,0 +1,9 @@
+pipe no_lifetimes |> [x: int, y: bool] |> string {
+    mut string result <| "Hello world";
+
+    if (x > 5 and not y) {
+        result <| "Goodnight moon";
+    }
+
+    |> result;
+}

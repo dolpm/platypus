@@ -1,0 +1,5 @@
+pipe main |> [] |> [] |> unit {
+    [int * bool * float] happy_lil_tuple <| tuple(21, false, 17.71); 
+
+    |> ();
+}

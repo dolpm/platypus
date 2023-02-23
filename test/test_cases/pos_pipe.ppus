@@ -6,12 +6,9 @@ pipe fname |> ['a, 'b] |> [x: &'a int, y: &'b int] |> &'b int {
     |> y;
 }
 
-/* IDENT LBRACE IDENT RBRACE */ 
-/* IDENT DOT INTLIT */
 pipe takes_in_tuple |> ['a] |> [x: &'a [int * bool * int]] |> unit {
-
-    if (x[1]) {
-        printnl <| [];
+    if (x.1) {
+        printnl <| [x.0 + x.2];
     }
 
     |> ();

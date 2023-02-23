@@ -1,0 +1,7 @@
+pipe malformed_args |> [x: int, y:,, z: bool] |> int {
+    if (x > 5 and z) {
+        |> 100;
+    }
+
+    |> 9+10;
+}
