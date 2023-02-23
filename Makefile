@@ -11,7 +11,12 @@ platypus.native : clean
 test : platypus.native
 	opam exec -- dune test
 
+zip : clean
+	zip -r rodrigo_and_friends.zip . -x ".*"
+
+
 .PHONY : clean
 clean :
 	dune clean
 	rm -rf ./platypus
+	rm -rf ./rodrigo_and_friends.zip
