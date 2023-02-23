@@ -1,6 +1,6 @@
 %{ open Ast %}
 
-%token SEMI RANGE COLON LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN REASSIGN LPIPE RPIPE MUT
+%token SEMI RANGE COLON DOT LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN REASSIGN LPIPE RPIPE MUT
 %token NOT EQ NEQ LT LEQ GT GEQ AND OR DEREF BORROW MUTBORROW THING
 %token IF ELSE NOELSE WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> INTLIT
@@ -138,6 +138,9 @@ expr:
   // we probably don't need to store the ident anywhere
   | IDENT LBRACE thing_child_assn_list RBRACE { ThingValue(List.rev $3) }
   | TUPLE LPAREN tpl_child_list RPAREN { TupleValue(List.rev $3) }  
+
+  // tuple indexing
+  | IDENT DOT INTLIT { TupleIndex($1, $3) } 
 
   | expr PLUS   expr { Binop($1, Add,   $3)   }
   | expr MINUS  expr { Binop($1, Sub,   $3)   }

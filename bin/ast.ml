@@ -42,15 +42,13 @@ type expr =
   | IntLiteral of int
   | FloatLiteral of string
   | BoolLiteral of bool
-  (*
-  | TupleLiteral of defined_type list * expr list
-  *)
   | CharLiteral of char
   | UnitLiteral
   | StringLiteral of string
   (* assignable thing value *)
   | ThingValue of (string * expr) list
   | TupleValue of expr list
+  | TupleIndex of string * int
   | Ident of string
   | Binop of expr * binary_operator * expr
   | Unop of unary_operator * expr
@@ -145,6 +143,7 @@ let rec string_of_expr = function
       "tuple("
       ^ String.concat ", " (List.map (fun e -> "" ^ string_of_expr e) es)
       ^ ")"
+  | TupleIndex (name, i) -> name ^ "." ^ string_of_int i
   | Ident s -> s
   | Binop (e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_op o ^ " " ^ string_of_expr e2

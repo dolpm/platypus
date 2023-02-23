@@ -40,5 +40,7 @@ pipe main |> [] |> [] |> unit {
 
   [int * bool * int] dog <| tuple(5, false, 1);
 
+  bool is_hairy <| dog.1;
+
   |> ();
 }
