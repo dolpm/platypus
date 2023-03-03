@@ -1,7 +1,7 @@
-type action = Ast | LLVM_IR
+type action = Ast | LLVM_IR [@@warning "-37"] (* todo: remove warning *)
 
 let () =
-  let action = ref Ast in
+  let action = ref LLVM_IR in
   let set_action a () = action := a in
   let speclist = [ ("-a", Arg.Unit (set_action Ast), "Print the AST") ] in
   let usage_msg = "usage: ./microc.native [-a] [file.ppus]" in
@@ -12,4 +12,6 @@ let () =
   let ast = Parser.program Scanner.token lexbuf in
   match !action with
   | Ast -> print_string (Ast.string_of_program ast)
-  | LLVM_IR -> print_string (Llvm.string_of_llmodule (Codegen.translate sast))
+  | _ ->
+      let _sast = Semant.check ast in
+      ()

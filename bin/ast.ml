@@ -17,6 +17,7 @@ type defined_type =
   (* name, children names --> children types *)
   | Thing of string * (string * defined_type) list
   | Ident of string
+  | Generic
 
 type binary_operator =
   | Add
@@ -123,6 +124,7 @@ let rec string_of_typ = function
   (* do we want to print children here? *)
   | Thing (n, _) -> n
   | Ident v -> v
+  | Generic -> "" (* maybe raise an exception here, or just handle in semant *)
 
 let rec string_of_expr = function
   | IntLiteral l -> string_of_int l
