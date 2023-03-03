@@ -1,10 +1,10 @@
 open Ast
 module StringMap = Map.Make (String)
 
-(* box[int] x <| Heap_alloc_bool <| [true]; *)
-
-let check (_things, _pipes) =
-  let stdlib_fn_names =
+let check (_things, pipes) =
+  (* built in pipe definitions *)
+  (* (name, [param(is_mut, type, name)], ret_type) *)
+  let stdlib_pipe_decls =
     [
       ("printnl", [ (false, String, "x") ], Unit);
       ("panic", [ (false, String, "x") ], Unit);
@@ -12,7 +12,7 @@ let check (_things, _pipes) =
       ("float_to_string", [ (false, Float, "x") ], String);
       ("char_to_string", [ (false, Char, "x") ], String);
       ("bool_to_string", [ (false, Bool, "x") ], String);
-      (* todo: does x have to be mutable? *)
+      (* TODO: does x have to be mutable? *)
       ("Heap_alloc", [ (true, Generic, "x") ], Box Generic);
       ("Vector_length", [ (false, Vector Generic, "x") ], Int);
       ("Vector_alloc", [], Vector Generic);
@@ -24,7 +24,8 @@ let check (_things, _pipes) =
     ]
   in
 
-  let _built_in_decls =
+  (* transform the built-in defn's into actual declaration types *)
+  let built_in_pipe_decls =
     let add_bind map (name, args, ret_ty) =
       StringMap.add name
         {
@@ -36,7 +37,46 @@ let check (_things, _pipes) =
         }
         map
     in
-    List.fold_left add_bind StringMap.empty stdlib_fn_names
+    List.fold_left add_bind StringMap.empty stdlib_pipe_decls
+  in
+
+  (* add pipe to map if no collision, else raise *)
+  let add_pipe map pdecl =
+    let built_in_err =
+      "pipe " ^ pdecl.name ^ " may not be defined - it's built-in"
+    and dup_err = "duplicate pipe " ^ pdecl.name
+    and make_err er = raise (Failure er)
+    and n = pdecl.name in
+    match pdecl with
+    (* No duplicate functions or redefinitions of built-ins *)
+    | _ when StringMap.mem n built_in_pipe_decls -> make_err built_in_err
+    | _ when StringMap.mem n map -> make_err dup_err
+    | _ -> StringMap.add n pdecl map
+  in
+
+  (* add pipe declarations to a single symbol table *)
+  (* checking for naming collisions *)
+  let pipe_decls = List.fold_left add_pipe built_in_pipe_decls pipes in
+
+  (* lookup pdecl *)
+  let get_pipe s =
+    try StringMap.find s pipe_decls
+    with Not_found -> raise (Failure ("pipe \"" ^ s ^ "\" does not exist"))
+  in
+
+  (* make sure entrypoint is defined, also validate form *)
+  let ep = get_pipe "main" in
+  let ret_not_unit_err = "program entrypoint doesn't have a unit return type"
+  and arg_lifetime_nonempty =
+    "program entrypoint can't have arguments or lifetimes"
+  and make_err er = raise (Failure er) in
+  (* validate return type is unit, and parameters don't exist *)
+  let _ =
+    match ep.return_type with
+    | Unit ->
+        if List.length ep.formals > 0 || List.length ep.lifetimes > 0 then
+          make_err arg_lifetime_nonempty
+    | _ -> make_err ret_not_unit_err
   in
 
   ()
