@@ -79,4 +79,24 @@ let check (_things, pipes) =
     | _ -> make_err ret_not_unit_err
   in
 
-  ()
+  (* TODO: if rhs is mutable reference, make sure lhs is mutable*)
+  let check_binds (to_check : type_binding list) =
+    let name_compare (_, _, n1) (_, _, n2) = compare n1 n2 in
+    let check_it checked binding =
+      let _, _, binding_name = binding in
+      let dup_err = "duplicate binding: " ^ binding_name in
+      match checked with
+      | (_, _, n2) :: _ when binding_name = n2 -> raise (Failure dup_err)
+      | _ -> binding :: checked
+    in
+
+    let _ = List.fold_left check_it [] (List.sort name_compare to_check) in
+    to_check
+  in
+
+  let check_pipe p =
+    let _formals' = check_binds p.formals in
+    ()
+  in
+
+  List.map check_pipe pipes
