@@ -1,7 +1,7 @@
 (executable
  (public_name platypus)
  (name toplevel)
- (libraries platypus))
+ (libraries platypus Llvm))
 
 (rule
  (target scanner.ml)

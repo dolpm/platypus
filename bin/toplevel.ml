@@ -1,4 +1,4 @@
-type action = Ast
+type action = Ast | LLVM_IR
 
 let () =
   let action = ref Ast in
@@ -10,4 +10,6 @@ let () =
 
   let lexbuf = Lexing.from_channel !channel in
   let ast = Parser.program Scanner.token lexbuf in
-  match !action with Ast -> print_string (Ast.string_of_program ast)
+  match !action with
+  | Ast -> print_string (Ast.string_of_program ast)
+  | LLVM_IR -> print_string (Llvm.string_of_llmodule (Codegen.translate sast))
