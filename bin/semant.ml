@@ -83,10 +83,10 @@ let check (_things, pipes) =
   let check_binds (to_check : type_binding list) =
     let name_compare (_, _, n1) (_, _, n2) = compare n1 n2 in
     let check_it checked binding =
-      let _, _, binding_name = binding in
-      let dup_err = "duplicate binding: " ^ binding_name in
+      let _, _, n1 = binding in
+      let dup_err = "duplicate binding: " ^ n1 in
       match checked with
-      | (_, _, n2) :: _ when binding_name = n2 -> raise (Failure dup_err)
+      | (_, _, n2) :: _ when n1 = n2 -> raise (Failure dup_err)
       | _ -> binding :: checked
     in
 
