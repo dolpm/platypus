@@ -1,4 +1,5 @@
-type action = Ast | LLVM_IR [@@warning "-37"] (* todo: remove warning *)
+type action = Ast | Sast | LLVM_IR [@@warning "-37"]
+(* todo: remove warning *)
 
 let () =
   let action = ref LLVM_IR in
@@ -12,6 +13,5 @@ let () =
   let ast = Parser.program Scanner.token lexbuf in
   match !action with
   | Ast -> print_string (Ast.string_of_program ast)
-  | _ ->
-      let _sast = Semant.check ast in
-      ()
+  | Sast -> print_string (Sast.string_of_program (Semant.check ast))
+  | _ -> ()

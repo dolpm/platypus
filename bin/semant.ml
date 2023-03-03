@@ -80,7 +80,9 @@ let check (_things, pipes) =
   in
 
   (* TODO: if rhs is mutable reference, make sure lhs is mutable*)
-  let check_binds (to_check : type_binding list) =
+
+  (* make sure there aren't any duplicate bindings in functions *)
+  let check_bindings to_check =
     let name_compare (_, _, n1) (_, _, n2) = compare n1 n2 in
     let check_it checked binding =
       let _, _, n1 = binding in
@@ -94,9 +96,20 @@ let check (_things, pipes) =
     to_check
   in
 
+  (* we need to add some mechansm for storing lifetimes in ast nodes *)
+  (*
+  let get_local_bindings p =
+    let rec find_bindings stmts = List.filter_map (fun s -> match s with
+    | Assign(is_mut, typ, name, expr) -> 
+    | Block()
+    ) stmts
+  in
+    find_bindings p.body
+  *)
   let check_pipe p =
-    let _formals' = check_binds p.formals in
+    let _formals' = check_bindings p.formals in
     ()
   in
 
-  List.map check_pipe pipes
+  let _ = List.map check_pipe pipes in
+  ([], [])
