@@ -4,7 +4,12 @@ type action = Ast | Sast | LLVM_IR [@@warning "-37"]
 let () =
   let action = ref LLVM_IR in
   let set_action a () = action := a in
-  let speclist = [ ("-a", Arg.Unit (set_action Ast), "Print the AST") ] in
+  let speclist =
+    [
+      ("-a", Arg.Unit (set_action Ast), "Print the AST");
+      ("-s", Arg.Unit (set_action Sast), "Print the AST");
+    ]
+  in
   let usage_msg = "usage: ./microc.native [-a] [file.ppus]" in
   let channel = ref stdin in
   Arg.parse speclist (fun filename -> channel := open_in filename) usage_msg;

@@ -96,20 +96,31 @@ let check (_things, pipes) =
     to_check
   in
 
-  (* we need to add some mechansm for storing lifetimes in ast nodes *)
-  (*
-  let get_local_bindings p =
-    let rec find_bindings stmts = List.filter_map (fun s -> match s with
-    | Assign(is_mut, typ, name, expr) -> 
-    | Block()
-    ) stmts
-  in
-    find_bindings p.body
-  *)
-  let check_pipe p =
-    let _formals' = check_bindings p.formals in
-    ()
+  (* recursively fetch all assignments in a statement list *)
+  let rec find_bindings body =
+    List.flatten
+      (List.map
+         (fun s ->
+           match s with
+           | Assign (is_mut, typ, name, _) -> [ (is_mut, typ, name) ]
+           | Block stmts -> find_bindings stmts
+           | _ -> [])
+         body)
   in
 
-  let _ = List.map check_pipe pipes in
+  let check_pipe p =
+    let _formals' = check_bindings p.formals in
+    let locals' = find_bindings p.body in
+    (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
+    let _check_assign lvaluet rvaluet err =
+      if lvaluet = rvaluet then lvaluet else raise (Failure err)
+    in
+    List.iter
+      (fun (is_mut, typ, name) ->
+        print_string
+          (string_of_bool is_mut ^ " " ^ string_of_typ typ ^ " " ^ name ^ "\n"))
+      locals'
+  in
+
+  let _ = List.iter check_pipe pipes in
   ([], [])

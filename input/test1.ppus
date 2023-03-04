@@ -19,6 +19,8 @@ pipe fib |> ['a] |> [n: &'a int] |> int {
 }
 
 pipe main |> [] |> [] |> unit {
+
+  int x <| 0;
   
   loop 0 -> 5 as i {
     printnl <| [int_to_string <| [fib <| [i]]];
