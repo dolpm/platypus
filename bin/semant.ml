@@ -217,16 +217,16 @@ let check (_things, pipes) =
 
   let _ =
     StringMap.iter
-      (fun p_name ltg ->
-        let _ = print_string ("\n" ^ p_name ^ "\n") in
+      (fun _p_name ltg ->
+        let _ = print_string ("\n") in
         let _ =
           StringMap.iter
             (fun lt (parent, c_ltids, bs, rbs, pipe_ins) ->
               print_string
-                (lt ^ " --> " ^ "parent: "
+                (lt ^ " --> " ^ "\nparent: "
                 ^ (match parent with Some p -> p | None -> "None")
-                ^ "; children: " ^ String.concat "," c_ltids
-                ^ "; shallow binds: "
+                ^ ";\nchildren: " ^ String.concat "," c_ltids
+                ^ ";\nshallow binds: "
                 ^ String.concat ","
                     (List.map
                        (fun b ->
@@ -235,8 +235,8 @@ let check (_things, pipes) =
                              "(" ^ string_of_bool is_mut ^ ","
                              ^ string_of_typ typ ^ "," ^ name ^ ")")
                        bs)
-                ^ "; re-binds: " ^ String.concat "," rbs
-                ^ "; shallow pipe-ins: "
+                ^ ";\nre-binds: " ^ String.concat "," rbs
+                ^ ";\nshallow pipe-ins: "
                 ^ String.concat ","
                     (List.map
                        (fun (n, args) ->
@@ -245,7 +245,7 @@ let check (_things, pipes) =
                              (List.map (fun a -> string_of_expr a) args)
                          ^ "]")
                        pipe_ins)
-                ^ "\n"))
+                ^ "\n\n"))
             ltg
         in
         print_string "\n")
