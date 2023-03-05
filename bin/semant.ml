@@ -184,7 +184,13 @@ let check (_things, pipes) =
     lexical_lifetimes None (Block body) "main" StringMap.empty
   in
 
-  let check_pipe p =
+  let pipe_lifetime_maps pipes =
+    List.fold_left
+      (fun m p -> StringMap.add p.name (generate_lifetime_graph p.body) m)
+      StringMap.empty pipes
+  in
+
+  let _check_pipe p =
     let formals' = check_bindings p.formals in
     let locals' = find_bindings p.body in
 
@@ -198,44 +204,45 @@ let check (_things, pipes) =
         (fun m (is_mut, typ, name) -> StringMap.add name (is_mut, typ) m)
         StringMap.empty (formals' @ locals')
     in
-
-    (* generate lifetime tree *)
-    let ltg = generate_lifetime_graph p.body in
-    let _ =
-      StringMap.iter
-        (fun lt (parent, c_ltids, bs, pipe_ins) ->
-          print_string
-            (lt ^ " --> " ^ "parent: "
-            ^ (match parent with Some p -> p | None -> "None")
-            ^ "; children: " ^ String.concat "," c_ltids ^ "; shallow binds: "
-            ^ String.concat ","
-                (List.map
-                   (fun b ->
-                     match b with
-                     | is_mut, typ, name ->
-                         "(" ^ string_of_bool is_mut ^ "," ^ string_of_typ typ
-                         ^ "," ^ name ^ ")")
-                   bs)
-            ^ "; shallow pipe-ins: "
-            ^ String.concat ","
-                (List.map
-                   (fun (n, args) ->
-                     n ^ "["
-                     ^ String.concat ","
-                         (List.map (fun a -> string_of_expr a) args)
-                     ^ "]")
-                   pipe_ins)
-            ^ "\n"))
-        ltg
-    in
     ()
   in
 
+  let pipe_lifetimes = pipe_lifetime_maps pipes in
+
   let _ =
-    List.iter
-      (fun p ->
-        let _ = check_pipe p in
+    StringMap.iter
+      (fun p_name ltg ->
+        let _ = print_string ("\n" ^ p_name ^ "\n") in
+        let _ =
+          StringMap.iter
+            (fun lt (parent, c_ltids, bs, pipe_ins) ->
+              print_string
+                (lt ^ " --> " ^ "parent: "
+                ^ (match parent with Some p -> p | None -> "None")
+                ^ "; children: " ^ String.concat "," c_ltids
+                ^ "; shallow binds: "
+                ^ String.concat ","
+                    (List.map
+                       (fun b ->
+                         match b with
+                         | is_mut, typ, name ->
+                             "(" ^ string_of_bool is_mut ^ ","
+                             ^ string_of_typ typ ^ "," ^ name ^ ")")
+                       bs)
+                ^ "; shallow pipe-ins: "
+                ^ String.concat ","
+                    (List.map
+                       (fun (n, args) ->
+                         n ^ "["
+                         ^ String.concat ","
+                             (List.map (fun a -> string_of_expr a) args)
+                         ^ "]")
+                       pipe_ins)
+                ^ "\n"))
+            ltg
+        in
         print_string "\n\n")
-      pipes
+      pipe_lifetimes
   in
+
   ([], [])
