@@ -1,7 +1,8 @@
-pipe test |> [] |> [] |> unit {
+pipe test |> [] |> [r: int] |> unit {
   int y <| 0;
   {
     string zyx <| "hello, world";
+    test <| [y];
   }
   |> ();
 }
@@ -23,7 +24,8 @@ pipe main |> [] |> [] |> unit {
       }
       {
         int y <| 5;
-        test <| [];
+        test <| [y];
+        test <| [b];
       }
     }
     bool r2 <| false;

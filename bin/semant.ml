@@ -157,21 +157,6 @@ let check (_things, pipes) =
                     in
                     ( c_ltid :: c_ids,
                       lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
-                (* this follow's pipe calls to expand the tree *)
-                (* not sure if we will need... *)
-                (* however, if we do use this map for symbol lookups, *)
-                (* we need to figure out a way to make sure we stay *)
-                (* inside of the function we are in (don't go too high) *)
-                (* .... we could add a "highest-node" value to map tuple *)
-                | Expr (PipeIn (n, _)) ->
-                    let c_ltid =
-                      ltid ^ "." ^ string_of_int (List.length c_ids)
-                    in
-                    ( c_ltid :: c_ids,
-                      lexical_lifetimes (Some ltid) (Block (get_pipe n).body)
-                        c_ltid m )
-                    (* add locals to c_ltid shallow bindings *)
-                    (* if they are new (i.e., arent refs) here  *)
                 | _ -> (c_ids, m))
               ([], lifetime_map) body
           in
@@ -183,12 +168,20 @@ let check (_things, pipes) =
                 | _ -> None)
               body
           in
+          let shallow_pipe_ins =
+            List.filter_map
+              (fun s ->
+                match s with
+                | Expr (PipeIn (n, args)) -> Some (n, args)
+                | _ -> None)
+              body
+          in
           StringMap.add ltid
-            (parent, child_ids, shallow_bindings)
+            (parent, child_ids, shallow_bindings, shallow_pipe_ins)
             lifetime_map_with_children
       | _ -> lifetime_map
     in
-    lexical_lifetimes None (Block body) "p" StringMap.empty
+    lexical_lifetimes None (Block body) "main" StringMap.empty
   in
 
   let check_pipe p =
@@ -210,7 +203,7 @@ let check (_things, pipes) =
     let ltg = generate_lifetime_graph p.body in
     let _ =
       StringMap.iter
-        (fun lt (parent, c_ltids, bs) ->
+        (fun lt (parent, c_ltids, bs, pipe_ins) ->
           print_string
             (lt ^ " --> " ^ "parent: "
             ^ (match parent with Some p -> p | None -> "None")
@@ -223,11 +216,26 @@ let check (_things, pipes) =
                          "(" ^ string_of_bool is_mut ^ "," ^ string_of_typ typ
                          ^ "," ^ name ^ ")")
                    bs)
+            ^ "; shallow pipe-ins: "
+            ^ String.concat ","
+                (List.map
+                   (fun (n, args) ->
+                     n ^ "["
+                     ^ String.concat ","
+                         (List.map (fun a -> string_of_expr a) args)
+                     ^ "]")
+                   pipe_ins)
             ^ "\n"))
         ltg
     in
     ()
   in
 
-  let _ = check_pipe (List.find (fun p -> p.name = "main") pipes) in
+  let _ =
+    List.iter
+      (fun p ->
+        let _ = check_pipe p in
+        print_string "\n\n")
+      pipes
+  in
   ([], [])
