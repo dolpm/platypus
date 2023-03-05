@@ -13,6 +13,7 @@ pipe main |> [] |> [] |> unit {
     bool r <| false;
     {
       int a <| 3;
+      a <| 4;
     }
     {
       int z <| 2;
@@ -26,6 +27,7 @@ pipe main |> [] |> [] |> unit {
         int y <| 5;
         test <| [y];
         test <| [b];
+        b <| 8;
       }
     }
     bool r2 <| false;

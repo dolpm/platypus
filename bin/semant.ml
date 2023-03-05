@@ -111,7 +111,7 @@ let check (_things, pipes) =
   (* build the lifetime graph for a pipe *)
   (* todo should we follow inner pipe calls? *)
   (* this would allow us to create a lt graph for the entire program *)
-  let generate_lifetime_graph body =
+  let generate_lifetime_graph pipe =
     let rec lexical_lifetimes parent block ltid lifetime_map =
       match block with
       | Block body ->
@@ -168,6 +168,12 @@ let check (_things, pipes) =
                 | _ -> None)
               body
           in
+          let rebindings =
+            List.filter_map
+              (fun s ->
+                match s with ReAssign (name, _) -> Some name | _ -> None)
+              body
+          in
           let shallow_pipe_ins =
             List.filter_map
               (fun s ->
@@ -177,16 +183,16 @@ let check (_things, pipes) =
               body
           in
           StringMap.add ltid
-            (parent, child_ids, shallow_bindings, shallow_pipe_ins)
+            (parent, child_ids, shallow_bindings, rebindings, shallow_pipe_ins)
             lifetime_map_with_children
       | _ -> lifetime_map
     in
-    lexical_lifetimes None (Block body) "main" StringMap.empty
+    lexical_lifetimes None (Block pipe.body) pipe.name StringMap.empty
   in
 
   let pipe_lifetime_maps pipes =
     List.fold_left
-      (fun m p -> StringMap.add p.name (generate_lifetime_graph p.body) m)
+      (fun m p -> StringMap.add p.name (generate_lifetime_graph p) m)
       StringMap.empty pipes
   in
 
@@ -215,7 +221,7 @@ let check (_things, pipes) =
         let _ = print_string ("\n" ^ p_name ^ "\n") in
         let _ =
           StringMap.iter
-            (fun lt (parent, c_ltids, bs, pipe_ins) ->
+            (fun lt (parent, c_ltids, bs, rbs, pipe_ins) ->
               print_string
                 (lt ^ " --> " ^ "parent: "
                 ^ (match parent with Some p -> p | None -> "None")
@@ -229,6 +235,7 @@ let check (_things, pipes) =
                              "(" ^ string_of_bool is_mut ^ ","
                              ^ string_of_typ typ ^ "," ^ name ^ ")")
                        bs)
+                ^ "; re-binds: " ^ String.concat "," rbs
                 ^ "; shallow pipe-ins: "
                 ^ String.concat ","
                     (List.map
@@ -241,7 +248,7 @@ let check (_things, pipes) =
                 ^ "\n"))
             ltg
         in
-        print_string "\n\n")
+        print_string "\n")
       pipe_lifetimes
   in
 
