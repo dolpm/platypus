@@ -99,27 +99,115 @@ let check (_things, pipes) =
   (* recursively fetch all assignments in a statement list *)
   let rec find_bindings body =
     List.flatten
-      (List.map
+      (List.filter_map
          (fun s ->
            match s with
-           | Assign (is_mut, typ, name, _) -> [ (is_mut, typ, name) ]
-           | Block stmts -> find_bindings stmts
-           | _ -> [])
+           | Assign (is_mut, typ, name, _) -> Some [ (is_mut, typ, name) ]
+           | Block stmts -> Some (find_bindings stmts)
+           | _ -> None)
          body)
   in
 
+  (* build the lifetime graph for a pipe *)
+  (* todo should we follow inner pipe calls? *)
+  (* this would allow us to create a lt graph for the entire program *)
+  let generate_lifetime_graph body =
+    let rec lexical_lifetimes parent block ltid lifetime_map =
+      match block with
+      | Block body ->
+          let child_ids, lifetime_map_with_children =
+            List.fold_left
+              (fun (c_ids, m) s ->
+                match s with
+                | Block [] -> (c_ids, m)
+                | Block stmts ->
+                    let c_ltid =
+                      ltid ^ "." ^ string_of_int (List.length c_ids)
+                    in
+                    ( c_ltid :: c_ids,
+                      lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
+                | If (_, Block stmts, Block []) ->
+                    let c_ltid =
+                      ltid ^ "." ^ string_of_int (List.length c_ids)
+                    in
+                    ( c_ltid :: c_ids,
+                      lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
+                | If (_, Block stmts, Block stmts2) ->
+                    let c1_ltid =
+                      ltid ^ "." ^ string_of_int (List.length c_ids)
+                    in
+                    let s1_map =
+                      lexical_lifetimes (Some ltid) (Block stmts) c1_ltid m
+                    in
+                    let c2_ltid =
+                      ltid ^ "." ^ string_of_int (List.length c_ids + 1)
+                    in
+                    ( c2_ltid :: c1_ltid :: c_ids,
+                      lexical_lifetimes (Some ltid) (Block stmts2) c1_ltid
+                        s1_map )
+                | Loop (_, _, _, _, Block stmts) ->
+                    let c_ltid =
+                      ltid ^ "." ^ string_of_int (List.length c_ids)
+                    in
+                    ( c_ltid :: c_ids,
+                      lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
+                | While (_, Block stmts) ->
+                    let c_ltid =
+                      ltid ^ "." ^ string_of_int (List.length c_ids)
+                    in
+                    ( c_ltid :: c_ids,
+                      lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
+                | _ -> (c_ids, m))
+              ([], lifetime_map) body
+          in
+          let shallow_bindings =
+            List.filter_map
+              (fun s ->
+                match s with
+                | Assign (is_mut, typ, name, _) -> Some (is_mut, typ, name)
+                | _ -> None)
+              body
+          in
+          StringMap.add ltid
+            (parent, child_ids, shallow_bindings)
+            lifetime_map_with_children
+      | _ -> lifetime_map
+    in
+    lexical_lifetimes None (Block body) "p" StringMap.empty
+  in
+
   let check_pipe p =
-    let _formals' = check_bindings p.formals in
+    let formals' = check_bindings p.formals in
     let locals' = find_bindings p.body in
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let _check_assign lvaluet rvaluet err =
       if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
-    List.iter
-      (fun (is_mut, typ, name) ->
-        print_string
-          (string_of_bool is_mut ^ " " ^ string_of_typ typ ^ " " ^ name ^ "\n"))
-      locals'
+    let _symbols =
+      List.fold_left
+        (fun m (is_mut, typ, name) -> StringMap.add name (is_mut, typ) m)
+        StringMap.empty (formals' @ locals')
+    in
+    let ltg = generate_lifetime_graph p.body in
+    let _ =
+      StringMap.iter
+        (fun lt (parent, c_ltids, bs) ->
+          print_string
+            (lt ^ " --> " ^ "parent: "
+            ^ (match parent with Some p -> p | None -> "None")
+            ^ "; children: " ^ String.concat "," c_ltids ^ "; shallow binds: "
+            ^ String.concat ","
+                (List.map
+                   (fun b ->
+                     match b with
+                     | is_mut, typ, name ->
+                         "(" ^ string_of_bool is_mut ^ "," ^ string_of_typ typ
+                         ^ "," ^ name ^ ")")
+                   bs)
+            ^ "\n"))
+        ltg
+    in
+    print_string "\n"
   in
 
   let _ = List.iter check_pipe pipes in

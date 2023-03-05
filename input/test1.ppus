@@ -1,48 +1,22 @@
-thing MyThing <| {
-  im_a_string: string,
-  im_an_int: int
-}
-
-pipe fib |> ['a] |> [n: &'a int] |> int {
-  
-  if (n < 0) {
-    panic <| ["invalid_input!"];
-  }
-  
-  if (n == 0) {
-    |> 0;
-  } else if (n == 1 or n == 2) {
-    |> 1;
-  } else {
-    |> (fib <| [n - 1]) + (fib <| [n - 2]);
-  }
-}
-
 pipe main |> [] |> [] |> unit {
-
-  int x <| 0;
-  
-  loop 0 -> 5 as i {
-    printnl <| [int_to_string <| [fib <| [i]]];
+  int x <| false;
+  {
+    bool r <| false;
+    {
+      int a <| 3;
+    }
+    {
+      int z <| 2;
+    }
+    {
+      int b <| 2;
+      {
+        int y <| 5;
+      }
+      {
+        int y <| 5;
+      }
+    }
+    bool r2 <| false;
   }
-
-  loop 0 -> 5 as (i,2) {
-    printnl <| [int_to_string <| [fib <| [i]]];
-  }
-
-  mut MyThing t <| x {
-    im_a_string: "string",
-    im_an_int: 0
-  };
-
-  int x <| 0;
-  while (x < 5) {
-    x <| (x + 1);
-  }
-
-  [int * bool * int] dog <| tuple(5, false, 1);
-
-  bool is_hairy <| dog.1;
-
-  |> ();
 }
