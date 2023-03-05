@@ -159,6 +159,10 @@ let check (_things, pipes) =
                       lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
                 (* this follow's pipe calls to expand the tree *)
                 (* not sure if we will need... *)
+                (* however, if we do use this map for symbol lookups, *)
+                (* we need to figure out a way to make sure we stay *)
+                (* inside of the function we are in (don't go too high) *)
+                (* .... we could add a "highest-node" value to map tuple *)
                 | Expr (PipeIn (n, _)) ->
                     let c_ltid =
                       ltid ^ "." ^ string_of_int (List.length c_ids)
@@ -166,6 +170,8 @@ let check (_things, pipes) =
                     ( c_ltid :: c_ids,
                       lexical_lifetimes (Some ltid) (Block (get_pipe n).body)
                         c_ltid m )
+                    (* add locals to c_ltid shallow bindings *)
+                    (* if they are new (i.e., arent refs) here  *)
                 | _ -> (c_ids, m))
               ([], lifetime_map) body
           in
@@ -188,15 +194,19 @@ let check (_things, pipes) =
   let check_pipe p =
     let formals' = check_bindings p.formals in
     let locals' = find_bindings p.body in
+
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let _check_assign lvaluet rvaluet err =
       if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
+
     let _symbols =
       List.fold_left
         (fun m (is_mut, typ, name) -> StringMap.add name (is_mut, typ) m)
         StringMap.empty (formals' @ locals')
     in
+
+    (* generate lifetime tree *)
     let ltg = generate_lifetime_graph p.body in
     let _ =
       StringMap.iter
@@ -216,8 +226,8 @@ let check (_things, pipes) =
             ^ "\n"))
         ltg
     in
-    print_string "\n"
+    ()
   in
 
-  let _ = List.iter check_pipe pipes in
+  let _ = check_pipe (List.find (fun p -> p.name = "main") pipes) in
   ([], [])
