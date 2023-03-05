@@ -157,6 +157,15 @@ let check (_things, pipes) =
                     in
                     ( c_ltid :: c_ids,
                       lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
+                (* this follow's pipe calls to expand the tree *)
+                (* not sure if we will need... *)
+                | Expr (PipeIn (n, _)) ->
+                    let c_ltid =
+                      ltid ^ "." ^ string_of_int (List.length c_ids)
+                    in
+                    ( c_ltid :: c_ids,
+                      lexical_lifetimes (Some ltid) (Block (get_pipe n).body)
+                        c_ltid m )
                 | _ -> (c_ids, m))
               ([], lifetime_map) body
           in

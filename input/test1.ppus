@@ -1,3 +1,11 @@
+pipe test |> [] |> [] |> unit {
+  int y <| 0;
+  {
+    string zyx <| "hello, world";
+  }
+  |> ();
+}
+
 pipe main |> [] |> [] |> unit {
   int x <| false;
   {
@@ -15,8 +23,10 @@ pipe main |> [] |> [] |> unit {
       }
       {
         int y <| 5;
+        test <| [];
       }
     }
     bool r2 <| false;
   }
+  |> ();
 }
