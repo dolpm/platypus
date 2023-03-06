@@ -15,6 +15,7 @@ pipe main |> [] |> [] |> unit {
       int a <| 3;
       a <| 4;
     }
+
     {
       int z <| 2;
     }
