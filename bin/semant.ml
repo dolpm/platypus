@@ -263,8 +263,8 @@ let check (_things, pipes) =
       pipe_lifetimes
   in
 
-  (* from some arbitrary assignment node *)
-  (* Binding (id, (is_mut, typ, v_name, expr), pid) *)
+  (* from some arbitrary node *)
+  (* find if there is a previous binding of a node with var_name *)
   let rec find_biding p_name prev_child node var_name =
     (* todo: reduce this *)
     match node with
@@ -322,6 +322,112 @@ let check (_things, pipes) =
             find_biding p_name (Some id)
               (StringMap.find v (StringMap.find p_name pipe_lifetimes))
               var_name)
+  in
+
+  let rec expr_borrows expr =
+    match expr with
+    | Unop (Ref, Ident v) -> [ (v, false) ]
+    | Unop (MutRef, Ident v) -> [ (v, true) ]
+    | ThingValue l ->
+        let exprs = List.map (fun (_, expr) -> expr) l in
+        List.flatten (List.map (fun e -> expr_borrows e) exprs)
+    | TupleValue exprs ->
+        List.flatten (List.map (fun e -> expr_borrows e) exprs)
+    | Binop (e1, _, e2) -> expr_borrows e1 @ expr_borrows e2
+    | Unop (_, e1) -> expr_borrows e1
+    | PipeIn (_, exprs) ->
+        List.flatten (List.map (fun e -> expr_borrows e) exprs)
+    | _ -> []
+  in
+
+  let rec find_borrows p_name prev_child node var_name =
+    (* todo: reduce this *)
+    match node with
+    | Lifetime (id, cids, pid) -> (
+        match prev_child with
+        | None -> (
+            match pid with
+            | None -> None
+            | Some v ->
+                find_biding p_name (Some id)
+                  (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+                  var_name)
+        | Some prev_child -> (
+            let has_child_binding =
+              List.fold_left
+                (fun (is_done, ret_id) cid ->
+                  if is_done then (is_done, ret_id)
+                  else if cid = prev_child then (true, ret_id)
+                  else
+                    match
+                      StringMap.find cid (StringMap.find p_name pipe_lifetimes)
+                    with
+                    | Binding (id, (_, _, v_name, _), _) ->
+                        if v_name = var_name then (true, id) else (false, ret_id)
+                    | _ -> (false, ret_id))
+                (false, "") cids
+            in
+            match has_child_binding with
+            | false, _ | _, "" -> (
+                match pid with
+                | None -> None
+                | Some v ->
+                    find_biding p_name (Some id)
+                      (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+                      var_name)
+            | true, cid -> Some cid))
+    | Binding (id, (_, _, _, _), pid) -> (
+        match pid with
+        | None -> None
+        | Some v ->
+            find_biding p_name (Some id)
+              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+              var_name)
+    | Rebinding (id, (_, _), pid) -> (
+        match pid with
+        | None -> None
+        | Some v ->
+            find_biding p_name (Some id)
+              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+              var_name)
+    | PipeCall (id, (_, _), pid) -> (
+        match pid with
+        | None -> None
+        | Some v ->
+            find_biding p_name (Some id)
+              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+              var_name)
+  in
+
+  (* returns true if safe to borrow *)
+  let borrow_ck _p_name node mut =
+    let _id, exprs_to_check, _pid =
+      match node with
+      | Binding (id, (_, _, _, e), pid) -> (id, [ e ], pid)
+      | Rebinding (id, (_, e), pid) -> (id, [ e ], pid)
+      | PipeCall (id, (_, exprs), pid) -> (id, exprs, pid)
+      | Lifetime (id, _, pid) -> (id, [], pid)
+    in
+    match exprs_to_check with
+    | [] -> true
+    | exprs_to_check -> (
+        let found =
+          List.find_opt
+            (fun expr_to_check ->
+              let borrows_in_expr = expr_borrows expr_to_check in
+              match borrows_in_expr with
+              | [] -> true
+              | borrows -> (
+                  let violations =
+                    List.find_opt
+                      (fun (_, is_mut_borrow) ->
+                        if mut then true else (not mut) && not is_mut_borrow)
+                      borrows
+                  in
+                  match violations with None -> true | Some _ -> false))
+            exprs_to_check
+        in
+        match found with None -> false | Some _ -> true)
   in
 
   let _ =

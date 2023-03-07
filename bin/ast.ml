@@ -33,7 +33,7 @@ type binary_operator =
   | And
   | Or
 
-type unary_operator = Neg | Not | Deref | Ref
+type unary_operator = Neg | Not | Deref | Ref | MutRef
 type fn_sig = defined_type list * defined_type
 
 (* is_fluid (mutable), type, name bound *)
@@ -107,6 +107,7 @@ let string_of_uop = function
   | Not -> "!"
   | Deref -> "@"
   | Ref -> "&"
+  | MutRef -> "~&"
 
 let rec string_of_typ = function
   | Int -> "int"
