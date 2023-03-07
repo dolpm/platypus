@@ -177,26 +177,10 @@ let check (_things, pipes) =
                       rbs,
                       pins )
                 | Assign (is_mut, typ, name, _) ->
-                    let binding =
-                      match c_ids with
-                      | [] -> ((is_mut, typ, name), None)
-                      | last_cid :: _ -> ((is_mut, typ, name), Some last_cid)
-                    in
-                    (c_ids, m, binding :: bs, rbs, pins)
-                | ReAssign (name, _) ->
-                    let rebinding =
-                      match c_ids with
-                      | [] -> (name, None)
-                      | last_cid :: _ -> (name, Some last_cid)
-                    in
-                    (c_ids, m, bs, rebinding :: rbs, pins)
+                    (c_ids, m, (is_mut, typ, name) :: bs, rbs, pins)
+                | ReAssign (name, _) -> (c_ids, m, bs, name :: rbs, pins)
                 | Expr (PipeIn (n, args)) ->
-                    let pin =
-                      match c_ids with
-                      | [] -> ((n, args), None)
-                      | last_cid :: _ -> ((n, args), Some last_cid)
-                    in
-                    (c_ids, m, bs, rbs, pin :: pins)
+                    (c_ids, m, bs, rbs, (n, args) :: pins)
                 | _ -> (c_ids, m, bs, rbs, pins))
               ([], lifetime_map, [], [], [])
               body
@@ -253,34 +237,19 @@ let check (_things, pipes) =
                 ^ "];\nshallow binds: ["
                 ^ String.concat ","
                     (List.map
-                       (fun b ->
-                         match b with
-                         | (is_mut, typ, name), last_lt -> (
-                             "(mutable: " ^ string_of_bool is_mut ^ ", type: "
-                             ^ string_of_typ typ ^ ", name: " ^ name
-                             ^ ", last_entered_lt: "
-                             ^
-                             match last_lt with
-                             | None -> "None"
-                             | Some x -> x ^ ")"))
+                       (fun (is_mut, typ, name) ->
+                         "(mutable: " ^ string_of_bool is_mut ^ ", type: "
+                         ^ string_of_typ typ ^ ", name: " ^ name ^ ")")
                        bs)
-                ^ "];\nre-binds: ["
-                ^ String.concat ","
-                    (List.map
-                       (fun (n, last_lt) ->
-                         "(" ^ "name: " ^ n ^ ", last_entered_lt: "
-                         ^
-                         match last_lt with None -> "None" | Some x -> x ^ ")")
-                       rbs)
+                ^ "];\nre-binds: [" ^ String.concat "," rbs
                 ^ "];\nshallow pipe-ins: ["
                 ^ String.concat ","
                     (List.map
-                       (fun ((n, args), last_lt) ->
+                       (fun (n, args) ->
                          n ^ "("
                          ^ String.concat ","
                              (List.map (fun a -> string_of_expr a) args)
-                         ^ ") - last_entered_lt: "
-                         ^ match last_lt with None -> "None" | Some x -> x)
+                         ^ ")")
                        pipe_ins)
                 ^ "]\n\n"))
             ltg
@@ -302,11 +271,13 @@ let check (_things, pipes) =
     | Some _ -> Some (ltid, parent, c_ltids, bs, rbs, pipe_ins)
   in
 
+  (* check if there is a borrow on var name somewhere in the inner scope *)
+  (* of this lifetime *)
   let rec _is_borrowed p_name mut (_ltid, _parent, c_ltids, bs, _rbs, _pipe_ins)
       var_name =
     match
       List.find_opt
-        (fun ((_is_mut, typ, v_name), _last_lt) ->
+        (fun (_is_mut, typ, v_name) ->
           if v_name <> var_name then false
           else
             match typ with Borrow _ -> !mut | MutBorrow _ -> true | _ -> false)
@@ -326,31 +297,52 @@ let check (_things, pipes) =
         | None -> false)
   in
 
-  let preceeding_blocks p_name root stop =
-    let rec inner (ltid, _parent, c_ltids, _bs, _rbs, _pipe_ins)
-        (ltid', _parent', _c_ltids', _bs', _rbs', _pipe_ins') soln =
-      if ltid = ltid' then (true, soln)
-      else
-        let d, a =
-          List.fold_left
-            (fun (fin, accum) c_ltid ->
-              if fin then (fin, accum)
-              else
-                let c =
-                  StringMap.find c_ltid (StringMap.find p_name pipe_lifetimes)
-                in
-                let f, s = inner c stop [] in
-                (f, s @ accum))
-            (false, []) c_ltids
-        in
-        (d, ltid :: a)
+  let rec child_lifetimes_rec p_name lt rightmost_child =
+    let _, _, child_ltids, _, _, _ =
+      StringMap.find lt (StringMap.find p_name pipe_lifetimes)
     in
-    snd (inner root stop [])
+    snd
+      (List.fold_left
+         (fun (fin, res) c_ltid ->
+           match rightmost_child with
+           | None ->
+               (fin, c_ltid :: (res @ child_lifetimes_rec p_name c_ltid None))
+           | Some rightmost_child ->
+               if rightmost_child = c_ltid || fin then (true, res)
+               else
+                 (fin, c_ltid :: (res @ child_lifetimes_rec p_name c_ltid None)))
+         (false, []) child_ltids)
+  in
+
+  (* go up tree, checking only to the left of the prev node, until root *)
+  let feasible_borrow_lifetimes p_name root cur =
+    let root_ltid, _, _, _, _, _ = root in
+    let rec inner cur prev_ltid soln =
+      let cur_ltid, parent, _, _, _, _ = cur in
+      let _ =
+        print_string
+          (cur_ltid ^ ":\n"
+          ^ String.concat "," (child_lifetimes_rec p_name cur_ltid prev_ltid)
+          ^ "\n\n")
+      in
+      if root_ltid = cur_ltid then
+        soln @ child_lifetimes_rec p_name root_ltid prev_ltid
+      else
+        match parent with
+        | None -> soln @ child_lifetimes_rec p_name cur_ltid prev_ltid
+        | Some p ->
+            inner
+              (StringMap.find p (StringMap.find p_name pipe_lifetimes))
+              (Some cur_ltid)
+              (soln @ child_lifetimes_rec p_name cur_ltid prev_ltid)
+    in
+
+    inner cur None []
   in
 
   let _ =
     let blocks =
-      preceeding_blocks "main"
+      feasible_borrow_lifetimes "main"
         (StringMap.find "main" (StringMap.find "main" pipe_lifetimes))
         (StringMap.find "main.0.2.0" (StringMap.find "main" pipe_lifetimes))
     in
