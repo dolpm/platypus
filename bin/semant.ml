@@ -381,21 +381,27 @@ let check (_things, pipes) =
               borrow_map cids
           in
           borrow_map
-      | n ->
+      | n -> (
           let borrows_for_node = node_borrows n in
-          List.fold_left
-            (fun borrow_map (v_name, is_mut) ->
-              (* check if borrow exists already *)
-              let _validate =
-                if StringMap.mem v_name borrow_map then
-                  (* check if borrow is mutable or immutable *)
-                  if StringMap.find v_name borrow_map then
-                    make_err (already_mut_borrowed v_name)
-                  else if is_mut then
-                    make_err (mut_borrow_when_immut_borrowed v_name)
-              in
-              StringMap.add v_name is_mut borrow_map)
-            borrow_map borrows_for_node
+          let new_map =
+            List.fold_left
+              (fun borrow_map (v_name, is_mut) ->
+                (* check if borrow exists already *)
+                let _validate =
+                  if StringMap.mem v_name borrow_map then
+                    (* check if borrow is mutable or immutable *)
+                    if StringMap.find v_name borrow_map then
+                      make_err (already_mut_borrowed v_name)
+                    else if is_mut then
+                      make_err (mut_borrow_when_immut_borrowed v_name)
+                in
+                StringMap.add v_name is_mut borrow_map)
+              borrow_map borrows_for_node
+          in
+          (* if passed directly to pipe, the pipe's borrow *)
+          (* will fall out of scope before the next line is executed *)
+          (* thus we JUST need to validate the invariants *)
+          match n with PipeCall (_, _, _) -> borrow_map | _ -> new_map)
     in
     let _ = drill root StringMap.empty in
     ()
