@@ -265,6 +265,7 @@ let check (_things, pipes) =
 
   (* from some arbitrary node *)
   (* find if there is a previous binding of a node with var_name *)
+  (*
   let rec find_biding p_name prev_child node var_name =
     (* todo: reduce this *)
     match node with
@@ -323,7 +324,7 @@ let check (_things, pipes) =
               (StringMap.find v (StringMap.find p_name pipe_lifetimes))
               var_name)
   in
-
+  *)
   let rec expr_borrows expr =
     match expr with
     | Unop (Ref, Ident v) -> [ (v, false) ]
@@ -339,12 +340,6 @@ let check (_things, pipes) =
         List.flatten (List.map (fun e -> expr_borrows e) exprs)
     | _ -> []
   in
-
-  (* todo: create a function that finds all prior borrows and their types *)
-  (* idea: what if we built a borrow map by running a lft on our existing *)
-  (* tree and removing borrow constraints after we work back up the tree *)
-  (* (i.e., move back out of scope) *)
-  (* i guess this would also ust be a dfs....  *)
 
   (* returns borrows inside of node *)
   let node_borrows node =
@@ -364,24 +359,51 @@ let check (_things, pipes) =
              exprs_to_check)
   in
 
-  let _ =
-    let _ = print_string "borrows:\n" in
-    let borrows =
-      node_borrows
-        (StringMap.find "main.1.4.2.5" (StringMap.find "main" pipe_lifetimes))
+  let borrow_ck pipe_name =
+    let root =
+      StringMap.find pipe_name (StringMap.find pipe_name pipe_lifetimes)
     in
-    List.map (fun (b, _is_mut) -> print_string (b ^ "\n")) borrows
+    let already_mut_borrowed v_name =
+      "variable " ^ v_name ^ " is already mutably borrowed."
+    and mut_borrow_when_immut_borrowed v_name =
+      "variable " ^ v_name
+      ^ " is already immutably borrowed, thus it cant be mutably borrowed."
+    and make_err er = raise (Failure er) in
+    let rec drill cur_node borrow_map =
+      match cur_node with
+      | Lifetime (_id, cids, _pid) ->
+          let _ =
+            List.fold_left
+              (fun m cid ->
+                drill
+                  (StringMap.find cid (StringMap.find pipe_name pipe_lifetimes))
+                  m)
+              borrow_map cids
+          in
+          borrow_map
+      | n ->
+          let borrows_for_node = node_borrows n in
+          List.fold_left
+            (fun borrow_map (v_name, is_mut) ->
+              (* check if borrow exists already *)
+              let _validate =
+                if StringMap.mem v_name borrow_map then
+                  (* check if borrow is mutable or immutable *)
+                  if StringMap.find v_name borrow_map then
+                    make_err (already_mut_borrowed v_name)
+                  else if is_mut then
+                    make_err (mut_borrow_when_immut_borrowed v_name)
+              in
+              StringMap.add v_name is_mut borrow_map)
+            borrow_map borrows_for_node
+    in
+    let _ = drill root StringMap.empty in
+    ()
   in
 
   let _ =
-    let _ = print_string "\nfind_binding:\n" in
-    let nid =
-      find_biding "main" None
-        (StringMap.find "main.1.4.2.4" (StringMap.find "main" pipe_lifetimes))
-        "z"
-    in
-
-    print_string ((match nid with None -> "None" | Some v -> v) ^ "\n")
+    let _ = borrow_ck "test" in
+    print_string "borrow_ck test: passed!\n"
   in
 
   (* see if any borrows to the left of current assn in tree but under defn *)

@@ -1,42 +1,14 @@
 pipe test |> [] |> [r: int] |> unit {
-  int y <| 0;
+  int x <| 0;
   {
-    string zyx <| "hello, world";
-    test <| [y];
+    ~&int y <| ~&x;
+    {
+      ~&int z <| ~&x;
+    }
   }
   |> ();
 }
 
 pipe main |> [] |> [] |> unit {
-  int x <| false;
-  {
-    bool r <| false;
-    {
-      int a <| 3;
-      a <| 4;
-    }
-    bool z <| false;
-
-    {
-      int z <| 2;
-    }
-    {
-      int b <| 2;
-      {
-        int y <| 5;
-      }
-      {
-        int y <| 5;
-        {
-          int r <| 4;
-        }
-        test <| [y];
-        test <| [b];
-        b <| 8;
-        b <| &y;
-      }
-    }
-    bool r2 <| false;
-  }
   |> ();
 }
