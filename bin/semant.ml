@@ -344,38 +344,35 @@ let check (_things, pipes) =
   (* idea: what if we built a borrow map by running a lft on our existing *)
   (* tree...  *)
 
-  (* returns true if safe to borrow *)
-  let borrow_ck _p_name node mut =
-    let _id, exprs_to_check, _pid =
+  (* returns borrows inside of node *)
+  let node_borrows node =
+    let exprs_to_check =
       match node with
-      | Binding (id, (_, _, _, e), pid) -> (id, [ e ], pid)
-      | Rebinding (id, (_, e), pid) -> (id, [ e ], pid)
-      | PipeCall (id, (_, exprs), pid) -> (id, exprs, pid)
-      | Lifetime (id, _, pid) -> (id, [], pid)
+      | Binding (_, (_, _, _, e), _) -> [ e ]
+      | Rebinding (_, (_, e), _) -> [ e ]
+      | PipeCall (_, (_, exprs), _) -> exprs
+      | Lifetime (_, _, _) -> []
     in
     match exprs_to_check with
-    | [] -> true
-    | exprs_to_check -> (
-        let found =
-          List.find_opt
-            (fun expr_to_check ->
-              let borrows_in_expr = expr_borrows expr_to_check in
-              match borrows_in_expr with
-              | [] -> true
-              | borrows -> (
-                  let violations =
-                    List.find_opt
-                      (fun (_, is_mut_borrow) ->
-                        if mut then true else (not mut) && not is_mut_borrow)
-                      borrows
-                  in
-                  match violations with None -> true | Some _ -> false))
-            exprs_to_check
-        in
-        match found with None -> false | Some _ -> true)
+    | [] -> []
+    | exprs_to_check ->
+        List.flatten
+          (List.map
+             (fun expr_to_check -> expr_borrows expr_to_check)
+             exprs_to_check)
   in
 
   let _ =
+    let _ = print_string "borrows:\n" in
+    let borrows =
+      node_borrows
+        (StringMap.find "main.1.4.2.5" (StringMap.find "main" pipe_lifetimes))
+    in
+    List.map (fun (b, _is_mut) -> print_string (b ^ "\n")) borrows
+  in
+
+  let _ =
+    let _ = print_string "\nfind_binding:\n" in
     let nid =
       find_biding "main" None
         (StringMap.find "main.1.4.2.4" (StringMap.find "main" pipe_lifetimes))

@@ -33,6 +33,7 @@ pipe main |> [] |> [] |> unit {
         test <| [y];
         test <| [b];
         b <| 8;
+        b <| &y;
       }
     }
     bool r2 <| false;
