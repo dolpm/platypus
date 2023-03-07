@@ -340,64 +340,9 @@ let check (_things, pipes) =
     | _ -> []
   in
 
-  let rec find_borrows p_name prev_child node var_name =
-    (* todo: reduce this *)
-    match node with
-    | Lifetime (id, cids, pid) -> (
-        match prev_child with
-        | None -> (
-            match pid with
-            | None -> None
-            | Some v ->
-                find_biding p_name (Some id)
-                  (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-                  var_name)
-        | Some prev_child -> (
-            let has_child_binding =
-              List.fold_left
-                (fun (is_done, ret_id) cid ->
-                  if is_done then (is_done, ret_id)
-                  else if cid = prev_child then (true, ret_id)
-                  else
-                    match
-                      StringMap.find cid (StringMap.find p_name pipe_lifetimes)
-                    with
-                    | Binding (id, (_, _, v_name, _), _) ->
-                        if v_name = var_name then (true, id) else (false, ret_id)
-                    | _ -> (false, ret_id))
-                (false, "") cids
-            in
-            match has_child_binding with
-            | false, _ | _, "" -> (
-                match pid with
-                | None -> None
-                | Some v ->
-                    find_biding p_name (Some id)
-                      (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-                      var_name)
-            | true, cid -> Some cid))
-    | Binding (id, (_, _, _, _), pid) -> (
-        match pid with
-        | None -> None
-        | Some v ->
-            find_biding p_name (Some id)
-              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-              var_name)
-    | Rebinding (id, (_, _), pid) -> (
-        match pid with
-        | None -> None
-        | Some v ->
-            find_biding p_name (Some id)
-              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-              var_name)
-    | PipeCall (id, (_, _), pid) -> (
-        match pid with
-        | None -> None
-        | Some v ->
-            find_biding p_name (Some id)
-              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-              var_name)
-  in
+  (* todo: create a function that finds all prior borrows and their types *)
+  (* idea: what if we built a borrow map by running a lft on our existing *)
+  (* tree...  *)
 
   (* returns true if safe to borrow *)
   let borrow_ck _p_name node mut =
