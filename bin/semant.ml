@@ -342,7 +342,9 @@ let check (_things, pipes) =
 
   (* todo: create a function that finds all prior borrows and their types *)
   (* idea: what if we built a borrow map by running a lft on our existing *)
-  (* tree...  *)
+  (* tree and removing borrow constraints after we work back up the tree *)
+  (* (i.e., move back out of scope) *)
+  (* i guess this would also ust be a dfs....  *)
 
   (* returns borrows inside of node *)
   let node_borrows node =
