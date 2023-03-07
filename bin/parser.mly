@@ -159,6 +159,7 @@ expr:
   | NOT expr         { Unop(Not, $2)          }
   | DEREF expr       { Unop(Deref, $2)      }
   | BORROW expr         { Unop(Ref, $2)          }
+  | MUTBORROW expr         { Unop(MutRef, $2)          }
 
   | IDENT LPIPE LBRACKET args_opt RBRACKET { PipeIn($1, $4)  }
   | LPAREN expr RPAREN { $2                   }

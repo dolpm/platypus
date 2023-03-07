@@ -1,6 +1,16 @@
 open Ast
 module StringMap = Map.Make (String)
 
+type graph_node =
+  (* id, children id's, parent id *)
+  | Lifetime of string * string list * string option
+  (* id, binding, pid *)
+  | Binding of string * (bool * defined_type * string * expr) * string option
+  (* id, v2b name, pid *)
+  | Rebinding of string * (string * expr) * string option
+  (* id, p2c, pid *)
+  | PipeCall of string * (string * expr list) * string option
+
 let check (_things, pipes) =
   (* built in pipe definitions *)
   (* (name, [param(is_mut, type, name)], ret_type) *)
@@ -108,86 +118,52 @@ let check (_things, pipes) =
          body)
   in
 
-  (* build the lifetime graph for a pipe *)
-  (* todo should we follow inner pipe calls? *)
-  (* this would allow us to create a lt graph for the entire program *)
   let generate_lifetime_graph pipe =
-    let rec lexical_lifetimes parent block ltid lifetime_map =
-      match block with
-      | Block body ->
-          let child_ids, lifetime_map_with_children =
+    let rec gen_children pid stmt ct map =
+      match stmt with
+      | Block stmts ->
+          let nid = pid ^ "." ^ string_of_int ct in
+          let _, new_map, children =
             List.fold_left
-              (fun (c_ids, m) s ->
-                match s with
-                | Block [] -> (c_ids, m)
-                | Block stmts ->
-                    let c_ltid =
-                      ltid ^ "." ^ string_of_int (List.length c_ids)
-                    in
-                    ( c_ltid :: c_ids,
-                      lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
-                | If (_, Block stmts, Block []) ->
-                    let c_ltid =
-                      ltid ^ "." ^ string_of_int (List.length c_ids)
-                    in
-                    ( c_ltid :: c_ids,
-                      lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
-                | If (_, Block stmts, Block stmts2) ->
-                    let c1_ltid =
-                      ltid ^ "." ^ string_of_int (List.length c_ids)
-                    in
-                    let s1_map =
-                      lexical_lifetimes (Some ltid) (Block stmts) c1_ltid m
-                    in
-                    let c2_ltid =
-                      ltid ^ "." ^ string_of_int (List.length c_ids + 1)
-                    in
-                    ( c2_ltid :: c1_ltid :: c_ids,
-                      lexical_lifetimes (Some ltid) (Block stmts2) c1_ltid
-                        s1_map )
-                | Loop (_, _, _, _, Block stmts) ->
-                    let c_ltid =
-                      ltid ^ "." ^ string_of_int (List.length c_ids)
-                    in
-                    ( c_ltid :: c_ids,
-                      lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
-                | While (_, Block stmts) ->
-                    let c_ltid =
-                      ltid ^ "." ^ string_of_int (List.length c_ids)
-                    in
-                    ( c_ltid :: c_ids,
-                      lexical_lifetimes (Some ltid) (Block stmts) c_ltid m )
-                | _ -> (c_ids, m))
-              ([], lifetime_map) body
+              (fun (c, m, children) s ->
+                ( c + 1,
+                  gen_children nid s c m,
+                  (nid ^ "." ^ string_of_int c) :: children ))
+              (0, map, []) stmts
           in
-          let shallow_bindings =
-            List.filter_map
-              (fun s ->
-                match s with
-                | Assign (is_mut, typ, name, _) -> Some (is_mut, typ, name)
-                | _ -> None)
-              body
-          in
-          let rebindings =
-            List.filter_map
-              (fun s ->
-                match s with ReAssign (name, _) -> Some name | _ -> None)
-              body
-          in
-          let shallow_pipe_ins =
-            List.filter_map
-              (fun s ->
-                match s with
-                | Expr (PipeIn (n, args)) -> Some (n, args)
-                | _ -> None)
-              body
-          in
-          StringMap.add ltid
-            (parent, child_ids, shallow_bindings, rebindings, shallow_pipe_ins)
-            lifetime_map_with_children
-      | _ -> lifetime_map
+          StringMap.add nid
+            (Lifetime (nid, List.rev children, Some pid))
+            new_map
+      | If (_, Block stmts, Block []) -> gen_children pid (Block stmts) ct map
+      | If (_, Block stmts, Block stmts2) ->
+          let m1 = gen_children pid (Block stmts) ct map in
+          gen_children pid (Block stmts2) ct m1
+      | Loop (_, _, _, _, Block stmts) -> gen_children pid (Block stmts) ct map
+      | While (_, Block stmts) -> gen_children pid (Block stmts) ct map
+      | Assign (is_mut, typ, name, expr) ->
+          let nid = pid ^ "." ^ string_of_int ct in
+          StringMap.add nid
+            (Binding (nid, (is_mut, typ, name, expr), Some pid))
+            map
+      | ReAssign (name, expr) ->
+          let nid = pid ^ "." ^ string_of_int ct in
+          StringMap.add nid (Rebinding (nid, (name, expr), Some pid)) map
+      | Expr (PipeIn (n, args)) ->
+          let nid = pid ^ "." ^ string_of_int ct in
+          StringMap.add nid (PipeCall (nid, (n, args), Some pid)) map
+      | _ -> map
     in
-    lexical_lifetimes None (Block pipe.body) pipe.name StringMap.empty
+    let _, new_map, children =
+      List.fold_left
+        (fun (c, m, children) s ->
+          ( c + 1,
+            gen_children pipe.name s c m,
+            (pipe.name ^ "." ^ string_of_int c) :: children ))
+        (0, StringMap.empty, []) pipe.body
+    in
+    (* remove first "generated" root child here.. *)
+    let children = match children with [] -> [] | _ :: c -> List.rev c in
+    StringMap.add pipe.name (Lifetime (pipe.name, children, None)) new_map
   in
 
   let pipe_lifetime_maps pipes =
@@ -221,35 +197,239 @@ let check (_things, pipes) =
         let _ = print_string "\n" in
         let _ =
           StringMap.iter
-            (fun lt (parent, c_ltids, bs, rbs, pipe_ins) ->
-              print_string
-                (lt ^ " --> " ^ "\nparent: "
-                ^ (match parent with Some p -> p | None -> "None")
-                ^ ";\nchildren: [" ^ String.concat "," c_ltids
-                ^ "];\nshallow binds: ["
-                ^ String.concat ","
-                    (List.map
-                       (fun b ->
-                         match b with
-                         | is_mut, typ, name ->
-                             "(mutable: " ^ string_of_bool is_mut ^ ", type: "
-                             ^ string_of_typ typ ^ ", name: " ^ name ^ ")")
-                       bs)
-                ^ "];\nre-binds: [" ^ String.concat "," rbs
-                ^ "];\nshallow pipe-ins: ["
-                ^ String.concat ","
-                    (List.map
-                       (fun (n, args) ->
-                         n ^ "("
-                         ^ String.concat ","
-                             (List.map (fun a -> string_of_expr a) args)
-                         ^ ")")
-                       pipe_ins)
-                ^ "]\n\n"))
+            (fun _nid node ->
+              let _ =
+                match node with
+                | Lifetime (id, children, pid) ->
+                    let _ = print_string "node_type: Lifetime\n" in
+                    let _ = print_string ("id: " ^ id ^ "\n") in
+                    let _ =
+                      print_string
+                        ("pid: "
+                        ^ (match pid with Some pid -> pid | None -> "None")
+                        ^ "\n")
+                    in
+                    print_string
+                      ("children: " ^ String.concat ", " children ^ "\n")
+                | Binding (id, (is_mut, typ, name, expr), pid) ->
+                    let _ = print_string "node_type: Binding\n" in
+                    let _ = print_string ("id: " ^ id ^ "\n") in
+                    let _ =
+                      print_string
+                        ("pid: "
+                        ^ (match pid with Some pid -> pid | None -> "None")
+                        ^ "\n")
+                    in
+                    let _ =
+                      print_string ("is_mut: " ^ string_of_bool is_mut ^ "\n")
+                    in
+                    let _ =
+                      print_string ("type: " ^ string_of_typ typ ^ "\n")
+                    in
+                    let _ = print_string ("name: " ^ name ^ "\n") in
+
+                    print_string ("expr: " ^ string_of_expr expr ^ "\n")
+                | Rebinding (id, (name, expr), pid) ->
+                    let _ = print_string "node_type: Rebinding\n" in
+                    let _ = print_string ("id: " ^ id ^ "\n") in
+                    let _ =
+                      print_string
+                        ("pid: "
+                        ^ (match pid with Some pid -> pid | None -> "None")
+                        ^ "\n")
+                    in
+                    let _ = print_string ("name: " ^ name ^ "\n") in
+                    print_string ("expr: " ^ string_of_expr expr ^ "\n")
+                | PipeCall (id, (name, args), pid) ->
+                    let _ = print_string "node_type: PipeCall\n" in
+                    let _ = print_string ("id: " ^ id ^ "\n") in
+                    let _ =
+                      print_string
+                        ("pid: "
+                        ^ (match pid with Some pid -> pid | None -> "None")
+                        ^ "\n")
+                    in
+                    let _ = print_string ("name: " ^ name ^ "\n") in
+                    print_string
+                      ("args: "
+                      ^ String.concat ", "
+                          (List.map (fun e -> string_of_expr e) args)
+                      ^ "\n")
+              in
+              print_string "\n")
             ltg
         in
-        print_string "\n")
+        print_string "\n------\n\n")
       pipe_lifetimes
   in
 
+  (* from some arbitrary node *)
+  (* find if there is a previous binding of a node with var_name *)
+  (*
+  let rec find_biding p_name prev_child node var_name =
+    (* todo: reduce this *)
+    match node with
+    | Lifetime (id, cids, pid) -> (
+        match prev_child with
+        | None -> (
+            match pid with
+            | None -> None
+            | Some v ->
+                find_biding p_name (Some id)
+                  (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+                  var_name)
+        | Some prev_child -> (
+            let has_child_binding =
+              List.fold_left
+                (fun (is_done, ret_id) cid ->
+                  if is_done then (is_done, ret_id)
+                  else if cid = prev_child then (true, ret_id)
+                  else
+                    match
+                      StringMap.find cid (StringMap.find p_name pipe_lifetimes)
+                    with
+                    | Binding (id, (_, _, v_name, _), _) ->
+                        if v_name = var_name then (true, id) else (false, ret_id)
+                    | _ -> (false, ret_id))
+                (false, "") cids
+            in
+            match has_child_binding with
+            | false, _ | _, "" -> (
+                match pid with
+                | None -> None
+                | Some v ->
+                    find_biding p_name (Some id)
+                      (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+                      var_name)
+            | true, cid -> Some cid))
+    | Binding (id, (_, _, _, _), pid) -> (
+        match pid with
+        | None -> None
+        | Some v ->
+            find_biding p_name (Some id)
+              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+              var_name)
+    | Rebinding (id, (_, _), pid) -> (
+        match pid with
+        | None -> None
+        | Some v ->
+            find_biding p_name (Some id)
+              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+              var_name)
+    | PipeCall (id, (_, _), pid) -> (
+        match pid with
+        | None -> None
+        | Some v ->
+            find_biding p_name (Some id)
+              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
+              var_name)
+  in
+  *)
+  let rec expr_borrows expr =
+    match expr with
+    | Unop (Ref, Ident v) -> [ (v, false) ]
+    | Unop (MutRef, Ident v) -> [ (v, true) ]
+    | ThingValue l ->
+        let exprs = List.map (fun (_, expr) -> expr) l in
+        List.flatten (List.map (fun e -> expr_borrows e) exprs)
+    | TupleValue exprs ->
+        List.flatten (List.map (fun e -> expr_borrows e) exprs)
+    | Binop (e1, _, e2) -> expr_borrows e1 @ expr_borrows e2
+    | Unop (_, e1) -> expr_borrows e1
+    | PipeIn (_, exprs) ->
+        List.flatten (List.map (fun e -> expr_borrows e) exprs)
+    | _ -> []
+  in
+
+  (* returns borrows inside of node *)
+  let node_borrows node =
+    let exprs_to_check =
+      match node with
+      | Binding (_, (_, _, _, e), _) -> [ e ]
+      | Rebinding (_, (_, e), _) -> [ e ]
+      | PipeCall (_, (_, exprs), _) -> exprs
+      | Lifetime (_, _, _) -> []
+    in
+    match exprs_to_check with
+    | [] -> []
+    | exprs_to_check ->
+        List.flatten
+          (List.map
+             (fun expr_to_check -> expr_borrows expr_to_check)
+             exprs_to_check)
+  in
+
+  let borrow_ck pipe_name =
+    let root =
+      StringMap.find pipe_name (StringMap.find pipe_name pipe_lifetimes)
+    in
+    let already_mut_borrowed v_name =
+      "variable " ^ v_name ^ " is already mutably borrowed."
+    and mut_borrow_when_immut_borrowed v_name =
+      "variable " ^ v_name
+      ^ " is already immutably borrowed, thus it cant be mutably borrowed."
+    and make_err er = raise (Failure er) in
+    let rec drill cur_node borrow_map =
+      match cur_node with
+      | Lifetime (_id, cids, _pid) ->
+          let _ =
+            List.fold_left
+              (fun m cid ->
+                drill
+                  (StringMap.find cid (StringMap.find pipe_name pipe_lifetimes))
+                  m)
+              borrow_map cids
+          in
+          borrow_map
+      | n ->
+          let borrows_for_node = node_borrows n in
+          List.fold_left
+            (fun borrow_map (v_name, is_mut) ->
+              (* check if borrow exists already *)
+              let _validate =
+                if StringMap.mem v_name borrow_map then
+                  (* check if borrow is mutable or immutable *)
+                  if StringMap.find v_name borrow_map then
+                    make_err (already_mut_borrowed v_name)
+                  else if is_mut then
+                    make_err (mut_borrow_when_immut_borrowed v_name)
+              in
+              StringMap.add v_name is_mut borrow_map)
+            borrow_map borrows_for_node
+    in
+    let _ = drill root StringMap.empty in
+    ()
+  in
+
+  let _ =
+    let _ = borrow_ck "test" in
+    print_string "borrow_ck test: passed!\n"
+  in
+
+  (* see if any borrows to the left of current assn in tree but under defn *)
+  (*
+  let can_borrow pipe_name cur_assn mut =
+    let rec find_defn cur_node =
+      
+    in
+      find_defn cur_assn
+  in
+  *)
+
+  (* variables can be safely immutibly borrowed iff *)
+  (* 1. there are no active mutable borrows on said value *)
+  (* 2. the value is in scope *)
+
+  (* in the context of our lifetime tree, this translates to... *)
+  (* no nodes to the left of current node (under closest re-assignment) *)
+  (* mutably borrow the variable. also, there must not be any reassigments *)
+  (* to the left of our current node. *)
+
+  (* variables can be safely mutably borrowed iff *)
+  (* 1. there are no active borrows (immutable/mutable) on said value *)
+
+  (* in the context of our lifetime tree, this translates to... *)
+  (* no nodes to the left of current node (under closest re-assignment) *)
+  (* borrow the variable. also, there must not be any reassigments *)
+  (* to the left of our current node. *)
   ([], [])
