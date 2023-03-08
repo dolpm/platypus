@@ -276,69 +276,6 @@ let check (_things, pipes) =
       pipe_lifetimes
   in
 
-  (* from some arbitrary node *)
-  (* find if there is a previous binding of a node with var_name *)
-  (*
-  let rec find_biding p_name prev_child node var_name =
-    (* todo: reduce this *)
-    match node with
-    | Lifetime (id, cids, pid) -> (
-        match prev_child with
-        | None -> (
-            match pid with
-            | None -> None
-            | Some v ->
-                find_biding p_name (Some id)
-                  (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-                  var_name)
-        | Some prev_child -> (
-            let has_child_binding =
-              List.fold_left
-                (fun (is_done, ret_id) cid ->
-                  if is_done then (is_done, ret_id)
-                  else if cid = prev_child then (true, ret_id)
-                  else
-                    match
-                      StringMap.find cid (StringMap.find p_name pipe_lifetimes)
-                    with
-                    | Binding (id, (_, _, v_name, _), _) ->
-                        if v_name = var_name then (true, id) else (false, ret_id)
-                    | _ -> (false, ret_id))
-                (false, "") cids
-            in
-            match has_child_binding with
-            | false, _ | _, "" -> (
-                match pid with
-                | None -> None
-                | Some v ->
-                    find_biding p_name (Some id)
-                      (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-                      var_name)
-            | true, cid -> Some cid))
-    | Binding (id, (_, _, _, _), pid) -> (
-        match pid with
-        | None -> None
-        | Some v ->
-            find_biding p_name (Some id)
-              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-              var_name)
-    | Rebinding (id, (_, _), pid) -> (
-        match pid with
-        | None -> None
-        | Some v ->
-            find_biding p_name (Some id)
-              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-              var_name)
-    | PipeCall (id, (_, _), pid) -> (
-        match pid with
-        | None -> None
-        | Some v ->
-            find_biding p_name (Some id)
-              (StringMap.find v (StringMap.find p_name pipe_lifetimes))
-              var_name)
-  in
-  *)
-
   (* todo: if we are looking at an identifier, then look it up in the graph *)
   let rec expr_borrows map expr =
     match expr with
@@ -432,30 +369,4 @@ let check (_things, pipes) =
       pipes
   in
 
-  (* see if any borrows to the left of current assn in tree but under defn *)
-  (*
-  let can_borrow pipe_name cur_assn mut =
-    let rec find_defn cur_node =
-      
-    in
-      find_defn cur_assn
-  in
-  *)
-
-  (* variables can be safely immutibly borrowed iff *)
-  (* 1. there are no active mutable borrows on said value *)
-  (* 2. the value is in scope *)
-
-  (* in the context of our lifetime tree, this translates to... *)
-  (* no nodes to the left of current node (under closest re-assignment) *)
-  (* mutably borrow the variable. also, there must not be any reassigments *)
-  (* to the left of our current node. *)
-
-  (* variables can be safely mutably borrowed iff *)
-  (* 1. there are no active borrows (immutable/mutable) on said value *)
-
-  (* in the context of our lifetime tree, this translates to... *)
-  (* no nodes to the left of current node (under closest re-assignment) *)
-  (* borrow the variable. also, there must not be any reassigments *)
-  (* to the left of our current node. *)
   ([], [])
