@@ -153,13 +153,26 @@ let check (_things, pipes) =
           StringMap.add nid (PipeCall (nid, (n, args), Some pid)) map
       | _ -> map
     in
+    (* create dummy assignment nodes for args in fn lifetime *)
+    let map_with_args =
+      snd
+        (List.fold_left
+           (fun (ct, m) (is_mut, typ, name) ->
+             let c_name = pipe.name ^ "." ^ string_of_int ct in
+             ( ct + 1,
+               StringMap.add c_name
+                 (Binding (c_name, (is_mut, typ, name, NoExpr), Some pipe.name))
+                 m ))
+           (0, StringMap.empty) pipe.formals)
+    in
     let _, new_map, children =
       List.fold_left
         (fun (c, m, children) s ->
           ( c + 1,
             gen_children pipe.name s c m,
             (pipe.name ^ "." ^ string_of_int c) :: children ))
-        (0, StringMap.empty, []) pipe.body
+        (StringMap.cardinal map_with_args, map_with_args, [])
+        pipe.body
     in
     (* remove first "generated" root child here.. *)
     let children = match children with [] -> [] | _ :: c -> List.rev c in
@@ -325,24 +338,28 @@ let check (_things, pipes) =
               var_name)
   in
   *)
-  let rec expr_borrows expr =
+
+  (* todo: if we are looking at an identifier, then look it up in the graph *)
+  let rec expr_borrows map expr =
     match expr with
     | Unop (Ref, Ident v) -> [ (v, false) ]
     | Unop (MutRef, Ident v) -> [ (v, true) ]
     | ThingValue l ->
         let exprs = List.map (fun (_, expr) -> expr) l in
-        List.flatten (List.map (fun e -> expr_borrows e) exprs)
+        List.flatten (List.map (fun e -> expr_borrows map e) exprs)
     | TupleValue exprs ->
-        List.flatten (List.map (fun e -> expr_borrows e) exprs)
-    | Binop (e1, _, e2) -> expr_borrows e1 @ expr_borrows e2
-    | Unop (_, e1) -> expr_borrows e1
+        List.flatten (List.map (fun e -> expr_borrows map e) exprs)
+    | Binop (e1, _, e2) -> expr_borrows map e1 @ expr_borrows map e2
+    | Unop (_, e1) -> expr_borrows map e1
     | PipeIn (_, exprs) ->
-        List.flatten (List.map (fun e -> expr_borrows e) exprs)
+        List.flatten (List.map (fun e -> expr_borrows map e) exprs)
+    | Ident v -> (
+        match StringMap.find_opt v map with None -> [] | Some x -> [ (v, x) ])
     | _ -> []
   in
 
   (* returns borrows inside of node *)
-  let node_borrows node =
+  let node_borrows map node =
     let exprs_to_check =
       match node with
       | Binding (_, (_, _, _, e), _) -> [ e ]
@@ -355,7 +372,7 @@ let check (_things, pipes) =
     | exprs_to_check ->
         List.flatten
           (List.map
-             (fun expr_to_check -> expr_borrows expr_to_check)
+             (fun expr_to_check -> expr_borrows map expr_to_check)
              exprs_to_check)
   in
 
@@ -382,7 +399,7 @@ let check (_things, pipes) =
           in
           borrow_map
       | n -> (
-          let borrows_for_node = node_borrows n in
+          let borrows_for_node = node_borrows borrow_map n in
           let new_map =
             List.fold_left
               (fun borrow_map (v_name, is_mut) ->
@@ -408,8 +425,11 @@ let check (_things, pipes) =
   in
 
   let _ =
-    let _ = borrow_ck "test" in
-    print_string "borrow_ck test: passed!\n"
+    List.iter
+      (fun p ->
+        let _ = borrow_ck p.name in
+        print_string ("borrow check for " ^ p.name ^ " passed!\n"))
+      pipes
   in
 
   (* see if any borrows to the left of current assn in tree but under defn *)

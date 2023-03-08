@@ -1,9 +1,10 @@
 pipe test1 |> [] |> [r: ~&int] |> unit {
+  test1 <| [r];
   |> ();
 }
 
 
-pipe test |> [] |> [r: int] |> unit {
+pipe test |> [] |> [] |> unit {
   int x <| 0;
   {
     test1 <| [~&x];
