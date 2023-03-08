@@ -1,4 +1,11 @@
+/*
+TODO:
+- make sure deref (@) undoes doesn't check borrow
+- handle nested borrows
+*/
+
 pipe test1 |> [] |> [r: ~&int] |> unit {
+  ~&int y <| r;
   test1 <| [r];
   |> ();
 }
