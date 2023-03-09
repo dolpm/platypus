@@ -45,8 +45,8 @@ typ:
   | BORROW LIFETIME typ { Borrow($3, $2) }
   | MUTBORROW LIFETIME typ { MutBorrow($3, $2) }
   /* infer lifetime as static if not provided? */
-  | BORROW typ { Borrow($2, "'static") }
-  | MUTBORROW typ  { MutBorrow($2, "'static")}
+  | BORROW typ { Borrow($2, "'_") }
+  | MUTBORROW typ  { MutBorrow($2, "'_")}
   | IDENT { Ident($1) }
 
 typ_list:

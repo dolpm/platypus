@@ -7,7 +7,7 @@ pipe fname |> ['a, 'b] |> [x: ~&'a int, y: &'b int] |> &'b int {
   |> y;
 }
 
-pipe takes_in_tuple |> [] |> [x: &'static [int * bool * int]] |> unit {
+pipe takes_in_tuple |> [] |> [x: &'_ [int * bool * int]] |> unit {
   if (x.1)
   {
     printnl <| [x.0 + x.2];

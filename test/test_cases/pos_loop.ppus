@@ -4,7 +4,7 @@ pipe main |> [] |> [] |> unit {
     }
 
     loop 0 -> 5 as (i, 2) {
-        printnl <| [int_to_string <| [i]]; 
+        printnl <| [int_to_string <| [i]];
     }
 
     while (i < 10) {

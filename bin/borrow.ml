@@ -1,5 +1,6 @@
 open Ast
 module StringMap = Map.Make (String)
+module StringSet = Set.Make (String)
 
 type graph_node =
   (* id, children id's, parent id *)
@@ -10,6 +11,8 @@ type graph_node =
   | Rebinding of string * (string * expr) * string option
   (* id, p2c, pid *)
   | PipeCall of string * (string * expr list) * string option
+  (* id, expr, pid *)
+  | PipeReturn of string * expr * string option
 
 let borrow_ck pipes verbose =
   let generate_lifetime_graph pipe =
@@ -20,32 +23,38 @@ let borrow_ck pipes verbose =
           let _, new_map, children =
             List.fold_left
               (fun (c, m, children) s ->
-                ( c + 1,
-                  gen_children nid s c m,
-                  (nid ^ "." ^ string_of_int c) :: children ))
+                let updated, m = gen_children nid s c m in
+                if updated then
+                  (c + 1, m, (nid ^ "." ^ string_of_int c) :: children)
+                else (c, m, children))
               (0, map, []) stmts
           in
-          StringMap.add nid
-            (Lifetime (nid, List.rev children, Some pid))
-            new_map
+          ( true,
+            StringMap.add nid
+              (Lifetime (nid, List.rev children, Some pid))
+              new_map )
       | If (_, Block stmts, Block []) -> gen_children pid (Block stmts) ct map
       | If (_, Block stmts, Block stmts2) ->
-          let m1 = gen_children pid (Block stmts) ct map in
-          gen_children pid (Block stmts2) ct m1
+          let updated, m1 = gen_children pid (Block stmts) ct map in
+          gen_children pid (Block stmts2) (if updated then ct + 1 else ct) m1
       | Loop (_, _, _, _, Block stmts) -> gen_children pid (Block stmts) ct map
       | While (_, Block stmts) -> gen_children pid (Block stmts) ct map
       | Assign (is_mut, typ, name, expr) ->
           let nid = pid ^ "." ^ string_of_int ct in
-          StringMap.add nid
-            (Binding (nid, (is_mut, typ, name, expr), Some pid))
-            map
+          ( true,
+            StringMap.add nid
+              (Binding (nid, (is_mut, typ, name, expr), Some pid))
+              map )
       | ReAssign (name, expr) ->
           let nid = pid ^ "." ^ string_of_int ct in
-          StringMap.add nid (Rebinding (nid, (name, expr), Some pid)) map
+          (true, StringMap.add nid (Rebinding (nid, (name, expr), Some pid)) map)
       | Expr (PipeIn (n, args)) ->
           let nid = pid ^ "." ^ string_of_int ct in
-          StringMap.add nid (PipeCall (nid, (n, args), Some pid)) map
-      | _ -> map
+          (true, StringMap.add nid (PipeCall (nid, (n, args), Some pid)) map)
+      | PipeOut expr ->
+          let nid = pid ^ "." ^ string_of_int ct in
+          (true, StringMap.add nid (PipeReturn (nid, expr, Some pid)) map)
+      | _ -> (false, map)
     in
     (* create dummy assignment nodes for args in fn lifetime *)
     let map_with_args =
@@ -59,18 +68,21 @@ let borrow_ck pipes verbose =
                  m ))
            (0, StringMap.empty) pipe.formals)
     in
-    let _, new_map, children =
-      List.fold_left
-        (fun (c, m, children) s ->
-          ( c + 1,
-            gen_children pipe.name s c m,
-            (pipe.name ^ "." ^ string_of_int c) :: children ))
-        (StringMap.cardinal map_with_args, map_with_args, [])
-        pipe.body
+    let body =
+      snd
+        (gen_children pipe.name (Block pipe.body)
+           (StringMap.cardinal map_with_args)
+           map_with_args)
     in
-    (* remove first "generated" root child here.. *)
-    let children = match children with [] -> [] | _ :: c -> List.rev c in
-    StringMap.add pipe.name (Lifetime (pipe.name, children, None)) new_map
+    StringMap.add pipe.name
+      (Lifetime
+         ( pipe.name,
+           List.rev
+             ((pipe.name ^ "."
+              ^ string_of_int (StringMap.cardinal map_with_args))
+             :: List.map (fun (k, _) -> k) (StringMap.bindings map_with_args)),
+           None ))
+      body
   in
 
   let pipe_lifetime_maps pipes =
@@ -81,6 +93,7 @@ let borrow_ck pipes verbose =
 
   let pipe_lifetimes = pipe_lifetime_maps pipes in
 
+  (* pretty-print the lt graph *)
   let _ =
     if verbose then
       StringMap.iter
@@ -146,6 +159,16 @@ let borrow_ck pipes verbose =
                         ^ String.concat ", "
                             (List.map (fun e -> string_of_expr e) args)
                         ^ "\n")
+                  | PipeReturn (id, expr, pid) ->
+                      let _ = print_string "node_type: PipeReturn\n" in
+                      let _ = print_string ("id: " ^ id ^ "\n") in
+                      let _ =
+                        print_string
+                          ("pid: "
+                          ^ (match pid with Some pid -> pid | None -> "None")
+                          ^ "\n")
+                      in
+                      print_string ("expr: " ^ string_of_expr expr ^ "\n")
                 in
                 print_string "\n")
               ltg
@@ -154,7 +177,75 @@ let borrow_ck pipes verbose =
         pipe_lifetimes
   in
 
-  (* todo: if we are looking at an identifier, then look it up in the graph *)
+  (* if a ref is returned, make sure that it is the smallest of all returnable *)
+  (*
+    idea - create a return stmt node in our graph. if the return type of the
+    pipe is a ref, then we must check to see which argument each return was
+    derived. once we have this set, we can take the rightmost (smallest) one
+    and make sure it matches the return-type lifetime.
+  *)
+  let validate_arg_lifetimes p =
+    (* if return isn't a borrow, who cares *)
+    if match p.return_type with MutBorrow _ | Borrow _ -> false | _ -> true
+    then ()
+    else
+      let return_lifetime_no_match correct_lifetime =
+        "lifetime of return value must be the smallest (rightmost) lifetime of \
+         all possible returned arguments: " ^ correct_lifetime
+      and make_err er = raise (Failure er) in
+      let lt_of_return =
+        match p.return_type with
+        | MutBorrow (_, lt) | Borrow (_, lt) -> lt
+        | _ -> ""
+      in
+      (* we are kinda gonna have to limit returned values to args *)
+      (* vs. allowing re-bindings of refs of args to also be returned *)
+      let possible_ret_vars =
+        Seq.fold_left
+          (fun ret_vals (_id, node) ->
+            match node with
+            | PipeReturn (_id, Ident arg_name, _pid) -> arg_name :: ret_vals
+            | _ -> ret_vals)
+          []
+          (StringMap.to_seq (StringMap.find p.name pipe_lifetimes))
+      in
+      let possible_lts =
+        List.filter_map
+          (fun (_, typ, n) ->
+            if List.mem n possible_ret_vars then
+              match typ with
+              | MutBorrow (_, lt) | Borrow (_, lt) -> Some lt
+              | _ -> None
+            else None)
+          p.formals
+      in
+      let smallest_possible_lt =
+        List.fold_left
+          (fun (smallest, lt_as_str) cur_lt ->
+            let rec index_of_lt x lst =
+              match lst with
+              | [] -> raise (Failure "Not Found")
+              | h :: t -> if x = h then 0 else 1 + index_of_lt x t
+            in
+            let i = index_of_lt cur_lt p.lifetimes in
+            if i > smallest then (i, cur_lt) else (smallest, lt_as_str))
+          (-1, "'static") possible_lts
+      in
+      if lt_of_return <> snd smallest_possible_lt then
+        make_err (return_lifetime_no_match (snd smallest_possible_lt))
+      else ()
+  in
+
+  let _ =
+    List.iter
+      (fun p ->
+        let _ = validate_arg_lifetimes p in
+        if verbose then
+          print_string
+            ("argument lifetime validation for " ^ p.name ^ " passed!\n"))
+      pipes
+  in
+
   let rec expr_borrows map expr =
     match expr with
     | Unop (Ref, Ident v) -> [ (v, false) ]
@@ -181,6 +272,7 @@ let borrow_ck pipes verbose =
       | Rebinding (_, (_, e), _) -> [ e ]
       | PipeCall (_, (_, exprs), _) -> exprs
       | Lifetime (_, _, _) -> []
+      | PipeReturn (_, e, _) -> [ e ]
     in
     match exprs_to_check with
     | [] -> []
@@ -248,4 +340,90 @@ let borrow_ck pipes verbose =
       pipes
   in
 
+  (*
+     todo: instead of using a set, we need to use a mapping of
+     each symbol to its type. that way we can validate
+     it to make sure it isn't a reference
+     ...
+     OR we can just make sure the lhs isn't a ref/borrow
+  *)
+  let ownership_ck pipe_name =
+    let err_gave_ownership v_name =
+      "variable " ^ v_name
+      ^ " gave ownership to another binding and can't be accessed."
+    and make_err er = raise (Failure er) in
+    let rec inner symbols node =
+      match node with
+      | Lifetime (_id, cids, _pid) ->
+          let added_symbols, new_map =
+            List.fold_left
+              (fun (added_symbols, m) cid ->
+                let c_node =
+                  StringMap.find cid (StringMap.find pipe_name pipe_lifetimes)
+                in
+                let syms, m = inner m c_node in
+                (syms @ added_symbols, m))
+              ([], symbols) cids
+          in
+          (* remove the vars that were added in this lifetime (dealloc time!) *)
+          (* if it doesn't exist in the table, it got a new owner somewhere *)
+          (* so don't worry about it *)
+          ( [],
+            List.fold_left
+              (fun m sym -> StringMap.remove sym m)
+              new_map added_symbols )
+      | Binding (_id, (_is_mut, typ, name, expr), _pid) -> (
+          if
+            (* this is a borrow, so no ownership is taken *)
+            match typ with Borrow _ | MutBorrow _ -> true | _ -> false
+          then ([ name ], StringMap.add name typ symbols)
+          else
+            match expr with
+            | Ident n ->
+                if StringMap.mem n symbols then
+                  ([ name ], StringMap.remove n symbols)
+                else make_err (err_gave_ownership n)
+            | _ -> ([ name ], StringMap.add name typ symbols))
+      | Rebinding (_id, (name, expr), _pid) -> (
+          (* todo - check the type of the og binding with name name *)
+          match expr with
+          | Ident n ->
+              if StringMap.mem n symbols then
+                ([ name ], StringMap.remove n symbols)
+              else make_err (err_gave_ownership n)
+                (* we should be able to omit the add here *)
+          | _ -> ([ name ], symbols))
+      | PipeCall (_id, (_name, exprs), _pid) ->
+          List.fold_left
+            (fun (new_symbols, m) expr ->
+              match expr with
+              | Ident n ->
+                  if StringMap.mem n m then (new_symbols, StringMap.remove n m)
+                  else make_err (err_gave_ownership n)
+              | _ -> (new_symbols, m))
+            ([], symbols) exprs
+      | PipeReturn (_id, _expr, _pid) -> ([], symbols)
+    in
+    inner StringMap.empty
+      (StringMap.find pipe_name (StringMap.find pipe_name pipe_lifetimes))
+  in
+
+  let _ =
+    List.iter
+      (fun p ->
+        let _ = ownership_ck p.name in
+        if verbose then
+          print_string ("ownership check for " ^ p.name ^ " passed!\n"))
+      pipes
+  in
+
+  (*
+    TODO: 
+    - validate that argument borrows match the lifetime's provided
+      in each function definition   
+    - add some sort of marker to keep track of when values should
+      be deallocated in the graph
+    - if a return value is bound to some variable, make sure it's
+      lifetime is validated
+  *)
   pipe_lifetimes
