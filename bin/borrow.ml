@@ -418,4 +418,9 @@ let borrow_ck pipes verbose =
       pipes
   in
 
+  (*
+    TODO: validate that argument borrows match the lifetime's provided
+    in each function definition   
+  *)
+
   pipe_lifetimes
