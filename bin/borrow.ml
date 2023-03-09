@@ -1,5 +1,6 @@
 open Ast
 module StringMap = Map.Make (String)
+module StringSet = Set.Make (String)
 
 type graph_node =
   (* id, children id's, parent id *)
@@ -11,6 +12,30 @@ type graph_node =
   (* id, p2c, pid *)
   | PipeCall of string * (string * expr list) * string option
 
+(*
+  the basic intuition for ownership here is that if we have:
+    {
+      int x = 1;
+      {
+        {
+            int y = x;
+            // can't access x here, mem ownership passed to y
+        } // y dropped
+        // can't access x here
+      }
+      // can't access x here
+    }
+
+  in terms of our graph, all nodes to the right of the new owner
+  can't mention x
+*)
+
+(*
+  idea: do a dfs on ltg, keeping track of the values that have
+  given ownership. if a value is still in scope, is referenced,
+  but appears in this set, then we have a problem.   
+*)
+
 let borrow_ck pipes verbose =
   let generate_lifetime_graph pipe =
     let rec gen_children pid stmt ct map =
@@ -20,32 +45,35 @@ let borrow_ck pipes verbose =
           let _, new_map, children =
             List.fold_left
               (fun (c, m, children) s ->
-                ( c + 1,
-                  gen_children nid s c m,
-                  (nid ^ "." ^ string_of_int c) :: children ))
+                let updated, m = gen_children nid s c m in
+                if updated then
+                  (c + 1, m, (nid ^ "." ^ string_of_int c) :: children)
+                else (c, m, children))
               (0, map, []) stmts
           in
-          StringMap.add nid
-            (Lifetime (nid, List.rev children, Some pid))
-            new_map
+          ( true,
+            StringMap.add nid
+              (Lifetime (nid, List.rev children, Some pid))
+              new_map )
       | If (_, Block stmts, Block []) -> gen_children pid (Block stmts) ct map
       | If (_, Block stmts, Block stmts2) ->
-          let m1 = gen_children pid (Block stmts) ct map in
+          let _updated, m1 = gen_children pid (Block stmts) ct map in
           gen_children pid (Block stmts2) ct m1
       | Loop (_, _, _, _, Block stmts) -> gen_children pid (Block stmts) ct map
       | While (_, Block stmts) -> gen_children pid (Block stmts) ct map
       | Assign (is_mut, typ, name, expr) ->
           let nid = pid ^ "." ^ string_of_int ct in
-          StringMap.add nid
-            (Binding (nid, (is_mut, typ, name, expr), Some pid))
-            map
+          ( true,
+            StringMap.add nid
+              (Binding (nid, (is_mut, typ, name, expr), Some pid))
+              map )
       | ReAssign (name, expr) ->
           let nid = pid ^ "." ^ string_of_int ct in
-          StringMap.add nid (Rebinding (nid, (name, expr), Some pid)) map
+          (true, StringMap.add nid (Rebinding (nid, (name, expr), Some pid)) map)
       | Expr (PipeIn (n, args)) ->
           let nid = pid ^ "." ^ string_of_int ct in
-          StringMap.add nid (PipeCall (nid, (n, args), Some pid)) map
-      | _ -> map
+          (true, StringMap.add nid (PipeCall (nid, (n, args), Some pid)) map)
+      | _ -> (false, map)
     in
     (* create dummy assignment nodes for args in fn lifetime *)
     let map_with_args =
@@ -59,18 +87,21 @@ let borrow_ck pipes verbose =
                  m ))
            (0, StringMap.empty) pipe.formals)
     in
-    let _, new_map, children =
-      List.fold_left
-        (fun (c, m, children) s ->
-          ( c + 1,
-            gen_children pipe.name s c m,
-            (pipe.name ^ "." ^ string_of_int c) :: children ))
-        (StringMap.cardinal map_with_args, map_with_args, [])
-        pipe.body
+    let body =
+      snd
+        (gen_children pipe.name (Block pipe.body)
+           (StringMap.cardinal map_with_args)
+           map_with_args)
     in
-    (* remove first "generated" root child here.. *)
-    let children = match children with [] -> [] | _ :: c -> List.rev c in
-    StringMap.add pipe.name (Lifetime (pipe.name, children, None)) new_map
+    StringMap.add pipe.name
+      (Lifetime
+         ( pipe.name,
+           List.rev
+             ((pipe.name ^ "."
+              ^ string_of_int (StringMap.cardinal map_with_args))
+             :: List.map (fun (k, _) -> k) (StringMap.bindings map_with_args)),
+           None ))
+      body
   in
 
   let pipe_lifetime_maps pipes =
@@ -245,6 +276,67 @@ let borrow_ck pipes verbose =
         let _ = borrow_ck p.name in
         if verbose then
           print_string ("borrow check for " ^ p.name ^ " passed!\n"))
+      pipes
+  in
+
+  let ownership_ck pipe_name =
+    let err_gave_ownership v_name =
+      "variable " ^ v_name
+      ^ " gave ownership to another binding and can't be accessed."
+    and make_err er = raise (Failure er) in
+    let rec inner symbols node =
+      match node with
+      | Lifetime (_id, cids, _pid) ->
+          let added_symbols, new_map =
+            List.fold_left
+              (fun (added_symbols, m) cid ->
+                let c_node =
+                  StringMap.find cid (StringMap.find pipe_name pipe_lifetimes)
+                in
+                let syms, m = inner m c_node in
+                (syms @ added_symbols, m))
+              ([], symbols) cids
+          in
+          (* remove the vars that were added in this lifetime (dealloc time!) *)
+          ( [],
+            List.fold_left
+              (fun m sym -> StringSet.remove sym m)
+              new_map added_symbols )
+      | Binding (_id, (_is_mut, _typ, name, expr), _pid) -> (
+          match expr with
+          | Ident n ->
+              if StringSet.mem n symbols then
+                ([ name ], StringSet.remove n symbols)
+              else make_err (err_gave_ownership n)
+          | _ -> ([ name ], StringSet.add name symbols))
+      | Rebinding (_id, (name, expr), _pid) -> (
+          match expr with
+          | Ident n ->
+              if StringSet.mem n symbols then
+                ([ name ], StringSet.remove n symbols)
+              else make_err (err_gave_ownership n)
+          | _ -> ([ name ], StringSet.add name symbols))
+      | PipeCall (_id, (name, exprs), _pid) ->
+          List.fold_left
+            (fun (new_symbols, m) expr ->
+              match expr with
+              | Ident n ->
+                  if StringSet.mem n m then
+                    (name :: new_symbols, StringSet.remove n m)
+                  else make_err (err_gave_ownership n)
+              | _ -> (name :: new_symbols, StringSet.add name m))
+            ([], symbols) exprs
+    in
+    inner StringSet.empty
+      (StringMap.find pipe_name (StringMap.find pipe_name pipe_lifetimes))
+  in
+
+  let _ =
+    List.iter
+      (fun p ->
+        let _ = ownership_ck p.name in
+        if verbose then
+          print_string ("ownership check for " ^ p.name ^ " passed!\n"))
       pipes
   in
 

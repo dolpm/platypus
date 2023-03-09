@@ -128,6 +128,6 @@ let check (_things, pipes) =
 
   (* boolean denotes verbosity - set to true if you want to *)
   (* see generated graph nodes and fn tests *)
-  let _ltg = borrow_ck pipes false in
+  let _ltg = borrow_ck pipes true in
 
   ([], [])
