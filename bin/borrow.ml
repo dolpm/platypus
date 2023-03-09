@@ -189,9 +189,9 @@ let borrow_ck pipes verbose =
     if match p.return_type with MutBorrow _ | Borrow _ -> false | _ -> true
     then ()
     else
-      let return_lifetime_no_match =
+      let return_lifetime_no_match correct_lifetime =
         "lifetime of return value must be the smallest (rightmost) lifetime of \
-         all possiple returned arguments."
+         all possible returned arguments: " ^ correct_lifetime
       and make_err er = raise (Failure er) in
       let lt_of_return =
         match p.return_type with
@@ -229,10 +229,10 @@ let borrow_ck pipes verbose =
             in
             let i = index_of_lt cur_lt p.lifetimes in
             if i > smallest then (i, cur_lt) else (smallest, lt_as_str))
-          (0, "'static") possible_lts
+          (-1, "'static") possible_lts
       in
       if lt_of_return <> snd smallest_possible_lt then
-        make_err return_lifetime_no_match
+        make_err (return_lifetime_no_match (snd smallest_possible_lt))
       else ()
   in
 
@@ -371,41 +371,41 @@ let borrow_ck pipes verbose =
           (* so don't worry about it *)
           ( [],
             List.fold_left
-              (fun m sym -> StringSet.remove sym m)
+              (fun m sym -> StringMap.remove sym m)
               new_map added_symbols )
       | Binding (_id, (_is_mut, typ, name, expr), _pid) -> (
           if
             (* this is a borrow, so no ownership is taken *)
             match typ with Borrow _ | MutBorrow _ -> true | _ -> false
-          then ([ name ], StringSet.add name symbols)
+          then ([ name ], StringMap.add name typ symbols)
           else
             match expr with
             | Ident n ->
-                if StringSet.mem n symbols then
-                  ([ name ], StringSet.remove n symbols)
+                if StringMap.mem n symbols then
+                  ([ name ], StringMap.remove n symbols)
                 else make_err (err_gave_ownership n)
-            | _ -> ([ name ], StringSet.add name symbols))
+            | _ -> ([ name ], StringMap.add name typ symbols))
       | Rebinding (_id, (name, expr), _pid) -> (
           (* todo - check the type of the og binding with name name *)
           match expr with
           | Ident n ->
-              if StringSet.mem n symbols then
-                ([ name ], StringSet.remove n symbols)
+              if StringMap.mem n symbols then
+                ([ name ], StringMap.remove n symbols)
               else make_err (err_gave_ownership n)
-          | _ -> ([ name ], StringSet.add name symbols))
-      | PipeCall (_id, (name, exprs), _pid) ->
+                (* we should be able to omit the add here *)
+          | _ -> ([ name ], symbols))
+      | PipeCall (_id, (_name, exprs), _pid) ->
           List.fold_left
             (fun (new_symbols, m) expr ->
               match expr with
               | Ident n ->
-                  if StringSet.mem n m then
-                    (name :: new_symbols, StringSet.remove n m)
+                  if StringMap.mem n m then (new_symbols, StringMap.remove n m)
                   else make_err (err_gave_ownership n)
-              | _ -> (name :: new_symbols, StringSet.add name m))
+              | _ -> (new_symbols, m))
             ([], symbols) exprs
       | PipeReturn (_id, _expr, _pid) -> ([], symbols)
     in
-    inner StringSet.empty
+    inner StringMap.empty
       (StringMap.find pipe_name (StringMap.find pipe_name pipe_lifetimes))
   in
 
