@@ -35,8 +35,8 @@ let borrow_ck pipes verbose =
               new_map )
       | If (_, Block stmts, Block []) -> gen_children pid (Block stmts) ct map
       | If (_, Block stmts, Block stmts2) ->
-          let _updated, m1 = gen_children pid (Block stmts) ct map in
-          gen_children pid (Block stmts2) ct m1
+          let updated, m1 = gen_children pid (Block stmts) ct map in
+          gen_children pid (Block stmts2) (if updated then ct + 1 else ct) m1
       | Loop (_, _, _, _, Block stmts) -> gen_children pid (Block stmts) ct map
       | While (_, Block stmts) -> gen_children pid (Block stmts) ct map
       | Assign (is_mut, typ, name, expr) ->
@@ -209,19 +209,29 @@ let borrow_ck pipes verbose =
           []
           (StringMap.to_seq (StringMap.find p.name pipe_lifetimes))
       in
+      let possible_lts =
+        List.filter_map
+          (fun (_, typ, n) ->
+            if List.mem n possible_ret_vars then
+              match typ with
+              | MutBorrow (_, lt) | Borrow (_, lt) -> Some lt
+              | _ -> None
+            else None)
+          p.formals
+      in
       let smallest_possible_lt =
         List.fold_left
           (fun (smallest, lt_as_str) cur_lt ->
             let rec index_of_lt x lst =
               match lst with
               | [] -> raise (Failure "Not Found")
-              | h :: t -> if "'" ^ x = h then 0 else 1 + index_of_lt x t
+              | h :: t -> if x = h then 0 else 1 + index_of_lt x t
             in
             let i = index_of_lt cur_lt p.lifetimes in
             if i > smallest then (i, cur_lt) else (smallest, lt_as_str))
-          (0, "static") possible_ret_vars
+          (0, "'static") possible_lts
       in
-      if lt_of_return <> "'" ^ snd smallest_possible_lt then
+      if lt_of_return <> snd smallest_possible_lt then
         make_err return_lifetime_no_match
       else ()
   in

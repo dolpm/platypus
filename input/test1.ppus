@@ -32,10 +32,10 @@ pipe test2 |> [] |> [z: int] |> unit {
 */
 
 pipe test3 |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b unit {
-  if (@a == 1) {
+  if (a == 1) {
     |> a;
   } else {
-    |> b;
+    |> a;
   }
 }
 
