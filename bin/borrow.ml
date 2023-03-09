@@ -279,6 +279,13 @@ let borrow_ck pipes verbose =
       pipes
   in
 
+  (*
+     todo: instead of using a set, we need to use a mapping of
+     each symbol to its type. that way we can validate
+     it to make sure it isn't a reference
+     ...
+     OR we can just make sure the lhs isn't a ref/borrow
+  *)
   let ownership_ck pipe_name =
     let err_gave_ownership v_name =
       "variable " ^ v_name
@@ -302,14 +309,20 @@ let borrow_ck pipes verbose =
             List.fold_left
               (fun m sym -> StringSet.remove sym m)
               new_map added_symbols )
-      | Binding (_id, (_is_mut, _typ, name, expr), _pid) -> (
-          match expr with
-          | Ident n ->
-              if StringSet.mem n symbols then
-                ([ name ], StringSet.remove n symbols)
-              else make_err (err_gave_ownership n)
-          | _ -> ([ name ], StringSet.add name symbols))
+      | Binding (_id, (_is_mut, typ, name, expr), _pid) -> (
+          if
+            (* this is a borrow, so no ownership is taken *)
+            match typ with Borrow _ | MutBorrow _ -> true | _ -> false
+          then ([ name ], StringSet.add name symbols)
+          else
+            match expr with
+            | Ident n ->
+                if StringSet.mem n symbols then
+                  ([ name ], StringSet.remove n symbols)
+                else make_err (err_gave_ownership n)
+            | _ -> ([ name ], StringSet.add name symbols))
       | Rebinding (_id, (name, expr), _pid) -> (
+          (* todo - check the type of the og binding with name name *)
           match expr with
           | Ident n ->
               if StringSet.mem n symbols then
