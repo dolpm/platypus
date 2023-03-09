@@ -246,7 +246,6 @@ let borrow_ck pipes verbose =
       pipes
   in
 
-  (* todo: if we are looking at an identifier, then look it up in the graph *)
   let rec expr_borrows map expr =
     match expr with
     | Unop (Ref, Ident v) -> [ (v, false) ]
@@ -419,8 +418,12 @@ let borrow_ck pipes verbose =
   in
 
   (*
-    TODO: validate that argument borrows match the lifetime's provided
-    in each function definition   
+    TODO: 
+    - validate that argument borrows match the lifetime's provided
+      in each function definition   
+    - add some sort of marker to keep track of when values should
+      be deallocated in the graph
+    - if a return value is bound to some variable, make sure it's
+      lifetime is validated
   *)
-
   pipe_lifetimes

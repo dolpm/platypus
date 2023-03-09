@@ -31,15 +31,18 @@ pipe test2 |> [] |> [z: int] |> unit {
 }
 */
 
-pipe test3 |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b unit {
+pipe test3 |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b int {
   if (@a == 1) {
     |> a;
   } else {
-    |> a;
+    |> b;
   }
 }
 
 
 pipe main |> [] |> [] |> unit {
+  int x <| 4;
+  int y <| 4;
+  &int z <| (test3 <| [&x, &y]);
   |> ();
 }
