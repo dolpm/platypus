@@ -305,6 +305,8 @@ let borrow_ck pipes verbose =
               ([], symbols) cids
           in
           (* remove the vars that were added in this lifetime (dealloc time!) *)
+          (* if it doesn't exist in the table, it got a new owner somewhere *)
+          (* so don't worry about it *)
           ( [],
             List.fold_left
               (fun m sym -> StringSet.remove sym m)
