@@ -4,7 +4,7 @@ TODO:
 - handle nested borrows
 */
 
-
+/*
 pipe test1 |> [] |> [r: ~&int] |> unit {
   ~&int y <| r;
   test1 <| [r];
@@ -26,9 +26,17 @@ pipe test2 |> [] |> [z: int] |> unit {
   int x <| 0;
   {
     int y <| x;
-    int r <| x;
   }
   |> ();
+}
+*/
+
+pipe test3 |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b unit {
+  if (@a == 1) {
+    |> a;
+  } else {
+    |> b;
+  }
 }
 
 

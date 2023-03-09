@@ -11,30 +11,8 @@ type graph_node =
   | Rebinding of string * (string * expr) * string option
   (* id, p2c, pid *)
   | PipeCall of string * (string * expr list) * string option
-
-(*
-  the basic intuition for ownership here is that if we have:
-    {
-      int x = 1;
-      {
-        {
-            int y = x;
-            // can't access x here, mem ownership passed to y
-        } // y dropped
-        // can't access x here
-      }
-      // can't access x here
-    }
-
-  in terms of our graph, all nodes to the right of the new owner
-  can't mention x
-*)
-
-(*
-  idea: do a dfs on ltg, keeping track of the values that have
-  given ownership. if a value is still in scope, is referenced,
-  but appears in this set, then we have a problem.   
-*)
+  (* id, expr, pid *)
+  | PipeReturn of string * expr * string option
 
 let borrow_ck pipes verbose =
   let generate_lifetime_graph pipe =
@@ -73,6 +51,9 @@ let borrow_ck pipes verbose =
       | Expr (PipeIn (n, args)) ->
           let nid = pid ^ "." ^ string_of_int ct in
           (true, StringMap.add nid (PipeCall (nid, (n, args), Some pid)) map)
+      | PipeOut expr ->
+          let nid = pid ^ "." ^ string_of_int ct in
+          (true, StringMap.add nid (PipeReturn (nid, expr, Some pid)) map)
       | _ -> (false, map)
     in
     (* create dummy assignment nodes for args in fn lifetime *)
@@ -112,6 +93,7 @@ let borrow_ck pipes verbose =
 
   let pipe_lifetimes = pipe_lifetime_maps pipes in
 
+  (* pretty-print the lt graph *)
   let _ =
     if verbose then
       StringMap.iter
@@ -177,6 +159,16 @@ let borrow_ck pipes verbose =
                         ^ String.concat ", "
                             (List.map (fun e -> string_of_expr e) args)
                         ^ "\n")
+                  | PipeReturn (id, expr, pid) ->
+                      let _ = print_string "node_type: PipeReturn\n" in
+                      let _ = print_string ("id: " ^ id ^ "\n") in
+                      let _ =
+                        print_string
+                          ("pid: "
+                          ^ (match pid with Some pid -> pid | None -> "None")
+                          ^ "\n")
+                      in
+                      print_string ("expr: " ^ string_of_expr expr ^ "\n")
                 in
                 print_string "\n")
               ltg
@@ -184,6 +176,13 @@ let borrow_ck pipes verbose =
           print_string "\n------\n\n")
         pipe_lifetimes
   in
+
+  (* if a ref is returned, make sure that it is the smallest of all returnable *)
+  (*
+    idea - create a return stmt node in our graph. if the return value is a
+    ref, 
+  *)
+  let _validate_arg_lifetimes = () in
 
   (* todo: if we are looking at an identifier, then look it up in the graph *)
   let rec expr_borrows map expr =
@@ -212,6 +211,7 @@ let borrow_ck pipes verbose =
       | Rebinding (_, (_, e), _) -> [ e ]
       | PipeCall (_, (_, exprs), _) -> exprs
       | Lifetime (_, _, _) -> []
+      | PipeReturn (_, e, _) -> [ e ]
     in
     match exprs_to_check with
     | [] -> []
@@ -341,6 +341,7 @@ let borrow_ck pipes verbose =
                   else make_err (err_gave_ownership n)
               | _ -> (name :: new_symbols, StringSet.add name m))
             ([], symbols) exprs
+      | PipeReturn (_id, _expr, _pid) -> ([], symbols)
     in
     inner StringSet.empty
       (StringMap.find pipe_name (StringMap.find pipe_name pipe_lifetimes))
