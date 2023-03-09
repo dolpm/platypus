@@ -2,7 +2,7 @@ open Ast
 open Borrow
 module StringMap = Map.Make (String)
 
-let check (_things, pipes) =
+let check (_things, pipes) verbosity =
   (* built in pipe definitions *)
   (* (name, [param(is_mut, type, name)], ret_type) *)
   let stdlib_pipe_decls =
@@ -128,6 +128,6 @@ let check (_things, pipes) =
 
   (* boolean denotes verbosity - set to true if you want to *)
   (* see generated graph nodes and fn tests *)
-  let _ltg = borrow_ck pipes true in
+  let _ltg = borrow_ck pipes verbosity in
 
   ([], [])
