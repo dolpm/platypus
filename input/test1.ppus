@@ -21,7 +21,7 @@ pipe test |> [] |> [] |> unit {
   |> ();
 }
 
-/*
+
 pipe test2 |> [] |> [z: int] |> unit {
   int x <| 0;
   {
@@ -30,7 +30,7 @@ pipe test2 |> [] |> [z: int] |> unit {
   }
   |> ();
 }
-*/
+
 
 pipe main |> [] |> [] |> unit {
   |> ();
