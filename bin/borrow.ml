@@ -179,10 +179,62 @@ let borrow_ck pipes verbose =
 
   (* if a ref is returned, make sure that it is the smallest of all returnable *)
   (*
-    idea - create a return stmt node in our graph. if the return value is a
-    ref, 
+    idea - create a return stmt node in our graph. if the return type of the
+    pipe is a ref, then we must check to see which argument each return was
+    derived. once we have this set, we can take the rightmost (smallest) one
+    and make sure it matches the return-type lifetime.
   *)
-  let _validate_arg_lifetimes = () in
+  let validate_arg_lifetimes p =
+    (* if return isn't a borrow, who cares *)
+    if match p.return_type with MutBorrow _ | Borrow _ -> false | _ -> true
+    then ()
+    else
+      let return_lifetime_no_match =
+        "lifetime of return value must be the smallest (rightmost) lifetime of \
+         all possiple returned arguments."
+      and make_err er = raise (Failure er) in
+      let lt_of_return =
+        match p.return_type with
+        | MutBorrow (_, lt) | Borrow (_, lt) -> lt
+        | _ -> ""
+      in
+      (* we are kinda gonna have to limit returned values to args *)
+      (* vs. allowing re-bindings of refs of args to also be returned *)
+      let possible_ret_vars =
+        Seq.fold_left
+          (fun ret_vals (_id, node) ->
+            match node with
+            | PipeReturn (_id, Ident arg_name, _pid) -> arg_name :: ret_vals
+            | _ -> ret_vals)
+          []
+          (StringMap.to_seq (StringMap.find p.name pipe_lifetimes))
+      in
+      let smallest_possible_lt =
+        List.fold_left
+          (fun (smallest, lt_as_str) cur_lt ->
+            let rec index_of_lt x lst =
+              match lst with
+              | [] -> raise (Failure "Not Found")
+              | h :: t -> if "'" ^ x = h then 0 else 1 + index_of_lt x t
+            in
+            let i = index_of_lt cur_lt p.lifetimes in
+            if i > smallest then (i, cur_lt) else (smallest, lt_as_str))
+          (0, "static") possible_ret_vars
+      in
+      if lt_of_return <> "'" ^ snd smallest_possible_lt then
+        make_err return_lifetime_no_match
+      else ()
+  in
+
+  let _ =
+    List.iter
+      (fun p ->
+        let _ = validate_arg_lifetimes p in
+        if verbose then
+          print_string
+            ("argument lifetime validation for " ^ p.name ^ " passed!\n"))
+      pipes
+  in
 
   (* todo: if we are looking at an identifier, then look it up in the graph *)
   let rec expr_borrows map expr =
