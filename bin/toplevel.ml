@@ -9,7 +9,7 @@ let () =
   let speclist =
     [
       ("-a", Arg.Unit (set_action Ast), "Print the AST");
-      ("-s", Arg.Unit (set_action Sast), "Print the AST");
+      ("-s", Arg.Unit (set_action Sast), "Print the SAST");
       ("-v", Arg.Unit set_verbosity, "Print the AST");
     ]
   in
@@ -21,5 +21,5 @@ let () =
   let ast = Parser.program Scanner.token lexbuf in
   match !action with
   | Ast -> print_string (Ast.string_of_program ast)
-  | Sast -> print_string (Sast.string_of_program (Semant.check ast !verbosity))
+  | Sast -> print_string (Sast.string_of_sprogram (Semant.check ast !verbosity))
   | _ -> ()

@@ -1,6 +1,7 @@
 open Ast
 
-type s_expr =
+type s_expr = defined_type * sx
+and sx = 
   | SIntLiteral of int
   | SFloatLiteral of string
   | SBoolLiteral of bool
@@ -34,23 +35,24 @@ type s_stmt =
   | SReAssign of string * s_expr
 
 type s_pipe_declaration = {
-  name : string;
+  sname : string;
   (* lifetime delcarations, just a list of lifetimes for now *)
   (* will probably need lifetime comparisons as well, or they *)
   (* could also enforce sorting from large to small (left to right) *)
-  lifetimes : string list;
-  formals : type_binding list;
+  slifetimes : string list;
+  sformals : type_binding list;
   (* locals : type_binding list; *)
   (* ask richard about why locals need to be here? *)
-  return_type : defined_type;
-  body : s_stmt list;
+  sreturn_type : defined_type;
+  sbody : s_stmt list;
 }
 
 type s_program = defined_type list * s_pipe_declaration list
 
 (* Pretty-printing functions *)
 
-let rec string_of_s_expr = function
+let rec string_of_s_expr (t, e)= 
+  "(" ^ string_of_typ t ^ " : " ^ (match e with
   | SIntLiteral l -> string_of_int l
   | SFloatLiteral l -> l
   | SBoolLiteral true -> "true"
@@ -77,6 +79,7 @@ let rec string_of_s_expr = function
   | SPipeIn (f, el) ->
       f ^ " <| [" ^ String.concat ", " (List.map string_of_s_expr el) ^ "]"
   | SNoexpr -> ""
+  ) ^ ")"
 
 let rec indent x =
   let s = "  " in
@@ -125,20 +128,20 @@ let string_of_tdecl t =
       ^ "\n}"
   | _ -> ""
 
-let string_of_pdecl pdecl =
-  "pipe " ^ pdecl.name ^ " |> ["
-  ^ String.concat ", " pdecl.lifetimes
+let string_of_spdecl pdecl =
+  "pipe " ^ pdecl.sname ^ " |> ["
+  ^ String.concat ", " pdecl.slifetimes
   ^ "] |> ["
   ^ String.concat ", "
       (List.map
          (fun v -> match v with _, t, n -> n ^ ": " ^ string_of_typ t)
-         pdecl.formals)
+         pdecl.sformals)
   ^ "] |> "
-  ^ string_of_typ pdecl.return_type
+  ^ string_of_typ pdecl.sreturn_type
   ^ " {\n"
-  ^ String.concat "" (List.map (fun s -> string_of_s_stmt s 1) pdecl.body)
+  ^ String.concat "" (List.map (fun s -> string_of_s_stmt s 1) pdecl.sbody)
   ^ "}\n"
 
-let string_of_program (things, funcs) =
+let string_of_sprogram (things, funcs) =
   String.concat "\n" (List.map string_of_tdecl (List.rev things))
-  ^ String.concat "\n" (List.map string_of_pdecl (List.rev funcs))
+  ^ String.concat "\n" (List.map string_of_spdecl (List.rev funcs))
