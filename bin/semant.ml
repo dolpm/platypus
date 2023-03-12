@@ -128,7 +128,13 @@ let check (_things, pipes) verbosity =
     
     (* Return a semantically-checked expression, i.e. with a type *)
     let rec expr = function
-        PipeIn(pname, args) as pipein ->
+      | IntLiteral l -> (Int, SIntLiteral l)
+      | FloatLiteral l -> (Float, SFloatLiteral l)
+      | BoolLiteral l -> (Bool, SBoolLiteral l)
+      | CharLiteral l -> (Char, SCharLiteral l)
+      | UnitLiteral -> (Unit, SUnitLiteral)
+      | StringLiteral l -> (String, SStringLiteral l)
+      | PipeIn(pname, args) as pipein ->
         let pd = get_pipe pname in
         let param_length = List.length pd.formals in
         if List.length args != param_length then

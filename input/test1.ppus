@@ -20,7 +20,7 @@ pipe test |> [] |> [] |> unit {
   }
   |> ();
 }
-
+*/
 
 pipe test2 |> [] |> [z: int] |> unit {
   int x <| 0;
@@ -29,7 +29,7 @@ pipe test2 |> [] |> [z: int] |> unit {
   }
   |> ();
 }
-*/
+
 
 pipe test3 |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b int {
   if (@a == 1) {
@@ -39,10 +39,15 @@ pipe test3 |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b int {
   }
 }
 
+pipe test4 |> [] |> [a: int, b : bool, c : float] |> bool {
+  |> true;
+}
+
 
 pipe main |> [] |> [] |> unit {
   int x <| 4;
   int y <| 4;
   &int z <| (test3 <| [&x, &y]);
+  test4 <| [2, true, 1.738];
   |> ();
 }
