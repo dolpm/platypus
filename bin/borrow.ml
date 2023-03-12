@@ -351,6 +351,8 @@ let borrow_ck pipes verbose =
     let err_gave_ownership v_name =
       "variable " ^ v_name
       ^ " gave ownership to another binding and can't be accessed."
+    and err_rec_borrow v_name =
+      "variable " ^ v_name ^ " is a borrow of a borrow."
     and make_err er = raise (Failure er) in
     let rec inner symbols node =
       match node with
@@ -374,6 +376,13 @@ let borrow_ck pipes verbose =
               new_map added_symbols )
       | Binding (_id, (_is_mut, typ, name, expr), _pid) -> (
           if
+            (* do a quick check to make sure not recursive borrow *)
+            match typ with
+            | Borrow (typ, _) | MutBorrow (typ, _) -> (
+                match typ with Borrow _ | MutBorrow _ -> true | _ -> false)
+            | _ -> false
+          then make_err (err_rec_borrow name)
+          else if
             (* this is a borrow, so no ownership is taken *)
             match typ with Borrow _ | MutBorrow _ -> true | _ -> false
           then ([ name ], StringMap.add name typ symbols)
