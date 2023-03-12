@@ -29,3 +29,24 @@ let translate (globals, functions) =
     | A.Unit   -> unit_t
     | A.Thing  -> thing_t
   in
+
+  (* Declare printnl_t as a function *)
+  let printnl_t = L.function_type i8_t [| i32_t |] in ( *Check over parameter types *)
+  let printnl_pipe = L.declare_function "printnl" printnl_t the_module in
+
+  (*Define all pipes (arguments and return type) to define body and call later *)
+
+let pipe_decls: (L.llvalue * pipe_declaration) StringMap.t = 
+  let pipe_decl m pdecl = 
+    let name = pdecl.name
+    and formal_types =
+Array.of_list (List.map (fun (t,_) -> ltype_of_typ t) pdecl.formals)
+      in let ftype = L.function_type (ltype_of_typ fdecl.return_type) formal_types in
+      StringMap.add name (L.define_function name ftype the_module, pdecl) m in
+    List.fold_left pipe_decl StringMap.empty functions in   
+
+    (* Fill the body of a function *)
+
+
+
+
