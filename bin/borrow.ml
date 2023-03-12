@@ -1,6 +1,5 @@
 open Ast
 module StringMap = Map.Make (String)
-module StringSet = Set.Make (String)
 
 type graph_node =
   (* id, children id's, parent id *)
@@ -33,12 +32,13 @@ let borrow_ck pipes verbose =
             StringMap.add nid
               (Lifetime (nid, List.rev children, Some pid))
               new_map )
-      | If (_, Block stmts, Block []) -> gen_children pid (Block stmts) ct map
+      | Loop (_, _, _, _, Block stmts)
+      | While (_, Block stmts)
+      | If (_, Block stmts, Block []) ->
+          gen_children pid (Block stmts) ct map
       | If (_, Block stmts, Block stmts2) ->
           let updated, m1 = gen_children pid (Block stmts) ct map in
           gen_children pid (Block stmts2) (if updated then ct + 1 else ct) m1
-      | Loop (_, _, _, _, Block stmts) -> gen_children pid (Block stmts) ct map
-      | While (_, Block stmts) -> gen_children pid (Block stmts) ct map
       | Assign (is_mut, typ, name, expr) ->
           let nid = pid ^ "." ^ string_of_int ct in
           ( true,
@@ -94,7 +94,7 @@ let borrow_ck pipes verbose =
   let pipe_lifetimes = pipe_lifetime_maps pipes in
 
   (* pretty-print the lt graph *)
-  let _ =
+  let _print_lt_graph =
     if verbose then
       StringMap.iter
         (fun _p_name ltg ->
