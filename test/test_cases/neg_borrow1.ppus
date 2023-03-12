@@ -1,0 +1,9 @@
+/* try to immutably borrow a mutably borrowed variable */
+pipe main |> [] |> [] |> unit {
+  int x <| 0;
+  {
+    ~&int y <| ~&y;
+    &int z <| &x;
+  }
+  |> ();
+}

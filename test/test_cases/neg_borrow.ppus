@@ -1,0 +1,10 @@
+/* try to mutably borrow a borrowed variable */
+pipe main |> [] |> [] |> unit {
+  int x <| 0;
+  {
+    &int y <| &x;
+    &int z <| &x;
+    ~&int a <| ~&x;
+  }
+  |> ();
+}
