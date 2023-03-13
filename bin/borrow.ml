@@ -253,12 +253,10 @@ let borrow_ck pipes verbose =
     | ThingValue l ->
         let exprs = List.map (fun (_, expr) -> expr) l in
         List.flatten (List.map (fun e -> expr_borrows map e) exprs)
-    | TupleValue exprs ->
+    | TupleValue exprs | PipeIn (_, exprs) ->
         List.flatten (List.map (fun e -> expr_borrows map e) exprs)
     | Binop (e1, _, e2) -> expr_borrows map e1 @ expr_borrows map e2
     | Unop (_, e1) -> expr_borrows map e1
-    | PipeIn (_, exprs) ->
-        List.flatten (List.map (fun e -> expr_borrows map e) exprs)
     | Ident v -> (
         match StringMap.find_opt v map with None -> [] | Some x -> [ (v, x) ])
     | _ -> []
@@ -341,7 +339,6 @@ let borrow_ck pipes verbose =
           print_string ("borrow check for " ^ p.name ^ " passed!\n"))
       pipes
   in
-
 
   let ownership_ck pipe_name =
     let err_gave_ownership v_name =
