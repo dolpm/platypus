@@ -268,11 +268,12 @@ let borrow_ck pipes verbose =
   let node_borrows map node =
     let exprs_to_check =
       match node with
-      | Binding (_, (_, _, _, e), _) -> [ e ]
-      | Rebinding (_, (_, e), _) -> [ e ]
+      | Binding (_, (_, _, _, e), _)
+      | Rebinding (_, (_, e), _)
+      | PipeReturn (_, e, _) ->
+          [ e ]
       | PipeCall (_, (_, exprs), _) -> exprs
       | Lifetime (_, _, _) -> []
-      | PipeReturn (_, e, _) -> [ e ]
     in
     match exprs_to_check with
     | [] -> []
