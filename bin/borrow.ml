@@ -264,7 +264,8 @@ let borrow_ck pipes verbose =
     | _ -> []
   in
 
-  (* returns borrows inside of node *)
+  (* returns borrows (literal references) inside of node *)
+  (* semant should fail if we are using a borrow without deref '@' token? *)
   let node_borrows map node =
     let exprs_to_check =
       match node with
@@ -341,13 +342,7 @@ let borrow_ck pipes verbose =
       pipes
   in
 
-  (*
-     todo: instead of using a set, we need to use a mapping of
-     each symbol to its type. that way we can validate
-     it to make sure it isn't a reference
-     ...
-     OR we can just make sure the lhs isn't a ref/borrow
-  *)
+
   let ownership_ck pipe_name =
     let err_gave_ownership v_name =
       "variable " ^ v_name
@@ -392,7 +387,6 @@ let borrow_ck pipes verbose =
               if StringMap.mem n symbols then
                 ([ name ], StringMap.remove n symbols)
               else make_err (err_gave_ownership n)
-                (* we should be able to omit the add here *)
           | _ -> ([ name ], symbols))
       | PipeCall (_id, (_name, exprs), _pid) ->
           List.fold_left
@@ -418,13 +412,4 @@ let borrow_ck pipes verbose =
       pipes
   in
 
-  (*
-    TODO: 
-    - validate that argument borrows match the lifetime's provided
-      in each function definition   
-    - add some sort of marker to keep track of when values should
-      be deallocated in the graph
-    - if a return value is bound to some variable, make sure it's
-      lifetime is validated
-  *)
   pipe_lifetimes
