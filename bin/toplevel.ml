@@ -1,4 +1,4 @@
-type action = Ast | Sast | LLVM_IR [@@warning "-37"]
+type action = Ast | Sast | LLVM_IR
 (* todo: remove warning *)
 
 let () =
@@ -21,5 +21,8 @@ let () =
   let ast = Parser.program Scanner.token lexbuf in
   match !action with
   | Ast -> print_string (Ast.string_of_program ast)
-  | Sast -> print_string (Sast.string_of_sprogram (Semant.check ast !verbosity))
-  | _ -> ()
+  | c -> (
+      let sast = Semant.check ast !verbosity in
+      match c with
+      | Sast -> print_string (Sast.string_of_sprogram sast)
+      | _ -> ())
