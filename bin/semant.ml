@@ -1,7 +1,6 @@
 open Ast
 open Sast
 open Borrow
-
 module StringMap = Map.Make (String)
 
 let check (_things, pipes) verbosity =
@@ -111,7 +110,7 @@ let check (_things, pipes) verbosity =
          body)
   in
 
-  let _check_pipe p =
+  let check_pipe p =
     let formals' = check_bindings p.formals in
     let locals' = find_bindings p.body in
 
@@ -125,7 +124,7 @@ let check (_things, pipes) verbosity =
         (fun m (is_mut, typ, name) -> StringMap.add name (is_mut, typ) m)
         StringMap.empty (formals' @ locals')
     in
-    
+
     (* Return a semantically-checked expression, i.e. with a type *)
     let rec expr = function
       | IntLiteral l -> (Int, SIntLiteral l)
@@ -134,43 +133,52 @@ let check (_things, pipes) verbosity =
       | CharLiteral l -> (Char, SCharLiteral l)
       | UnitLiteral -> (Unit, SUnitLiteral)
       | StringLiteral l -> (String, SStringLiteral l)
-      | PipeIn(pname, args) as pipein ->
-        let pd = get_pipe pname in
-        let param_length = List.length pd.formals in
-        if List.length args != param_length then
-          raise (Failure ("expecting " ^ string_of_int param_length ^
-                          " arguments in " ^ string_of_expr pipein))
-        else let check_pipein (_, ft, _) e =
-          let (et, e') = expr e in
-          let err = "illegal argument found " ^ string_of_typ et ^
-            " expected " ^ string_of_typ ft ^ " in " ^ string_of_expr e
-        in (_check_assign ft et err, e')
-        in
-        let args' = List.map2 check_pipein pd.formals args
-        in (pd.return_type, SPipeIn(pname, args'))  
+      | PipeIn (pname, args) as pipein ->
+          let pd = get_pipe pname in
+          let param_length = List.length pd.formals in
+          if List.length args != param_length then
+            raise
+              (Failure
+                 ("expecting " ^ string_of_int param_length ^ " arguments in "
+                ^ string_of_expr pipein))
+          else
+            let check_pipein (_, ft, _) e =
+              let et, e' = expr e in
+              let err =
+                "illegal argument found " ^ string_of_typ et ^ " expected "
+                ^ string_of_typ ft ^ " in " ^ string_of_expr e
+              in
+              (_check_assign ft et err, e')
+            in
+            let args' = List.map2 check_pipein pd.formals args in
+            (pd.return_type, SPipeIn (pname, args'))
       | _ -> (Unit, SNoexpr)
-    in  
+    in
 
     (* Return a semantically-checked statement, i.e. containing s_exprs *)
     let rec check_stmt = function
-      Expr e -> SExpr(expr e)
-    | Block (sl) -> SBlock (List.map check_stmt sl, "static")
-    | _ -> SExpr(Unit, SNoexpr)
+      | Expr e -> SExpr (expr e)
+      | Block sl -> SBlock (List.map check_stmt sl, "static")
+      | _ -> SExpr (Unit, SNoexpr)
     in
     {
       sreturn_type = p.return_type;
       sname = p.name;
       slifetimes = p.lifetimes;
       sformals = formals';
-      sbody = match check_stmt (Block p.body) with
-         SBlock (sl, _) -> sl
-        | _ -> let err = "internal error: block didn't become a block?"
-                in raise (Failure err)
+      sbody =
+        (match check_stmt (Block p.body) with
+        | SBlock (sl, _) -> sl
+        | _ ->
+            let err = "internal error: block didn't become a block?" in
+            raise (Failure err));
     }
   in
 
+  let s_pipes = List.map check_pipe pipes in
+
   (* boolean denotes verbosity - set to true if you want to *)
   (* see generated graph nodes and fn tests *)
-  let _ltg = borrow_ck pipes verbosity in
+  let _ltg = borrow_ck s_pipes verbosity in
 
-  ([], List.map _check_pipe pipes)
+  ([], s_pipes)
