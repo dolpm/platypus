@@ -158,7 +158,7 @@ let check (_things, pipes) verbosity =
     (* Return a semantically-checked statement, i.e. containing s_exprs *)
     let rec check_stmt = function
       | Expr e -> SExpr (expr e)
-      | Block sl -> SBlock (List.map check_stmt sl, "static")
+      | Block sl -> SBlock (List.map check_stmt sl, [])
       | _ -> SExpr (Unit, SNoexpr)
     in
     {

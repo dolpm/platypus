@@ -1,7 +1,8 @@
 open Ast
 
 type s_expr = defined_type * sx
-and sx = 
+
+and sx =
   | SIntLiteral of int
   | SFloatLiteral of string
   | SBoolLiteral of bool
@@ -20,8 +21,8 @@ and sx =
   | SNoexpr
 
 type s_stmt =
-  (* stmts * associated lifetime of block *)
-  | SBlock of s_stmt list * string
+  (* string list contains symbols owned at end of life *)
+  | SBlock of s_stmt list * string list
   | SExpr of s_expr
   (* return equivalent *)
   | SPipeOut of s_expr
@@ -51,35 +52,36 @@ type s_program = defined_type list * s_pipe_declaration list
 
 (* Pretty-printing functions *)
 
-let rec string_of_s_expr (t, e)= 
-  "(" ^ string_of_typ t ^ " : " ^ (match e with
-  | SIntLiteral l -> string_of_int l
-  | SFloatLiteral l -> l
-  | SBoolLiteral true -> "true"
-  | SBoolLiteral false -> "false"
-  | SCharLiteral c -> "\x27" ^ String.make 1 c ^ "\x27"
-  | SUnitLiteral -> "()"
-  | SStringLiteral s -> "\x22" ^ s ^ "\x22"
-  | SThingValue children ->
-      "{\n"
-      ^ String.concat ",\n"
-          (List.map
-             (fun (c_name, e) -> "    " ^ c_name ^ ": " ^ string_of_s_expr e)
-             children)
-      ^ "\n  }"
-  | STupleValue es ->
-      "tuple("
-      ^ String.concat ", " (List.map (fun e -> "" ^ string_of_s_expr e) es)
-      ^ ")"
-  | STupleIndex (name, i) -> name ^ "." ^ string_of_int i
-  | SIdent s -> s
-  | SBinop (e1, o, e2) ->
-      string_of_s_expr e1 ^ " " ^ string_of_op o ^ " " ^ string_of_s_expr e2
-  | SUnop (o, e) -> string_of_uop o ^ string_of_s_expr e
-  | SPipeIn (f, el) ->
-      f ^ " <| [" ^ String.concat ", " (List.map string_of_s_expr el) ^ "]"
-  | SNoexpr -> ""
-  ) ^ ")"
+let rec string_of_s_expr (t, e) =
+  "(" ^ string_of_typ t ^ " : "
+  ^ (match e with
+    | SIntLiteral l -> string_of_int l
+    | SFloatLiteral l -> l
+    | SBoolLiteral true -> "true"
+    | SBoolLiteral false -> "false"
+    | SCharLiteral c -> "\x27" ^ String.make 1 c ^ "\x27"
+    | SUnitLiteral -> "()"
+    | SStringLiteral s -> "\x22" ^ s ^ "\x22"
+    | SThingValue children ->
+        "{\n"
+        ^ String.concat ",\n"
+            (List.map
+               (fun (c_name, e) -> "    " ^ c_name ^ ": " ^ string_of_s_expr e)
+               children)
+        ^ "\n  }"
+    | STupleValue es ->
+        "tuple("
+        ^ String.concat ", " (List.map (fun e -> "" ^ string_of_s_expr e) es)
+        ^ ")"
+    | STupleIndex (name, i) -> name ^ "." ^ string_of_int i
+    | SIdent s -> s
+    | SBinop (e1, o, e2) ->
+        string_of_s_expr e1 ^ " " ^ string_of_op o ^ " " ^ string_of_s_expr e2
+    | SUnop (o, e) -> string_of_uop o ^ string_of_s_expr e
+    | SPipeIn (f, el) ->
+        f ^ " <| [" ^ String.concat ", " (List.map string_of_s_expr el) ^ "]"
+    | SNoexpr -> "")
+  ^ ")"
 
 let rec indent x =
   let s = "  " in
@@ -87,7 +89,7 @@ let rec indent x =
 
 let rec string_of_s_stmt s_stmt pad =
   match s_stmt with
-  | SBlock (s_stmts, _lt) ->
+  | SBlock (s_stmts, _owned_vars) ->
       indent (pad - 1)
       ^ "{\n"
       ^ String.concat "" (List.map (fun s -> string_of_s_stmt s pad) s_stmts)
