@@ -43,4 +43,4 @@ type graph_node =
       returned : expr;
     }
 
-let borrow_ck pipes verbose = ()
+let borrow_ck _pipes _verbose = ()
