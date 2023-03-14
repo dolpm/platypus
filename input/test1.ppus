@@ -49,5 +49,8 @@ pipe main |> [] |> [] |> unit {
   int y <| 4;
   &int z <| (test3 <| [&x, &y]);
   test4 <| [2, true, 1.738];
+  Heap_alloc <| [4];
+  Heap_alloc <| [true];
+  Heap_alloc <| ["AHH! LOOK OUT!!"];
   |> ();
 }
