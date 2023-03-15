@@ -317,11 +317,6 @@ let borrow_ck pipes verbose =
               (symbol_table, graph) l.children
           in
 
-          let _ =
-            print_string (string_of_int (StringSet.cardinal symbol_table'))
-          in
-          let _ = print_string "\n" in
-
           (* anything left in the symbol table are variables that this lifetime must deallocate *)
           let symbol_table', children_responsible_for_dealloc =
             List.fold_left
@@ -347,7 +342,7 @@ let borrow_ck pipes verbose =
               graph' )
       | Binding b ->
           let names = find_identifiers b.expr in
-          (* Check all names are in scope *)
+          (* make sure all idents in expr are in symbol table *)
           let _ =
             List.iter
               (fun n ->
@@ -355,7 +350,17 @@ let borrow_ck pipes verbose =
                   make_err (err_gave_ownership n))
               names
           in
-          let symbol_table' = StringSet.add b.name symbol_table in
+
+          (* if ownership of another var given to new binding *)
+          (* remove the original from the table *)
+          let symbol_table' =
+            match b.expr with
+            | _ty, SIdent v_name -> StringSet.remove v_name symbol_table
+            | _ -> symbol_table
+          in
+
+          (* add the current binding to the table *)
+          let symbol_table' = StringSet.add b.name symbol_table' in
           (symbol_table', graph)
       | _ -> (symbol_table, graph)
     in
