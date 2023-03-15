@@ -284,6 +284,7 @@ let borrow_ck pipes verbose =
 
   let _ = if verbose then print_string "generated graph!\n" else () in
 
+  (* find indentifiers in an expression *)
   let find_identifiers (sex : s_expr) : string list =
     let rec inner ((_t, e) : s_expr) (names : string list) : string list =
       match e with
@@ -294,6 +295,24 @@ let borrow_ck pipes verbose =
           List.fold_left (fun l s -> inner s l) names sl
       | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) names tl
       | _ -> names
+    in
+    inner sex []
+  in
+
+  (* find borrows in an expression *)
+  (* returns (name, is_mut) list *)
+  let _find_borrows (sex : s_expr) : (string * bool) list =
+    let rec inner ((_t, e) : s_expr) (borrows : (string * bool) list) :
+        (string * bool) list =
+      match e with
+      | SUnop (Ref, (_typ, SIdent v)) -> (v, false) :: borrows
+      | SUnop (MutRef, (_typ, SIdent v)) -> (v, true) :: borrows
+      | SBinop (s1, _, s2) -> inner s2 borrows @ inner s1 borrows
+      | SUnop (_, s) -> inner s borrows
+      | SPipeIn (_, sl) | STupleValue sl ->
+          List.fold_left (fun l s -> inner s l) borrows sl
+      | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) borrows tl
+      | _ -> borrows
     in
     inner sex []
   in
