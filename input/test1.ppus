@@ -3,8 +3,6 @@ pipe main |> [] |> [] |> unit {
   int z <| 4;
    {
     int y <| x;
-    int z <| x;
    }
-
 }
 

@@ -88,8 +88,6 @@ let borrow_ck pipes verbose =
                 else (child_id, graph, children))
               (0, graph, []) stmts
           in
-          (* TODO: fill out owned vars *)
-          (* just look for children that are non-borrow bindings *)
           ( true,
             StringMap.add node_id
               (Lifetime
@@ -179,7 +177,7 @@ let borrow_ck pipes verbose =
   in
 
   (* pretty-print the graph *)
-  let _print_graph =
+  let print_graph g =
     if verbose then
       StringMap.iter
         (fun _p_name p_graph ->
@@ -279,7 +277,7 @@ let borrow_ck pipes verbose =
               p_graph
           in
           print_string "\n------\n\n")
-        graph
+        g
   in
 
   let _ = if verbose then print_string "generated graph!\n" else () in
@@ -336,6 +334,12 @@ let borrow_ck pipes verbose =
               (symbol_table, graph) l.children
           in
 
+          let _ = print_string "symbol table: " in
+          let _ =
+            StringSet.iter (fun v -> print_string (v ^ ",")) symbol_table'
+          in
+          let _ = print_string "\n" in
+
           (* anything left in the symbol table are variables that this lifetime must deallocate *)
           let symbol_table', children_responsible_for_dealloc =
             List.fold_left
@@ -348,6 +352,14 @@ let borrow_ck pipes verbose =
                 | _ -> (st', dealloc_list))
               (symbol_table', []) l.children
           in
+
+          let _ = print_string "children: " in
+          let _ =
+            List.iter
+              (fun v -> print_string (v ^ ","))
+              children_responsible_for_dealloc
+          in
+          let _ = print_string "\n" in
 
           ( symbol_table',
             StringMap.add l.node_id
@@ -387,13 +399,19 @@ let borrow_ck pipes verbose =
     check_children pipe.sname StringSet.empty graph_for_pipe
   in
 
-  let _ =
-    List.iter
-      (fun p ->
-        let _ = ownership_ck p in
-        if verbose then
-          print_string ("ownership check for " ^ p.sname ^ " passed!\n"))
-      pipes
+  (* graph with populated lifetime-owned-vars *)
+  let graph' =
+    List.fold_left
+      (fun graph p ->
+        let _, graph' = ownership_ck p in
+        let _ =
+          if verbose then
+            print_string ("ownership check for " ^ p.sname ^ " passed!\n")
+        in
+        StringMap.add p.sname graph' graph)
+      graph pipes
   in
+
+  let _graph = print_graph graph' in
 
   ()
