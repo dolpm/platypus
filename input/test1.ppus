@@ -1,53 +1,9 @@
-/*
-TODO:
-- make sure deref (@) undoes doesn't check borrow
-- handle nested borrows
-*/
-
-/*
-pipe test1 |> [] |> [r: ~&int] |> unit {
-  ~&int y <| r;
-  test1 <| [r];
-  |> ();
-}
-
-
-pipe test |> [] |> [] |> unit {
-  int x <| 0;
-  {
-    test1 <| [~&x];
-    ~&int y <| ~&x;
-  }
-  |> ();
-}
-*/
-
-pipe test2 |> [] |> [z: int] |> unit {
-  int x <| 0;
-  {
-    int y <| x;
-  }
-  |> ();
-}
-
-
-pipe test3 |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b int {
-  if (@a == 1) {
-    |> a;
-  } else {
-    |> b;
-  }
-}
-
-pipe test4 |> [] |> [a: int, b : bool, c : float] |> bool {
-  |> true;
-}
-
-
 pipe main |> [] |> [] |> unit {
   int x <| 4;
-  int y <| 4;
-  &int z <| (test3 <| [&x, &y]);
-  test4 <| [2, true, 1.738];
-  |> ();
+  int z <| 4;
+   {
+    int y <| x;
+    int z <| x;
+   }
 }
+

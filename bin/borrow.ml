@@ -1,6 +1,7 @@
 open Sast
 open Ast
 module StringMap = Map.Make (String)
+module StringSet = Set.Make (String)
 
 type graph_node =
   | Lifetime of {
@@ -15,6 +16,7 @@ type graph_node =
       node_id : string;
       (* rest *)
       is_mut : bool;
+      (* TODO: REMOVE? *)
       typ : defined_type;
       name : string;
       expr : s_expr;
@@ -91,7 +93,12 @@ let borrow_ck pipes verbose =
           ( true,
             StringMap.add node_id
               (Lifetime
-                 { parent = Some parent_id; node_id; children; owned_vars = [] })
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   children = List.rev children;
+                   owned_vars = [];
+                 })
               updated_graph )
       | SLoop (_, _, _, _, SBlock (stmts, []))
       | SWhile (_, SBlock (stmts, []))
@@ -149,12 +156,11 @@ let borrow_ck pipes verbose =
            {
              parent = None;
              children =
-               List.rev
-                 ((pipe.sname ^ "."
-                  ^ string_of_int (StringMap.cardinal graph_with_pipe_args))
-                 :: List.map
-                      (fun (k, _) -> k)
-                      (StringMap.bindings graph_with_pipe_args));
+               (pipe.sname ^ "."
+               ^ string_of_int (StringMap.cardinal graph_with_pipe_args))
+               :: List.map
+                    (fun (k, _) -> k)
+                    (StringMap.bindings graph_with_pipe_args);
              node_id = pipe.sname;
              owned_vars = [];
            })
@@ -165,7 +171,7 @@ let borrow_ck pipes verbose =
   in
 
   (* generate a graph for each pipe and add each to a global map *)
-  let graph =
+  let graph : graph_node StringMap.t StringMap.t =
     List.fold_left
       (fun graph pipe ->
         StringMap.add pipe.sname (generate_graph_for_pipe pipe) graph)
@@ -277,4 +283,93 @@ let borrow_ck pipes verbose =
   in
 
   let _ = if verbose then print_string "generated graph!\n" else () in
+
+  let find_identifiers (sex : s_expr) : string list =
+    let rec inner ((_t, e) : s_expr) (names : string list) : string list =
+      match e with
+      | SIdent name -> name :: names
+      | SBinop (s1, _, s2) -> inner s2 names @ inner s1 names
+      | SUnop (_, s) -> inner s names
+      | SPipeIn (_, sl) | STupleValue sl ->
+          List.fold_left (fun l s -> inner s l) names sl
+      | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) names tl
+      | _ -> names
+    in
+    inner sex []
+  in
+
+  let ownership_ck pipe =
+    let graph_for_pipe = StringMap.find pipe.sname graph in
+
+    let err_gave_ownership v_name =
+      "variable " ^ v_name
+      ^ " gave ownership to another binding and can't be accessed."
+    and make_err er = raise (Failure er) in
+
+    let rec check_children current_node symbol_table graph =
+      let current_node = StringMap.find current_node graph in
+      match current_node with
+      | Lifetime l ->
+          (* process ownership of child nodes -- this will remove all variables who are owned in lower lifetimes *)
+          let symbol_table', graph' =
+            List.fold_left
+              (fun (st, graph) child -> check_children child st graph)
+              (symbol_table, graph) l.children
+          in
+
+          let _ =
+            print_string (string_of_int (StringSet.cardinal symbol_table'))
+          in
+          let _ = print_string "\n" in
+
+          (* anything left in the symbol table are variables that this lifetime must deallocate *)
+          let symbol_table', children_responsible_for_dealloc =
+            List.fold_left
+              (fun (st', dealloc_list) child ->
+                match StringMap.find child graph_for_pipe with
+                | Binding b ->
+                    if StringSet.mem b.name st' then
+                      (StringSet.remove b.name st', b.name :: dealloc_list)
+                    else (st', dealloc_list)
+                | _ -> (st', dealloc_list))
+              (symbol_table', []) l.children
+          in
+
+          ( symbol_table',
+            StringMap.add l.node_id
+              (Lifetime
+                 {
+                   children = l.children;
+                   node_id = l.node_id;
+                   parent = l.parent;
+                   owned_vars = children_responsible_for_dealloc;
+                 })
+              graph' )
+      | Binding b ->
+          let names = find_identifiers b.expr in
+          (* Check all names are in scope *)
+          let _ =
+            List.iter
+              (fun n ->
+                if not (StringSet.mem n symbol_table) then
+                  make_err (err_gave_ownership n))
+              names
+          in
+          let symbol_table' = StringSet.add b.name symbol_table in
+          (symbol_table', graph)
+      | _ -> (symbol_table, graph)
+    in
+
+    check_children pipe.sname StringSet.empty graph_for_pipe
+  in
+
+  let _ =
+    List.iter
+      (fun p ->
+        let _ = ownership_ck p in
+        if verbose then
+          print_string ("ownership check for " ^ p.sname ^ " passed!\n"))
+      pipes
+  in
+
   ()

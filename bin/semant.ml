@@ -125,6 +125,12 @@ let check (_things, pipes) verbosity =
         StringMap.empty (formals' @ locals')
     in
 
+    (* Return a variable from our local symbol table *)
+    let type_of_identifier (s : string) : (bool * defined_type) =
+      try StringMap.find s _symbols 
+      with Not_found -> raise (Failure ("undeclared identifier " ^ s))
+    in
+
     (* Return a semantically-checked expression, i.e. with a type *)
     let rec expr = function
       | IntLiteral l -> (Int, SIntLiteral l)
@@ -152,6 +158,7 @@ let check (_things, pipes) verbosity =
             in
             let args' = List.map2 check_pipein pd.formals args in
             (pd.return_type, SPipeIn (pname, args'))
+      | Ident s -> (snd (type_of_identifier s), SIdent s)
       | _ -> (Unit, SNoexpr)
     in
 
@@ -159,6 +166,14 @@ let check (_things, pipes) verbosity =
     let rec check_stmt = function
       | Expr e -> SExpr (expr e)
       | Block sl -> SBlock (List.map check_stmt sl, [])
+      | Assign (is_mut, t, name, e) as ass ->
+        let (_,lt) = type_of_identifier name
+        and (rt, e') = expr e in
+        let err = "illegal assignment " ^ string_of_typ lt ^ " = " ^ 
+          string_of_typ rt ^ " in " ^ string_of_stmt ass 0
+        in
+        let _ = _check_assign t lt err
+        in SAssign(is_mut, t, name, (rt, e'))
       | _ -> SExpr (Unit, SNoexpr)
     in
     {
