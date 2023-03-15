@@ -168,6 +168,10 @@ let check (_things, pipes) verbosity =
       | _ -> (Unit, SNoexpr)
     in
 
+    (* illegal to do references of references *)
+    (* illegal to dereference a @& or @~& *)
+    (* handle either syntactically or semantically *)
+
     (* Return a semantically-checked statement, i.e. containing s_exprs *)
     let rec check_stmt = function
       | Expr e -> SExpr (expr e)

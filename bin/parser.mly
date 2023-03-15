@@ -41,7 +41,6 @@ typ:
   | STRING { String }
   | VECTOR LBRACKET typ RBRACKET   { Vector($3) }
   | BOX LBRACKET typ RBRACKET  { Box($3) }
-  | OPTION LBRACKET typ RBRACKET  { Option($3) }
   | BORROW LIFETIME typ { Borrow($3, $2) }
   | MUTBORROW LIFETIME typ { MutBorrow($3, $2) }
   /* infer lifetime as static if not provided? */

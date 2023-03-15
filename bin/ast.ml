@@ -10,7 +10,6 @@ type defined_type =
   (* thing names are user-defined *)
   (* | Thing of string *)
   | Box of defined_type
-  | Option of defined_type
   (* type, lifetime of type --> todo maybe add more lifetime metadata *)
   | Borrow of defined_type * string
   | MutBorrow of defined_type * string
@@ -119,7 +118,6 @@ let rec string_of_typ = function
   | String -> "string"
   | Vector t -> "vector[" ^ string_of_typ t ^ "]"
   | Box t -> "box[" ^ string_of_typ t ^ "]"
-  | Option t -> "option[" ^ string_of_typ t ^ "]"
   | Borrow (t, lt) -> "&" ^ lt ^ " " ^ string_of_typ t
   | MutBorrow (t, lt) -> "~&" ^ lt ^ " " ^ string_of_typ t
   (* do we want to print children here? *)
