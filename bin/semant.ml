@@ -106,6 +106,8 @@ let check (_things, pipes) verbosity =
            match s with
            | Assign (is_mut, typ, name, _) -> Some [ (is_mut, typ, name) ]
            | Block stmts -> Some (find_bindings stmts)
+           | While (_, s) | Loop (_, _, _, _, s) -> Some (find_bindings [ s ])
+           | If (_, s1, s2) -> Some (find_bindings [ s1; s2 ])
            | _ -> None)
          body)
   in
@@ -119,15 +121,15 @@ let check (_things, pipes) verbosity =
       if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
-    let _symbols =
+    let symbols =
       List.fold_left
         (fun m (is_mut, typ, name) -> StringMap.add name (is_mut, typ) m)
         StringMap.empty (formals' @ locals')
     in
 
     (* Return a variable from our local symbol table *)
-    let type_of_identifier (s : string) : (bool * defined_type) =
-      try StringMap.find s _symbols 
+    let type_of_identifier (s : string) : bool * defined_type =
+      try StringMap.find s symbols
       with Not_found -> raise (Failure ("undeclared identifier " ^ s))
     in
 
@@ -139,6 +141,22 @@ let check (_things, pipes) verbosity =
       | CharLiteral l -> (Char, SCharLiteral l)
       | UnitLiteral -> (Unit, SUnitLiteral)
       | StringLiteral l -> (String, SStringLiteral l)
+      | Binop (e1, op, e2) as e ->
+          let t1, e1' = expr e1 and t2, e2' = expr e2 in
+          let same = t1 = t2 in
+          let ty =
+            match op with
+            | (And | Or) when same && t1 = Bool -> Bool
+            | (Lt | Leq | Gt | Geq) when same && (t1 = Int || t1 = Float) ->
+                Bool
+            | _ ->
+                raise
+                  (Failure
+                     ("illegal binary operator " ^ string_of_typ t1 ^ " "
+                    ^ string_of_op op ^ " " ^ string_of_typ t2 ^ " in "
+                    ^ string_of_expr e))
+          in
+          (ty, SBinop ((t1, e1'), op, (t2, e2')))
       | PipeIn (pname, args) as pipein ->
           let pd = get_pipe pname in
           let param_length = List.length pd.formals in
@@ -167,13 +185,18 @@ let check (_things, pipes) verbosity =
       | Expr e -> SExpr (expr e)
       | Block sl -> SBlock (List.map check_stmt sl, [])
       | Assign (is_mut, t, name, e) as ass ->
-        let (_,lt) = type_of_identifier name
-        and (rt, e') = expr e in
-        let err = "illegal assignment " ^ string_of_typ lt ^ " = " ^ 
-          string_of_typ rt ^ " in " ^ string_of_stmt ass 0
-        in
-        let _ = _check_assign t lt err
-        in SAssign(is_mut, t, name, (rt, e'))
+          let _, lt = type_of_identifier name and rt, e' = expr e in
+          let err =
+            "illegal assignment " ^ string_of_typ lt ^ " = " ^ string_of_typ rt
+            ^ " in " ^ string_of_stmt ass 0
+          in
+          let _ = _check_assign t lt err in
+          SAssign (is_mut, t, name, (rt, e'))
+      | While (e, s) ->
+          let t, e' = expr e in
+          let err = "expected boolean " ^ string_of_expr e in
+          let t' = _check_assign t Bool err in
+          SWhile ((t', e'), check_stmt s)
       | _ -> SExpr (Unit, SNoexpr)
     in
     {

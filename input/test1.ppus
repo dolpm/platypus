@@ -1,8 +1,21 @@
+pipe test |> [] |> [x: int] |> unit {
+  |> ();
+}
+
 pipe main |> [] |> [] |> unit {
   int x <| 4;
   int z <| 4;
    {
     int y <| x;
+    while (y < 4) {
+      /* fuck */
+      {
+        int w <| 8;
+        test <| [w];
+        /* fuck2 */
+      }
+    }
    }
+   |> ();
 }
 

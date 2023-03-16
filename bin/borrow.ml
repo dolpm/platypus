@@ -41,6 +41,12 @@ type graph_node =
       (* rest *)
       returned : s_expr;
     }
+  | ExprCatchAll of {
+      parent : string option;
+      node_id : string;
+      (* rest *)
+      value : s_expr;
+    }
 
 let borrow_ck pipes verbose =
   let _ = if verbose then print_string "generating graph!\n" else () in
@@ -98,18 +104,6 @@ let borrow_ck pipes verbose =
                    owned_vars = [];
                  })
               updated_graph )
-      | SLoop (_, _, _, _, SBlock (stmts, []))
-      | SWhile (_, SBlock (stmts, []))
-      | SIf (_, SBlock (stmts, []), SBlock ([], [])) ->
-          gen_children parent_id child_id (SBlock (stmts, [])) graph
-      | SIf (_, SBlock (stmts, []), SBlock (stmts_2, [])) ->
-          let was_updated, m1 =
-            gen_children parent_id child_id (SBlock (stmts, [])) graph
-          in
-          gen_children parent_id
-            (if was_updated then child_id + 1 else child_id)
-            (SBlock (stmts_2, []))
-            m1
       | SAssign (is_mut, typ, name, expr) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           ( true,
@@ -135,7 +129,91 @@ let borrow_ck pipes verbose =
             StringMap.add node_id
               (PipeReturn { parent = Some parent_id; node_id; returned = expr })
               graph )
-      | _ -> (false, graph)
+      | sstmt ->
+          let node_id = parent_id ^ "." ^ string_of_int child_id in
+          let matched, graph', children =
+            match sstmt with
+            | SWhile (sex, SBlock (stmts, [])) ->
+                let sex_id = node_id ^ ".0" in
+                let block_id = node_id ^ ".1" in
+                let sex_node =
+                  ExprCatchAll
+                    { parent = Some node_id; node_id = sex_id; value = sex }
+                in
+
+                let graph' = StringMap.add sex_id sex_node graph in
+
+                let _, graph' =
+                  gen_children node_id 1 (SBlock (stmts, [])) graph'
+                in
+
+                (true, graph', [ sex_id; block_id ])
+            | SIf (sex, SBlock (stmts1, []), SBlock (stmts2, [])) ->
+                let sex_id = node_id ^ ".0" in
+                let block1_id = node_id ^ ".1" in
+                let block2_id = node_id ^ ".2" in
+
+                let sex_node =
+                  ExprCatchAll
+                    { parent = Some node_id; node_id = sex_id; value = sex }
+                in
+
+                let graph' = StringMap.add sex_id sex_node graph in
+
+                let _, graph' =
+                  gen_children node_id 1 (SBlock (stmts1, [])) graph'
+                in
+                let _, graph' =
+                  gen_children node_id 2 (SBlock (stmts2, [])) graph'
+                in
+
+                (true, graph', [ sex_id; block1_id; block2_id ])
+            | SLoop (sex1, sex2, _, sex3, SBlock (stmts, [])) ->
+                let sex1_id = node_id ^ ".0" in
+                let sex2_id = node_id ^ ".1" in
+                let sex3_id = node_id ^ ".2" in
+                let block_id = node_id ^ ".3" in
+                let sex_nodes =
+                  [
+                    ExprCatchAll
+                      { parent = Some node_id; node_id = sex1_id; value = sex1 };
+                    ExprCatchAll
+                      { parent = Some node_id; node_id = sex2_id; value = sex2 };
+                    ExprCatchAll
+                      { parent = Some node_id; node_id = sex3_id; value = sex3 };
+                  ]
+                in
+
+                let graph' =
+                  List.fold_left
+                    (fun g sex_node ->
+                      match sex_node with
+                      | ExprCatchAll sn ->
+                          StringMap.add sn.node_id (ExprCatchAll sn) g
+                      | _ -> raise (Failure "panic!"))
+                    graph sex_nodes
+                in
+
+                let _, graph' =
+                  gen_children node_id 3 (SBlock (stmts, [])) graph'
+                in
+
+                (true, graph', [ sex1_id; sex2_id; sex3_id; block_id ])
+            | _ -> (false, graph, [])
+          in
+
+          if not matched then (false, graph)
+          else
+            ( true,
+              StringMap.add node_id
+                (Lifetime
+                   {
+                     parent = Some parent_id;
+                     node_id;
+                     children;
+                     owned_vars = [];
+                   })
+                graph' )
     in
 
     (* create a block containing the body statements and gen thier nodes *)
@@ -259,6 +337,19 @@ let borrow_ck pipes verbose =
                         ^ String.concat ", "
                             (List.map (fun e -> string_of_s_expr e) pc.args)
                         ^ "\n")
+                  | ExprCatchAll eca ->
+                      let _ = print_string "node_type: ExprCatchAll\n" in
+                      let _ = print_string ("node_id: " ^ eca.node_id ^ "\n") in
+                      let _ =
+                        print_string
+                          ("parent: "
+                          ^ (match eca.parent with
+                            | Some pid -> pid
+                            | None -> "None")
+                          ^ "\n")
+                      in
+                      print_string
+                        ("value: " ^ string_of_s_expr eca.value ^ "\n")
                   | PipeReturn pr ->
                       let _ = print_string "node_type: PipeReturn\n" in
                       let _ = print_string ("node_id: " ^ pr.node_id ^ "\n") in
@@ -334,12 +425,6 @@ let borrow_ck pipes verbose =
               (symbol_table, graph) l.children
           in
 
-          let _ = print_string "symbol table: " in
-          let _ =
-            StringSet.iter (fun v -> print_string (v ^ ",")) symbol_table'
-          in
-          let _ = print_string "\n" in
-
           (* anything left in the symbol table are variables that this lifetime must deallocate *)
           let symbol_table', children_responsible_for_dealloc =
             List.fold_left
@@ -352,14 +437,6 @@ let borrow_ck pipes verbose =
                 | _ -> (st', dealloc_list))
               (symbol_table', []) l.children
           in
-
-          let _ = print_string "children: " in
-          let _ =
-            List.iter
-              (fun v -> print_string (v ^ ","))
-              children_responsible_for_dealloc
-          in
-          let _ = print_string "\n" in
 
           ( symbol_table',
             StringMap.add l.node_id
@@ -393,7 +470,40 @@ let borrow_ck pipes verbose =
           (* add the current binding to the table *)
           let symbol_table' = StringSet.add b.name symbol_table' in
           (symbol_table', graph)
-      | _ -> (symbol_table, graph)
+      (* in ExprCatchAll, we only need to check that all found identifiers are in the symbol_table table *)
+      (* we don't have to remove anything from the symbol table *)
+      | PipeCall pc ->
+          let names =
+            List.fold_left
+              (fun idents sex -> find_identifiers sex @ idents)
+              [] pc.args
+          in
+          let _ =
+            List.iter
+              (fun n ->
+                if not (StringSet.mem n symbol_table) then
+                  make_err (err_gave_ownership n))
+              names
+          in
+          (symbol_table, graph)
+      | v ->
+          let e =
+            match v with
+            | PipeReturn pr -> pr.returned
+            | Rebinding rb -> rb.expr
+            | ExprCatchAll eca -> eca.value
+            | _ -> make_err "panic! not possible!"
+          in
+          let names = find_identifiers e in
+          (* make sure all idents in expr are in symbol table *)
+          let _ =
+            List.iter
+              (fun n ->
+                if not (StringSet.mem n symbol_table) then
+                  make_err (err_gave_ownership n))
+              names
+          in
+          (symbol_table, graph)
     in
 
     check_children pipe.sname StringSet.empty graph_for_pipe
