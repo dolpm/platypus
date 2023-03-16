@@ -7,12 +7,15 @@ pipe main |> [] |> [] |> unit {
   int z <| 4;
    {
     int y <| x;
+    loop 0 -> 10 as (i,1) {
+      int schmee <| y;
+      test <| [schmee];
+    }
+
     while (y < 4) {
-      /* fuck */
       {
         int w <| 8;
         test <| [w];
-        /* fuck2 */
       }
     }
    }

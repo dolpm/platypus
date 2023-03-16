@@ -192,6 +192,7 @@ let check (_things, pipes) verbosity =
           in
           let _ = _check_assign t lt err in
           SAssign (is_mut, t, name, (rt, e'))
+      | Loop (_e1, _e2, _n, _e3, _s) -> SExpr (Unit, SNoexpr)
       | While (e, s) ->
           let t, e' = expr e in
           let err = "expected boolean " ^ string_of_expr e in
