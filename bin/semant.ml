@@ -117,7 +117,7 @@ let check (_things, pipes) verbosity =
     let locals' = find_bindings p.body in
 
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
-    let _check_assign lvaluet rvaluet err =
+    let check_assign lvaluet rvaluet err =
       if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
@@ -172,7 +172,7 @@ let check (_things, pipes) verbosity =
                 "illegal argument found " ^ string_of_typ et ^ " expected "
                 ^ string_of_typ ft ^ " in " ^ string_of_expr e
               in
-              (_check_assign ft et err, e')
+              (check_assign ft et err, e')
             in
             let args' = List.map2 check_pipein pd.formals args in
             (pd.return_type, SPipeIn (pname, args'))
@@ -190,13 +190,27 @@ let check (_things, pipes) verbosity =
             "illegal assignment " ^ string_of_typ lt ^ " = " ^ string_of_typ rt
             ^ " in " ^ string_of_stmt ass 0
           in
-          let _ = _check_assign t lt err in
+          let _ = check_assign t lt err in
           SAssign (is_mut, t, name, (rt, e'))
-      | Loop (_e1, _e2, _n, _e3, _s) -> SExpr (Unit, SNoexpr)
+      | Loop (e1, e2, n, e3, s) -> (
+          let exprs =
+            List.map
+              (fun e ->
+                let t, e' = expr e in
+                let err = "expected integer " ^ string_of_expr e in
+                let t' = check_assign t Int err in
+                (t', e'))
+              [ e1; e2; e3 ]
+          in
+          match exprs with
+          | [ (t1', e1'); (t2', e2'); (t3', e3') ] ->
+              (* todo: make sure n isn't in symbol table? *)
+              SLoop ((t1', e1'), (t2', e2'), n, (t3', e3'), check_stmt s)
+          | _ -> make_err "panic!")
       | While (e, s) ->
           let t, e' = expr e in
           let err = "expected boolean " ^ string_of_expr e in
-          let t' = _check_assign t Bool err in
+          let t' = check_assign t Bool err in
           SWhile ((t', e'), check_stmt s)
       | _ -> SExpr (Unit, SNoexpr)
     in
