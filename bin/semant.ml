@@ -147,7 +147,9 @@ let check (_things, pipes) verbosity =
             match op with
             | Neg when t1 = Int || t1 = Float -> t1
             | Not when t1 = Bool -> t1
-            | Ref | MutRef -> t1
+            (* todo: how do we handle custom lifetimes??? *)
+            | Ref -> Borrow (t1, "'_")
+            | MutRef -> MutBorrow (t1, "'_")
             | Deref
               when match t1 with
                    | Borrow (_, _) | MutBorrow (_, _) -> true
@@ -213,6 +215,14 @@ let check (_things, pipes) verbosity =
           in
           let _ = check_assign t lt err in
           SAssign (is_mut, t, name, (rt, e'))
+      | ReAssign (name, e) as ass ->
+          let _, lt = type_of_identifier name and rt, e' = expr e in
+          let err =
+            "illegal assignment " ^ string_of_typ lt ^ " = " ^ string_of_typ rt
+            ^ " in " ^ string_of_stmt ass 0
+          in
+          let _ = check_assign rt lt err in
+          SReAssign (name, (rt, e'))
       | Loop (e1, e2, n, e3, s) -> (
           let exprs =
             List.map

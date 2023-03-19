@@ -620,59 +620,85 @@ let borrow_ck pipes verbose =
                   borrow_table borrows_in_expr
               in
               borrow_table')
-      | Rebinding rb ->
+      | Rebinding rb -> (
+          (* TODO: make sure og binding is MUTABLE *)
+
           (* if we are rebinding, perhaps we want to remove the old borrow *)
           (* from the table entry for whatever it was borrowing *)
           (* in lieu of the new one... we'd need to store nodes w/ borrows *)
-          let _ =
-            match rb.expr with
-            | Borrow _, e | MutBorrow _, e -> (
-                (* if we are rebinding a borrow , we want to remove the *)
-                (* old borrow from the table entry for whatever it was *)
-                (* borrowing in lieu of the new one *)
-                match e with
-                | SUnop (MutRef, (_ty2, SIdent n)) ->
-                    let borrow_table' =
-                      StringMap.map
-                        (fun (is_mut, borrowing_node_ids) ->
-                          ( is_mut,
-                            List.filter
-                              (fun nid -> nid != rb.node_id)
-                              borrowing_node_ids ))
-                        borrow_table
+          match rb.expr with
+          | Borrow _, e | MutBorrow _, e -> (
+              match e with
+              | SUnop (MutRef, (_ty2, SIdent n)) ->
+                  (* if we are rebinding a borrow , we want to remove the *)
+                  (* old borrow from the table entry for whatever it was *)
+                  (* borrowing in lieu of the new one *)
+                  let borrow_table' =
+                    StringMap.map
+                      (fun (is_mut, borrowing_node_ids) ->
+                        ( is_mut,
+                          List.filter
+                            (fun nid ->
+                              let node_of_borrow =
+                                StringMap.find nid graph_for_pipe
+                              in
+                              match node_of_borrow with
+                              | Binding b2 -> b2.name <> rb.name
+                              | Rebinding rb2 -> rb2.name <> rb.name
+                              | _ -> true)
+                            borrowing_node_ids ))
+                      borrow_table
+                  in
+                  (* remove entries whose borrow nodes are [] *)
+                  let borrow_table' =
+                    StringMap.filter
+                      (fun _ (_, bids) -> List.length bids > 0)
+                      borrow_table'
+                  in
+                  let has_b_map_entry = StringMap.mem n borrow_table' in
+                  if has_b_map_entry then
+                    make_err (err_mut_borrow_after_borrow n)
+                  else StringMap.add n (true, [ rb.node_id ]) borrow_table'
+              | SUnop (Ref, (_ty2, SIdent n)) ->
+                  (* if we are rebinding a borrow , we want to remove the *)
+                  (* old borrow from the table entry for whatever it was *)
+                  (* borrowing in lieu of the new one *)
+                  let borrow_table' =
+                    StringMap.map
+                      (fun (is_mut, borrowing_node_ids) ->
+                        ( is_mut,
+                          List.filter
+                            (fun nid ->
+                              let node_of_borrow =
+                                StringMap.find nid graph_for_pipe
+                              in
+                              match node_of_borrow with
+                              | Binding b2 -> b2.name <> rb.name
+                              | Rebinding rb2 -> rb2.name <> rb.name
+                              | _ -> true)
+                            borrowing_node_ids ))
+                      borrow_table
+                  in
+                  (* remove entries whose borrow nodes are [] *)
+                  let borrow_table' =
+                    StringMap.filter
+                      (fun _ (_, bids) -> List.length bids > 0)
+                      borrow_table'
+                  in
+                  let has_b_map_entry = StringMap.mem n borrow_table' in
+                  if has_b_map_entry then
+                    let entry_is_mut, entry_node_ids =
+                      StringMap.find n borrow_table'
                     in
-                    let has_b_map_entry = StringMap.mem n borrow_table' in
-                    if has_b_map_entry then
-                      make_err (err_mut_borrow_after_borrow n)
-                    else StringMap.add n (true, [ rb.node_id ]) borrow_table'
-                | SUnop (Ref, (_ty2, SIdent n)) ->
-                    let borrow_table' =
-                      StringMap.map
-                        (fun (is_mut, borrowing_node_ids) ->
-                          ( is_mut,
-                            List.filter
-                              (fun nid -> nid != rb.node_id)
-                              borrowing_node_ids ))
-                        borrow_table
-                    in
-                    let has_b_map_entry = StringMap.mem n borrow_table' in
-                    if has_b_map_entry then
-                      let entry_is_mut, entry_node_ids =
-                        StringMap.find n borrow_table'
-                      in
-                      if entry_is_mut then
-                        make_err (err_borrow_after_mut_borrow n)
-                      else
-                        StringMap.add n
-                          (false, rb.node_id :: entry_node_ids)
-                          borrow_table'
-                    else StringMap.add n (true, [ rb.node_id ]) borrow_table'
-                | _ -> ck_expr borrow_table rb.node_id rb.expr)
-            | _ -> borrow_table
-          in
-
-          (* remove the borrow from the prev. bound value *)
-          borrow_table
+                    if entry_is_mut then
+                      make_err (err_borrow_after_mut_borrow n)
+                    else
+                      StringMap.add n
+                        (false, rb.node_id :: entry_node_ids)
+                        borrow_table'
+                  else StringMap.add n (false, [ rb.node_id ]) borrow_table'
+              | _ -> ck_expr borrow_table rb.node_id rb.expr)
+          | _ -> borrow_table)
       | PipeCall pc ->
           (* validate all arguments that may borrow things *)
           let borrow_table' =

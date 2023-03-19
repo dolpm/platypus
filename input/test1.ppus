@@ -28,10 +28,13 @@ pipe main |> [] |> [] |> unit {
 pipe main |> [] |> [] |> unit {
   int x <| 4;
   int y <| 4;
-  &int z <| &x;
-  z <| &y;
+ 
+  {
+    mut &int z <| &x;
+    z <| &y;
+    ~&int w <| ~&x;
+  }
 
-  ~&int w <| ~&y;
 
   |> ();
 }
