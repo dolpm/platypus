@@ -680,7 +680,9 @@ let borrow_ck pipes verbose =
               (fun borrow_table arg -> ck_expr borrow_table pc.node_id arg)
               borrow_table pc.args
           in
-          (* and figure out how to handle the return value *)
+          (* and figure out how to handle the return value if a borrow *)
+          (* this should probably be handled in the binding/rebinding *)
+          (* portion *)
           borrow_table'
       | PipeReturn pr ->
           (* if the returned value is a borrow, make sure it's an arg *)
