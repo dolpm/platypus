@@ -1,3 +1,4 @@
+/*
 pipe test |> [] |> [x: int] |> unit {
   |> ();
 }
@@ -21,5 +22,13 @@ pipe main |> [] |> [] |> unit {
   
    }
    |> ();
+}
+*/
+
+pipe main |> [] |> [] |> unit {
+  int x <| 4;
+  &int y <| &x;
+  ~&int z <| ~&x;
+  |> ();
 }
 

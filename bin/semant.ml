@@ -141,6 +141,27 @@ let check (_things, pipes) verbosity =
       | CharLiteral l -> (Char, SCharLiteral l)
       | UnitLiteral -> (Unit, SUnitLiteral)
       | StringLiteral l -> (String, SStringLiteral l)
+      | Unop (op, e1) as e ->
+          let t1, e1' = expr e1 in
+          let ty =
+            match op with
+            | Neg when t1 = Int || t1 = Float -> t1
+            | Not when t1 = Bool -> t1
+            | Ref | MutRef -> t1
+            | Deref
+              when match t1 with
+                   | Borrow (_, _) | MutBorrow (_, _) -> true
+                   | _ -> false -> (
+                match t1 with
+                | Borrow (t_inner, _) | MutBorrow (t_inner, _) -> t_inner
+                | _ -> raise (Failure "panic!"))
+            | _ ->
+                raise
+                  (Failure
+                     ("illegal unary operator " ^ string_of_uop op ^ " "
+                    ^ string_of_typ t1 ^ " in " ^ string_of_expr e))
+          in
+          (ty, SUnop (op, (t1, e1')))
       | Binop (e1, op, e2) as e ->
           let t1, e1' = expr e1 and t2, e2' = expr e2 in
           let same = t1 = t2 in

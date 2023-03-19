@@ -388,24 +388,6 @@ let borrow_ck pipes verbose =
     inner sex []
   in
 
-  (* find borrows in an expression *)
-  (* returns (name, is_mut) list *)
-  let _find_borrows (sex : s_expr) : (string * bool) list =
-    let rec inner ((_t, e) : s_expr) (borrows : (string * bool) list) :
-        (string * bool) list =
-      match e with
-      | SUnop (Ref, (_typ, SIdent v)) -> (v, false) :: borrows
-      | SUnop (MutRef, (_typ, SIdent v)) -> (v, true) :: borrows
-      | SBinop (s1, _, s2) -> inner s2 borrows @ inner s1 borrows
-      | SUnop (_, s) -> inner s borrows
-      | SPipeIn (_, sl) | STupleValue sl ->
-          List.fold_left (fun l s -> inner s l) borrows sl
-      | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) borrows tl
-      | _ -> borrows
-    in
-    inner sex []
-  in
-
   let ownership_ck pipe =
     let graph_for_pipe = StringMap.find pipe.sname graph in
 
@@ -510,7 +492,7 @@ let borrow_ck pipes verbose =
   in
 
   (* graph with populated lifetime-owned-vars *)
-  let graph' =
+  let graph =
     List.fold_left
       (fun graph p ->
         let _, graph' = ownership_ck p in
@@ -522,6 +504,95 @@ let borrow_ck pipes verbose =
       graph pipes
   in
 
-  let _graph = print_graph graph' in
+  (* find borrows in an expression *)
+  (* returns (name, is_mut) list *)
+  let find_borrows (sex : s_expr) : (string * bool) list =
+    let rec inner ((_t, e) : s_expr) (borrows : (string * bool) list) :
+        (string * bool) list =
+      match e with
+      | SUnop (Ref, (_typ, SIdent v)) -> (v, false) :: borrows
+      | SUnop (MutRef, (_typ, SIdent v)) -> (v, true) :: borrows
+      | SBinop (s1, _, s2) -> inner s2 borrows @ inner s1 borrows
+      | SUnop (_, s) -> inner s borrows
+      | SPipeIn (_, sl) | STupleValue sl ->
+          List.fold_left (fun l s -> inner s l) borrows sl
+      | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) borrows tl
+      | _ -> borrows
+    in
+    inner sex []
+  in
+
+  let borrow_ck pipe =
+    let graph_for_pipe = StringMap.find pipe.sname graph in
+
+    let err_borrow_after_mut_borrow v_name =
+      "variable " ^ v_name
+      ^ " can't be borrowed after it has already been mutably borrowed."
+    and err_mut_borrow_after_borrow v_name =
+      "variable " ^ v_name
+      ^ " can't be mutably borrowed after it has already been borrowed."
+    and make_err er = raise (Failure er) in
+
+    let rec check_children current_node borrow_table =
+      let current_node = StringMap.find current_node graph_for_pipe in
+      match current_node with
+      | Lifetime l ->
+          (* build borrow table up from left to right child *)
+          let borrow_table' =
+            List.fold_left
+              (fun borrow_table child -> check_children child borrow_table)
+              borrow_table l.children
+          in
+          borrow_table'
+      | Binding b -> (
+          let _ = print_string "hi\n" in
+          (* check if rhs borrows anything in expr (validate invariants) *)
+          (* if it is a borrow itself, add to borrow table *)
+          match b.expr with
+          | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
+              (* new immutable borrow *)
+              if StringMap.mem n borrow_table && StringMap.find n borrow_table
+              then make_err (err_borrow_after_mut_borrow n)
+              else StringMap.add n false borrow_table
+          | _ty, SUnop (MutRef, (_ty2, SIdent n)) ->
+              (* new mutable borrow *)
+              if StringMap.mem n borrow_table then
+                make_err (err_mut_borrow_after_borrow n)
+              else StringMap.add n false borrow_table
+          | e ->
+              let borrows_in_expr = find_borrows e in
+              let borrow_table' =
+                List.fold_left
+                  (fun borrow_table (n, is_mut) ->
+                    let has_b_map_entry = StringMap.mem n borrow_table in
+                    let _ck =
+                      if has_b_map_entry then
+                        if is_mut then make_err (err_mut_borrow_after_borrow n)
+                        else if
+                          (* if current borrow is mutable *)
+                          StringMap.find n borrow_table
+                        then make_err (err_borrow_after_mut_borrow n)
+                    in
+                    StringMap.add n is_mut borrow_table)
+                  borrow_table borrows_in_expr
+              in
+              borrow_table')
+      | _ -> borrow_table
+    in
+
+    let _ = check_children pipe.sname StringMap.empty in
+    ()
+  in
+
+  let _ =
+    List.iter
+      (fun p ->
+        let _ = borrow_ck p in
+        if verbose then
+          print_string ("borrow check for " ^ p.sname ^ " passed!\n"))
+      pipes
+  in
+
+  let _graph = print_graph graph in
 
   ()
