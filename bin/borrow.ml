@@ -538,66 +538,138 @@ let borrow_ck pipes verbose =
       match current_node with
       | Lifetime l ->
           (* build borrow table up from left to right child *)
-          let borrow_table' =
+          (* we can throw out the table updates once we break out of *)
+          (* this scope (since the borrows will all fall out) *)
+          let _borrow_table' =
             List.fold_left
               (fun borrow_table child -> check_children child borrow_table)
               borrow_table l.children
           in
-          borrow_table'
+          borrow_table
       | Binding b -> (
           (* check if rhs borrows anything in expr (validate invariants) *)
           (* if it is a borrow itself, add to borrow table *)
           match b.expr with
           | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
               (* new immutable borrow *)
-              if StringMap.mem n borrow_table && StringMap.find n borrow_table
-              then make_err (err_borrow_after_mut_borrow n)
-              else StringMap.add n false borrow_table
+              let n_is_borrowed = StringMap.mem n borrow_table in
+
+              if n_is_borrowed then
+                let borrow_is_mut, borrow_node_ids =
+                  StringMap.find n borrow_table
+                in
+                (* if already mutably borrowed *)
+                if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
+                else
+                  (* if already immutably borrowed *)
+                  StringMap.add n
+                    (false, b.node_id :: borrow_node_ids)
+                    borrow_table
+              else StringMap.add n (false, [ b.node_id ]) borrow_table
           | _ty, SUnop (MutRef, (_ty2, SIdent n)) ->
               (* new mutable borrow *)
-              if StringMap.mem n borrow_table then
-                make_err (err_mut_borrow_after_borrow n)
-              else StringMap.add n true borrow_table
+              let n_is_borrowed = StringMap.mem n borrow_table in
+              (* if already borrowed *)
+              if n_is_borrowed then make_err (err_mut_borrow_after_borrow n)
+                (* if not borrowed *)
+              else StringMap.add n (true, [ b.node_id ]) borrow_table
           | e ->
               let borrows_in_expr = find_borrows e in
               let borrow_table' =
                 List.fold_left
                   (fun borrow_table (n, is_mut) ->
                     let has_b_map_entry = StringMap.mem n borrow_table in
-                    let _ck =
-                      if has_b_map_entry then
-                        if is_mut then make_err (err_mut_borrow_after_borrow n)
-                        else if
-                          (* if current borrow is mutable *)
-                          StringMap.find n borrow_table
-                        then make_err (err_borrow_after_mut_borrow n)
-                    in
-                    StringMap.add n is_mut borrow_table)
+                    if has_b_map_entry then
+                      let borrow_is_mut, borrow_node_ids =
+                        StringMap.find n borrow_table
+                      in
+                      if is_mut then make_err (err_mut_borrow_after_borrow n)
+                      else if (* if current borrow is mutable *)
+                              borrow_is_mut
+                      then make_err (err_borrow_after_mut_borrow n)
+                      else
+                        StringMap.add n
+                          (borrow_is_mut, b.node_id :: borrow_node_ids)
+                          borrow_table (* this is the first borrow on n *)
+                    else StringMap.add n (is_mut, [ b.node_id ]) borrow_table)
                   borrow_table borrows_in_expr
               in
               borrow_table')
-      | Rebinding _rb ->
+      | Rebinding rb ->
           (* if we are rebinding, perhaps we want to remove the old borrow *)
           (* from the table entry for whatever it was borrowing *)
           (* in lieu of the new one... we'd need to store nodes w/ borrows *)
+          let _ =
+            match rb.expr with
+            | Borrow _, e | MutBorrow _, e -> (
+                (* if we are rebinding a borrow , we want to remove the *)
+                (* old borrow from the table entry for whatever it was *)
+                (* borrowing in lieu of the new one *)
+                match e with
+                | SUnop (MutRef, (_ty2, SIdent n)) ->
+                    let borrow_table' =
+                      StringMap.map
+                        (fun (is_mut, borrowing_node_ids) ->
+                          ( is_mut,
+                            List.filter
+                              (fun nid -> nid != rb.node_id)
+                              borrowing_node_ids ))
+                        borrow_table
+                    in
+                    let has_b_map_entry = StringMap.mem n borrow_table' in
+                    if has_b_map_entry then
+                      make_err (err_mut_borrow_after_borrow n)
+                    else StringMap.add n (true, [ rb.node_id ]) borrow_table'
+                | SUnop (Ref, (_ty2, SIdent n)) ->
+                    let borrow_table' =
+                      StringMap.map
+                        (fun (is_mut, borrowing_node_ids) ->
+                          ( is_mut,
+                            List.filter
+                              (fun nid -> nid != rb.node_id)
+                              borrowing_node_ids ))
+                        borrow_table
+                    in
+                    let has_b_map_entry = StringMap.mem n borrow_table' in
+                    if has_b_map_entry then
+                      let entry_is_mut, entry_node_ids =
+                        StringMap.find n borrow_table'
+                      in
+                      if entry_is_mut then
+                        make_err (err_borrow_after_mut_borrow n)
+                      else
+                        StringMap.add n
+                          (false, rb.node_id :: entry_node_ids)
+                          borrow_table'
+                    else StringMap.add n (true, [ rb.node_id ]) borrow_table'
+                | _rb -> borrow_table)
+            | _ -> borrow_table
+          in
+
+          (* remove the borrow from the prev. bound value *)
           borrow_table
       | PipeCall _pc ->
           (* validate all arguments that may borrow things *)
           (* and figure out how to handle the return value *)
           borrow_table
       | PipeReturn pr ->
-          (* if the returned value is a borrow, validate it *)
+          (* if the returned value is a borrow, make sure it's an arg *)
           (* else, just validate the expr borrows *)
           let borrows_in_expr = find_borrows pr.returned in
           let borrow_table' =
             List.fold_left
               (fun borrow_table (n, is_mut) ->
                 if StringMap.mem n borrow_table then
-                  let entry_is_mut = StringMap.find n borrow_table in
-                  if entry_is_mut then make_err (err_borrow_after_mut_borrow n)
+                  let borrow_is_mut, borrow_node_ids =
+                    StringMap.find n borrow_table
+                  in
+                  if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
                   else if is_mut then make_err (err_mut_borrow_after_borrow n)
-                  else StringMap.add n is_mut borrow_table
-                else StringMap.add n is_mut borrow_table)
+                  else
+                    StringMap.add n
+                      (borrow_is_mut, pr.node_id :: borrow_node_ids)
+                      borrow_table
+                else StringMap.add n (is_mut, [ pr.node_id ]) borrow_table)
               borrow_table borrows_in_expr
           in
           borrow_table'
@@ -610,11 +682,16 @@ let borrow_ck pipes verbose =
             List.fold_left
               (fun borrow_table (n, is_mut) ->
                 if StringMap.mem n borrow_table then
-                  let entry_is_mut = StringMap.find n borrow_table in
-                  if entry_is_mut then make_err (err_borrow_after_mut_borrow n)
+                  let borrow_is_mut, borrow_node_ids =
+                    StringMap.find n borrow_table
+                  in
+                  if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
                   else if is_mut then make_err (err_mut_borrow_after_borrow n)
-                  else StringMap.add n is_mut borrow_table
-                else StringMap.add n is_mut borrow_table)
+                  else
+                    StringMap.add n
+                      (borrow_is_mut, eca.node_id :: borrow_node_ids)
+                      borrow_table
+                else StringMap.add n (is_mut, [ eca.node_id ]) borrow_table)
               borrow_table borrows_in_expr
           in
           borrow_table'
