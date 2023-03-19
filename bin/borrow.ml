@@ -531,7 +531,32 @@ let borrow_ck pipes verbose =
     and err_mut_borrow_after_borrow v_name =
       "variable " ^ v_name
       ^ " can't be mutably borrowed after it has already been borrowed."
+    and err_local_borrow_returned v_name =
+      "variable " ^ v_name
+      ^ " can't be returned as it was defined locally. You can only"
+      ^ "return references to pipe arguments."
     and make_err er = raise (Failure er) in
+
+    let ck_expr borrow_table node_id e =
+      let borrows_in_expr = find_borrows e in
+      let borrow_table' =
+        List.fold_left
+          (fun borrow_table (n, is_mut) ->
+            if StringMap.mem n borrow_table then
+              let borrow_is_mut, borrow_node_ids =
+                StringMap.find n borrow_table
+              in
+              if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
+              else if is_mut then make_err (err_mut_borrow_after_borrow n)
+              else
+                StringMap.add n
+                  (borrow_is_mut, node_id :: borrow_node_ids)
+                  borrow_table
+            else StringMap.add n (is_mut, [ node_id ]) borrow_table)
+          borrow_table borrows_in_expr
+      in
+      borrow_table'
+    in
 
     let rec check_children current_node borrow_table =
       let current_node = StringMap.find current_node graph_for_pipe in
@@ -642,59 +667,40 @@ let borrow_ck pipes verbose =
                           (false, rb.node_id :: entry_node_ids)
                           borrow_table'
                     else StringMap.add n (true, [ rb.node_id ]) borrow_table'
-                | _rb -> borrow_table)
+                | _ -> ck_expr borrow_table rb.node_id rb.expr)
             | _ -> borrow_table
           in
 
           (* remove the borrow from the prev. bound value *)
           borrow_table
-      | PipeCall _pc ->
+      | PipeCall pc ->
           (* validate all arguments that may borrow things *)
+          let borrow_table' =
+            List.fold_left
+              (fun borrow_table arg -> ck_expr borrow_table pc.node_id arg)
+              borrow_table pc.args
+          in
           (* and figure out how to handle the return value *)
-          borrow_table
+          borrow_table'
       | PipeReturn pr ->
           (* if the returned value is a borrow, make sure it's an arg *)
-          (* else, just validate the expr borrows *)
-          let borrows_in_expr = find_borrows pr.returned in
-          let borrow_table' =
-            List.fold_left
-              (fun borrow_table (n, is_mut) ->
-                if StringMap.mem n borrow_table then
-                  let borrow_is_mut, borrow_node_ids =
-                    StringMap.find n borrow_table
-                  in
-                  if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
-                  else if is_mut then make_err (err_mut_borrow_after_borrow n)
-                  else
-                    StringMap.add n
-                      (borrow_is_mut, pr.node_id :: borrow_node_ids)
-                      borrow_table
-                else StringMap.add n (is_mut, [ pr.node_id ]) borrow_table)
-              borrow_table borrows_in_expr
+          let _ =
+            match pr.returned with
+            | _ty, SUnop (MutRef, (_ty2, SIdent n))
+            | _ty, SUnop (Ref, (_ty2, SIdent n)) -> (
+                match
+                  List.find_opt (fun (_, _, f_name) -> f_name = n) pipe.sformals
+                with
+                | Some _ -> ()
+                | None -> make_err (err_local_borrow_returned n))
+            | _ -> ()
           in
+          (* then just validate the expression *)
+          let borrow_table' = ck_expr borrow_table pr.node_id pr.returned in
           borrow_table'
       | ExprCatchAll eca ->
-          (* if we are just checking an expression *)
-          (* then find all borrows and build out the table *)
-          (* checking for invariant violations along the way *)
-          let borrows_in_expr = find_borrows eca.value in
-          let borrow_table' =
-            List.fold_left
-              (fun borrow_table (n, is_mut) ->
-                if StringMap.mem n borrow_table then
-                  let borrow_is_mut, borrow_node_ids =
-                    StringMap.find n borrow_table
-                  in
-                  if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
-                  else if is_mut then make_err (err_mut_borrow_after_borrow n)
-                  else
-                    StringMap.add n
-                      (borrow_is_mut, eca.node_id :: borrow_node_ids)
-                      borrow_table
-                else StringMap.add n (is_mut, [ eca.node_id ]) borrow_table)
-              borrow_table borrows_in_expr
-          in
-          borrow_table'
+          (* validate the expression and update the table *)
+          ck_expr borrow_table eca.node_id eca.value
     in
 
     let _ = check_children pipe.sname StringMap.empty in
