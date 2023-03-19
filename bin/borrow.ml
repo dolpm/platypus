@@ -545,7 +545,6 @@ let borrow_ck pipes verbose =
           in
           borrow_table'
       | Binding b -> (
-          let _ = print_string "hi\n" in
           (* check if rhs borrows anything in expr (validate invariants) *)
           (* if it is a borrow itself, add to borrow table *)
           match b.expr with
@@ -558,7 +557,7 @@ let borrow_ck pipes verbose =
               (* new mutable borrow *)
               if StringMap.mem n borrow_table then
                 make_err (err_mut_borrow_after_borrow n)
-              else StringMap.add n false borrow_table
+              else StringMap.add n true borrow_table
           | e ->
               let borrows_in_expr = find_borrows e in
               let borrow_table' =
@@ -577,7 +576,48 @@ let borrow_ck pipes verbose =
                   borrow_table borrows_in_expr
               in
               borrow_table')
-      | _ -> borrow_table
+      | Rebinding _rb ->
+          (* if we are rebinding, perhaps we want to remove the old borrow *)
+          (* from the table entry for whatever it was borrowing *)
+          (* in lieu of the new one... we'd need to store nodes w/ borrows *)
+          borrow_table
+      | PipeCall _pc ->
+          (* validate all arguments that may borrow things *)
+          (* and figure out how to handle the return value *)
+          borrow_table
+      | PipeReturn pr ->
+          (* if the returned value is a borrow, validate it *)
+          (* else, just validate the expr borrows *)
+          let borrows_in_expr = find_borrows pr.returned in
+          let borrow_table' =
+            List.fold_left
+              (fun borrow_table (n, is_mut) ->
+                if StringMap.mem n borrow_table then
+                  let entry_is_mut = StringMap.find n borrow_table in
+                  if entry_is_mut then make_err (err_borrow_after_mut_borrow n)
+                  else if is_mut then make_err (err_mut_borrow_after_borrow n)
+                  else StringMap.add n is_mut borrow_table
+                else StringMap.add n is_mut borrow_table)
+              borrow_table borrows_in_expr
+          in
+          borrow_table'
+      | ExprCatchAll eca ->
+          (* if we are just checking an expression *)
+          (* then find all borrows and build out the table *)
+          (* checking for invariant violations along the way *)
+          let borrows_in_expr = find_borrows eca.value in
+          let borrow_table' =
+            List.fold_left
+              (fun borrow_table (n, is_mut) ->
+                if StringMap.mem n borrow_table then
+                  let entry_is_mut = StringMap.find n borrow_table in
+                  if entry_is_mut then make_err (err_borrow_after_mut_borrow n)
+                  else if is_mut then make_err (err_mut_borrow_after_borrow n)
+                  else StringMap.add n is_mut borrow_table
+                else StringMap.add n is_mut borrow_table)
+              borrow_table borrows_in_expr
+          in
+          borrow_table'
     in
 
     let _ = check_children pipe.sname StringMap.empty in
