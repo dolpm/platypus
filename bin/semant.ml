@@ -243,6 +243,7 @@ let check (_things, pipes) verbosity =
           let err = "expected boolean " ^ string_of_expr e in
           let t' = check_assign t Bool err in
           SWhile ((t', e'), check_stmt s)
+      | PipeOut e -> SPipeOut (expr e)
       | _ -> SExpr (Unit, SNoexpr)
     in
     {

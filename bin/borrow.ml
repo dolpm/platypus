@@ -66,7 +66,7 @@ let borrow_ck pipes verbose =
                       is_mut;
                       typ;
                       name;
-                      expr = (Unit, SNoexpr);
+                      expr = (typ, SNoexpr);
                     })
                  graph ))
            (0, StringMap.empty) pipe.sformals)
@@ -232,11 +232,13 @@ let borrow_ck pipes verbose =
            {
              parent = None;
              children =
-               (pipe.sname ^ "."
-               ^ string_of_int (StringMap.cardinal graph_with_pipe_args))
-               :: List.map
-                    (fun (k, _) -> k)
-                    (StringMap.bindings graph_with_pipe_args);
+               List.rev
+                 ((pipe.sname ^ "."
+                  ^ string_of_int (StringMap.cardinal graph_with_pipe_args))
+                 :: List.rev
+                      (List.map
+                         (fun (k, _) -> k)
+                         (StringMap.bindings graph_with_pipe_args)));
              node_id = pipe.sname;
              owned_vars = [];
            })
@@ -490,6 +492,7 @@ let borrow_ck pipes verbose =
 
     check_children pipe.sname StringSet.empty graph_for_pipe
   in
+  let _graph = print_graph graph in
 
   (* graph with populated lifetime-owned-vars *)
   let graph =
@@ -503,6 +506,8 @@ let borrow_ck pipes verbose =
         StringMap.add p.sname graph' graph)
       graph pipes
   in
+
+  let _graph = print_graph graph in
 
   (* find borrows in an expression *)
   (* returns (name, is_mut) list *)
@@ -520,6 +525,80 @@ let borrow_ck pipes verbose =
       | _ -> borrows
     in
     inner sex []
+  in
+
+  (* if a ref is returned, make sure that it is the smallest of all returnable *)
+  (*
+    idea - create a return stmt node in our graph. if the return type of the
+    pipe is a ref, then we must check to see which argument each return was
+    derived. once we have this set, we can take the rightmost (smallest) one
+    and make sure it matches the return-type lifetime.
+  *)
+  let validate_arg_lifetimes p =
+    (* if return isn't a borrow, who cares *)
+    if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
+    then ()
+    else
+      let return_lifetime_no_match correct_lifetime =
+        "lifetime of return value must be the smallest (rightmost) lifetime of \
+         all possible returned arguments: " ^ correct_lifetime
+      and make_err er = raise (Failure er) in
+      let lt_of_return =
+        match p.sreturn_type with
+        | MutBorrow (_, lt) | Borrow (_, lt) -> lt
+        | _ ->
+            make_err "if returning a borrow, it must have an explicit lifetime"
+      in
+      (* we are kinda gonna have to limit returned values to args *)
+      (* vs. allowing re-bindings of refs of args to also be returned *)
+      let possible_ret_vars =
+        Seq.fold_left
+          (fun ret_vals (_id, node) ->
+            match node with
+            | PipeReturn pr -> (
+                match pr.returned with
+                | _, SIdent n -> n :: ret_vals
+                | _ -> ret_vals)
+            | _ -> ret_vals)
+          []
+          (StringMap.to_seq (StringMap.find p.sname graph))
+      in
+
+      let possible_lts =
+        List.filter_map
+          (fun (_, typ, n) ->
+            if List.mem n possible_ret_vars then
+              match typ with
+              | MutBorrow (_, lt) | Borrow (_, lt) -> Some lt
+              | _ -> None
+            else None)
+          p.sformals
+      in
+      let smallest_possible_lt =
+        List.fold_left
+          (fun (smallest, lt_as_str) cur_lt ->
+            let rec index_of_lt x lst =
+              match lst with
+              | [] -> raise (Failure "Not Found")
+              | h :: t -> if x = h then 0 else 1 + index_of_lt x t
+            in
+            let i = index_of_lt cur_lt p.slifetimes in
+            if i > smallest then (i, cur_lt) else (smallest, lt_as_str))
+          (-1, "'static") possible_lts
+      in
+      if lt_of_return <> snd smallest_possible_lt then
+        make_err (return_lifetime_no_match (snd smallest_possible_lt))
+      else ()
+  in
+
+  let _ =
+    List.iter
+      (fun p ->
+        let _ = validate_arg_lifetimes p in
+        if verbose then
+          print_string
+            ("argument lifetime validation for " ^ p.sname ^ " passed!\n"))
+      pipes
   in
 
   let borrow_ck pipe =
@@ -697,6 +776,7 @@ let borrow_ck pipes verbose =
                         (false, rb.node_id :: entry_node_ids)
                         borrow_table'
                   else StringMap.add n (false, [ rb.node_id ]) borrow_table'
+              | SPipeIn _ -> borrow_table (* TODO! *)
               | _ -> ck_expr borrow_table rb.node_id rb.expr)
           | _ -> borrow_table)
       | PipeCall pc ->
@@ -743,7 +823,5 @@ let borrow_ck pipes verbose =
           print_string ("borrow check for " ^ p.sname ^ " passed!\n"))
       pipes
   in
-
-  let _graph = print_graph graph in
 
   ()

@@ -25,7 +25,13 @@ pipe main |> [] |> [] |> unit {
 }
 */
 
+pipe test |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b int {
+  |> a;
+  |> b;
+}
+
 pipe main |> [] |> [] |> unit {
+  /*
   int x <| 4;
   int y <| 4;
  
@@ -34,7 +40,7 @@ pipe main |> [] |> [] |> unit {
     z <| &y;
     ~&int w <| ~&x;
   }
-
+  */
 
   |> ();
 }
