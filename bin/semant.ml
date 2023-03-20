@@ -198,6 +198,7 @@ let check (_things, pipes) verbosity =
               (check_assign ft et err, e')
             in
             let args' = List.map2 check_pipein pd.formals args in
+            (* TODO: CHECK EXPLICIT LIFETIMES *)
             (pd.return_type, SPipeIn (pname, args'))
       | Ident s -> (snd (type_of_identifier s), SIdent s)
       | _ -> (Unit, SNoexpr)

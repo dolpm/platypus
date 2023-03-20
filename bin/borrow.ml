@@ -457,6 +457,7 @@ let borrow_ck pipes verbose =
       (* in ExprCatchAll, we only need to check that all found identifiers are in the symbol_table table *)
       (* we don't have to remove anything from the symbol table *)
       | PipeCall pc ->
+          (* check ownership of args *)
           let names =
             List.fold_left
               (fun idents sex -> find_identifiers sex @ idents)
@@ -469,6 +470,8 @@ let borrow_ck pipes verbose =
                   make_err (err_gave_ownership n))
               names
           in
+
+          (* if return type is a ref, inject  *)
           (symbol_table, graph)
       | v ->
           let e =
@@ -584,7 +587,7 @@ let borrow_ck pipes verbose =
             in
             let i = index_of_lt cur_lt p.slifetimes in
             if i > smallest then (i, cur_lt) else (smallest, lt_as_str))
-          (-1, "'static") possible_lts
+          (-1, "'_") possible_lts
       in
       if lt_of_return <> snd smallest_possible_lt then
         make_err (return_lifetime_no_match (snd smallest_possible_lt))

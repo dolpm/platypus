@@ -25,23 +25,21 @@ pipe main |> [] |> [] |> unit {
 }
 */
 
+
 pipe test |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b int {
   |> a;
   |> b;
 }
 
 pipe main |> [] |> [] |> unit {
-  /*
   int x <| 4;
-  int y <| 4;
- 
   {
-    mut &int z <| &x;
-    z <| &y;
-    ~&int w <| ~&x;
+    int y <| 4;
+    int r <| 0;
+    {
+      &int z <| (test <| [&x, &y]);
+      r <| z;
+    }
   }
-  */
-
-  |> ();
 }
 
