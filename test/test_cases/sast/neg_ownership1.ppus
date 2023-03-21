@@ -1,0 +1,27 @@
+pipe test |> [] |> [x: int] |> unit {
+  |> ();
+}
+
+pipe main |> [] |> [] |> unit {
+  int x <| 4;
+  int z <| 4;
+   {
+    int y <| x;
+
+    loop 0 -> 10 as i {
+      /* y gives ownership to smhmee */
+      int schmee <| y;
+      test <| [schmee];
+    }
+
+    /* oh no! can't use y */
+    while (y < 4) {
+      {
+        int w <| 8;
+        test <| [w];
+      }
+    }
+  
+   }
+   |> ();
+}

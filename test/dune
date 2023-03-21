@@ -1,6 +1,7 @@
 (test
  (deps (:test test.sh)
        (glob_files ../platypus)
-       (glob_files ./test_cases/*)
+       (glob_files ./test_cases/ast/*)
+       (glob_files ./test_cases/sast/*)
        )
  (name platypus))

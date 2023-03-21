@@ -1,0 +1,19 @@
+pipe test |> [] |> [x: int] |> unit {
+  |> (unit : ());
+}
+
+pipe main |> [] |> [] |> unit {
+  int x <| (int : 4);
+  int z <| (int : 4);
+{
+  int y <| (int : x);
+  while (bool : (int : y) < (int : 4))
+  {
+  {
+    int w <| (int : 8);
+    (unit : test <| [(int : w)]);
+  }
+  }
+}
+  |> (unit : ());
+}
