@@ -16,13 +16,13 @@ let check (_things, pipes) verbosity =
       ("bool_to_string", [ (false, Bool, "x") ], String);
       (* TODO: does x have to be mutable? *)
       ("Heap_alloc", [ (true, Generic, "x") ], Box Generic);
-      ("Vector_length", [ (false, Vector Generic, "x") ], Int);
+      (* ("Vector_length", [ (false, Vector Generic, "x") ], Int);
       ("Vector_alloc", [], Vector Generic);
       ("Vector_get", [ (false, Vector Generic, "x") ], Option Generic);
       ("Vector_push", [ (true, Vector Generic, "x") ; (false, Generic, "y")], Unit);
-      ("Vector_pop", [ (true, Vector Generic, "x") ], Option Generic);
-      ("option_is_none", [ (false, Option Generic, "x") ], Bool);
-      ("option_is_some", [ (false, Option Generic, "x") ], Bool);
+      ("Vector_pop", [ (true, Vector Generic, "x") ], Option Generic); *)
+      ("Box_is_none", [ (false, Box Generic, "x") ], Bool);
+      ("Box_is_some", [ (false, Box Generic, "x") ], Bool);
     ]
   in
 

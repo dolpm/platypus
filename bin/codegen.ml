@@ -29,18 +29,14 @@ let translate (globals, functions) =
                                     (Array.of_list (List.map ltype_of_typ tys)))
     | A.Unit      -> unit_t
     | A.Char      -> i8_t
-    | A.String    -> string_t (* potential problem: String (defined type) vs string (OCaml type)? *)
+    | A.String    -> string_t
     | A.Box t     -> L.pointer_type (ltype_of_typ t)
-    | A.Borrow (t, _)   -> L.pointer_type (Array.of_list 
-                                            [ltype_of_typ t, string_t])
-    | A.MutBorrow (t, _) -> L.pointer_type (Array.of_list 
-                                              [ltype_of_typ t, string_t])
+    | A.Borrow (t, _)   -> L.pointer_type (ltype_of_typ t)
+    | A.MutBorrow (t, _) -> L.pointer_type (ltype_of_typ t)
     | A.Thing (_, (_, t)::children) 
       -> L.pointer_type (L.struct_type context 
-                          Array.of_list (string_t::[string_t, ltype_of_typ t]
-                          ::(List.map (fun (_, t) -> [string_t, 
-                                                    ltype_of_typ t]) children)))
-    | A.Ident _   -> string_t (* implication of ocaml string type? *)
+          (Array.of_list (List.map ltype_of_typ children)))
+    | A.Ident _   -> string_t
   in
 
   (* Declare printnl_t as a function *)
