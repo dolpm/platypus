@@ -19,7 +19,9 @@ let check (_things, pipes) verbosity =
       ("Vector_length", [ (false, Vector Generic, "x") ], Int);
       ("Vector_alloc", [], Vector Generic);
       ("Vector_get", [ (false, Vector Generic, "x") ], Option Generic);
-      ("Vector_push", [ (true, Vector Generic, "x") ], Unit);
+      ( "Vector_push",
+        [ (true, Vector Generic, "x"); (false, Generic, "y") ],
+        Unit );
       ("Vector_pop", [ (true, Vector Generic, "x") ], Option Generic);
       ("option_is_none", [ (false, Option Generic, "x") ], Bool);
       ("option_is_some", [ (false, Option Generic, "x") ], Bool);
@@ -118,7 +120,11 @@ let check (_things, pipes) verbosity =
 
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let check_assign lvaluet rvaluet err =
-      if lvaluet = rvaluet then lvaluet else raise (Failure err)
+      match (lvaluet, rvaluet) with
+      | Vector Generic, Vector rt -> Vector rt
+      | Box Generic, Box rt -> Box rt
+      | Generic, _ -> rvaluet
+      | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
     let symbols =
@@ -198,11 +204,23 @@ let check (_things, pipes) verbosity =
               (check_assign ft et err, e')
             in
             let args' = List.map2 check_pipein pd.formals args in
-            (* TODO: CHECK EXPLICIT LIFETIMES *)
-            (pd.return_type, SPipeIn (pname, args'))
-      | Ident s -> (snd (type_of_identifier s), SIdent s)
+            let first_arg_type =
+              if List.length args' > 0 then fst (List.hd args') else Generic
+            in
+            let ret_type =
+              match pd.return_type with
+              | Generic -> first_arg_type
+              | Box Generic -> Box first_arg_type
+              | Vector Generic -> Vector first_arg_type
+              | _ -> pd.return_type
+            in
+            (ret_type, SPipeIn (pname, args'))
       | _ -> (Unit, SNoexpr)
     in
+
+    (* illegal to do references of references *)
+    (* illegal to dereference a @& or @~& *)
+    (* handle either syntactically or semantically *)
 
     (* Return a semantically-checked statement, i.e. containing s_exprs *)
     let rec check_stmt = function

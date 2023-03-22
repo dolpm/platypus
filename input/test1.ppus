@@ -5,41 +5,11 @@ pipe test |> [] |> [x: int] |> unit {
 
 pipe main |> [] |> [] |> unit {
   int x <| 4;
-  int z <| 4;
-   {
-    int y <| x;
-    loop 0 -> 10 as (i,1) {
-      int schmee <| y;
-      test <| [schmee];
-    }
-
-    while (y < 4) {
-      {
-        int w <| 8;
-        test <| [w];
-      }
-    }
-  
-   }
-   |> ();
+  int y <| 4;
+  &int z <| (test3 <| [&x, &y]);
+  test4 <| [2, true, 1.738];
+  Heap_alloc <| [4];
+  Heap_alloc <| [true];
+  Heap_alloc <| ["AHH! LOOK OUT!!"];
+  |> ();
 }
-*/
-
-
-pipe test |> ['a, 'b] |> [a: &'a int, b: &'b int] |> &'b int {
-  |> a;
-  |> b;
-}
-
-pipe main |> [] |> [] |> unit {
-  int x <| 4;
-  {
-    int y <| 4;
-    int r <| 0;
-    {
-      &int z <| (test <| [&x, &y]);
-      r <| z;
-    }
-  }
-}
-
