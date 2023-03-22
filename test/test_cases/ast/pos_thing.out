@@ -5,7 +5,6 @@ thing MyThing <| {
   b: bool,
   boxint: box[int],
   vbool: vector[bool],
-  optboxchar: option[box[char]],
   tpl: [int * int * string],
   c: char
 }

@@ -215,6 +215,7 @@ let check (_things, pipes) verbosity =
               | _ -> pd.return_type
             in
             (ret_type, SPipeIn (pname, args'))
+      | Ident s -> (snd (type_of_identifier s), SIdent s)
       | _ -> (Unit, SNoexpr)
     in
 

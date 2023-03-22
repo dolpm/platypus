@@ -167,6 +167,7 @@ let rec string_of_stmt stmt pad =
       ^ "{\n"
       ^ String.concat "" (List.map (fun s -> string_of_stmt s pad) stmts)
       ^ indent (pad - 1)
+      ^ "}\n"
   | Expr expr -> indent pad ^ string_of_expr expr ^ ";\n"
   | PipeOut expr -> indent pad ^ "|> " ^ string_of_expr expr ^ ";\n"
   | If (e, s, Block []) ->
