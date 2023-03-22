@@ -117,7 +117,7 @@ let check (_things, pipes) verbosity =
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let _check_assign lvaluet rvaluet err =
       match (lvaluet, rvaluet) with
-        | Vector Generic, Vector rt -> Vector rt
+        (* | Vector Generic, Vector rt -> Vector rt *)
         | Box Generic, Box rt -> Box rt
         | Generic,_ -> rvaluet
         | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
@@ -161,7 +161,7 @@ let check (_things, pipes) verbosity =
             let ret_type = (match pd.return_type with
                 Generic -> first_arg_type
               | Box Generic -> Box first_arg_type
-              | Vector Generic ->  Vector first_arg_type
+              (* | Vector Generic ->  Vector first_arg_type *)
               | _ -> pd.return_type) 
             in
             (ret_type, SPipeIn (pname, args'))

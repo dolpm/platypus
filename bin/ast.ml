@@ -6,7 +6,7 @@ type defined_type =
   | Unit
   | Char
   | String
-  | Vector of defined_type
+  (* | Vector of defined_type *)
   (* thing names are user-defined *)
   (* | Thing of string *)
   | Box of defined_type
@@ -116,7 +116,7 @@ let rec string_of_typ = function
   | Unit -> "unit"
   | Char -> "char"
   | String -> "string"
-  | Vector t -> "vector[" ^ string_of_typ t ^ "]"
+  (* | Vector t -> "vector[" ^ string_of_typ t ^ "]" *)
   | Box t -> "box[" ^ string_of_typ t ^ "]"
   | Borrow (t, lt) -> "&" ^ lt ^ " " ^ string_of_typ t
   | MutBorrow (t, lt) -> "~&" ^ lt ^ " " ^ string_of_typ t

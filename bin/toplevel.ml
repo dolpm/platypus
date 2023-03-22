@@ -1,3 +1,5 @@
+(* open Codegen *)
+
 type action = Ast | Sast | LLVM_IR [@@warning "-37"]
 (* todo: remove warning *)
 
