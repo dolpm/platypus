@@ -716,13 +716,15 @@ let borrow_ck pipes verbose =
     and make sure it matches the return-type lifetime.
   *)
   let validate_arg_lifetimes p =
-    let return_lifetime_no_match correct_lifetime =
+    let err_return_lifetime_no_match correct_lifetime =
       "lifetime of return value in " ^ p.sname
       ^ " must be the smallest (rightmost) lifetime of all possible returned \
          arguments: " ^ correct_lifetime
     and err_unnecessary_lifetime v_name =
       "variable " ^ v_name ^ " will not be returned from " ^ p.sname
       ^ " and thus its lifetime isn't required"
+    and err_lifetime_not_defined lt =
+      "lifetime " ^ lt ^ " used but not defined in " ^ p.sname
     and make_err er = raise (Failure er) in
 
     (* we are kinda gonna have to limit returned values to args *)
@@ -778,7 +780,7 @@ let borrow_ck pipes verbose =
           (fun (smallest, lt_as_str) cur_lt ->
             let rec index_of_lt x lst =
               match lst with
-              | [] -> raise (Failure "Not Found")
+              | [] -> make_err (err_lifetime_not_defined x)
               | h :: t -> if x = h then 0 else 1 + index_of_lt x t
             in
             let i = index_of_lt cur_lt p.slifetimes in
@@ -786,7 +788,7 @@ let borrow_ck pipes verbose =
           (-1, "'_") possible_lts
       in
       if lt_of_return <> snd smallest_possible_lt then
-        make_err (return_lifetime_no_match (snd smallest_possible_lt))
+        make_err (err_return_lifetime_no_match (snd smallest_possible_lt))
       else ()
   in
 

@@ -178,6 +178,11 @@ let check (_things, pipes) verbosity =
             | (And | Or) when same && t1 = Bool -> Bool
             | (Lt | Leq | Gt | Geq) when same && (t1 = Int || t1 = Float) ->
                 Bool
+            | (Equal | Neq)
+              when same
+                   && (t1 = Int || t1 = Float || t1 = String || t1 = Char
+                     || t1 = Bool) ->
+                Bool
             | _ ->
                 raise
                   (Failure
@@ -264,7 +269,11 @@ let check (_things, pipes) verbosity =
           let t' = check_assign t Bool err in
           SWhile ((t', e'), check_stmt s)
       | PipeOut e -> SPipeOut (expr e)
-      | _ -> SExpr (Unit, SNoexpr)
+      | If (e, stmt1, stmt2) ->
+          let t, e' = expr e in
+          let err = "expected boolean " ^ string_of_expr e in
+          let t' = check_assign t Bool err in
+          SIf ((t', e'), check_stmt stmt1, check_stmt stmt2)
     in
     {
       sreturn_type = p.return_type;
