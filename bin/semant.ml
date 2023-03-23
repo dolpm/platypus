@@ -270,6 +270,7 @@ let check (_things, pipes) verbosity =
       sreturn_type = p.return_type;
       sname = p.name;
       slifetimes = p.lifetimes;
+      slocals = locals';
       sformals = formals';
       sbody =
         (match check_stmt (Block p.body) with

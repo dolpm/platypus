@@ -41,6 +41,7 @@ type s_pipe_declaration = {
   (* will probably need lifetime comparisons as well, or they *)
   (* could also enforce sorting from large to small (left to right) *)
   slifetimes : string list;
+  slocals : type_binding list;
   sformals : type_binding list;
   (* locals : type_binding list; *)
   (* ask richard about why locals need to be here? *)
