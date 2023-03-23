@@ -8,12 +8,16 @@ type graph_node =
       parent : string option;
       children : string list;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       owned_vars : string list;
     }
   | Binding of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       is_mut : bool;
       (* TODO: REMOVE? *)
@@ -24,6 +28,8 @@ type graph_node =
   | Rebinding of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       name : string;
       expr : s_expr;
@@ -31,6 +37,8 @@ type graph_node =
   | PipeCall of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       pipe_name : string;
       args : s_expr list;
@@ -38,12 +46,16 @@ type graph_node =
   | PipeReturn of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       returned : s_expr;
     }
   | ExprCatchAll of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       value : s_expr;
     }
@@ -63,6 +75,8 @@ let borrow_ck pipes verbose =
                     {
                       parent = Some pipe.sname;
                       node_id = child_id;
+                      depth = 1;
+                      loop = None;
                       is_mut;
                       typ;
                       name;
@@ -77,7 +91,8 @@ let borrow_ck pipes verbose =
          returns (bool * graph) where bool denotes whether any nodes
          were added.
       *)
-    let rec gen_children parent_id child_id stmt graph =
+    let rec gen_children parent_id parent_depth parent_loop child_id stmt graph
+        =
       match stmt with
       | SBlock (stmts, _owned_vars) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
@@ -85,7 +100,8 @@ let borrow_ck pipes verbose =
             List.fold_left
               (fun (child_id, graph, children) stmt ->
                 let was_updated, graph =
-                  gen_children node_id child_id stmt graph
+                  gen_children node_id (parent_depth + 1) parent_loop child_id
+                    stmt graph
                 in
                 if was_updated then
                   ( child_id + 1,
@@ -99,6 +115,8 @@ let borrow_ck pipes verbose =
               (Lifetime
                  {
                    parent = Some parent_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
                    node_id;
                    children = List.rev children;
                    owned_vars = [];
@@ -109,45 +127,100 @@ let borrow_ck pipes verbose =
           ( true,
             StringMap.add node_id
               (Binding
-                 { parent = Some parent_id; node_id; is_mut; typ; name; expr })
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   is_mut;
+                   typ;
+                   name;
+                   expr;
+                 })
               graph )
       | SReAssign (name, expr) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           ( true,
             StringMap.add node_id
-              (Rebinding { parent = Some parent_id; node_id; name; expr })
+              (Rebinding
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   name;
+                   expr;
+                 })
               graph )
       | SExpr (_typ_of_exp, SPipeIn (pipe_name, args)) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           ( true,
             StringMap.add node_id
-              (PipeCall { parent = Some parent_id; node_id; pipe_name; args })
+              (PipeCall
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   pipe_name;
+                   args;
+                 })
               graph )
       | SPipeOut expr ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           ( true,
             StringMap.add node_id
-              (PipeReturn { parent = Some parent_id; node_id; returned = expr })
+              (PipeReturn
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   returned = expr;
+                 })
               graph )
       | sstmt ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           let matched, graph', children =
             match sstmt with
             | SWhile (sex, SBlock (stmts, [])) ->
-                let sex_id = node_id ^ ".0" in
-                let block_id = node_id ^ ".1" in
+                let wrapper_id = node_id ^ ".0" in
+                let sex_id = wrapper_id ^ ".0" in
+                let block_id = wrapper_id ^ ".1" in
+
+                let block_wrapper =
+                  Lifetime
+                    {
+                      parent = Some node_id;
+                      node_id = wrapper_id;
+                      depth = parent_depth + 1;
+                      loop = Some node_id;
+                      children = [ sex_id; block_id ];
+                      owned_vars = [];
+                    }
+                in
+
                 let sex_node =
                   ExprCatchAll
-                    { parent = Some node_id; node_id = sex_id; value = sex }
+                    {
+                      parent = Some wrapper_id;
+                      node_id = sex_id;
+                      depth = parent_depth + 2;
+                      loop = Some node_id;
+                      value = sex;
+                    }
                 in
 
-                let graph' = StringMap.add sex_id sex_node graph in
+                let graph' = StringMap.add wrapper_id block_wrapper graph in
+                let graph' = StringMap.add sex_id sex_node graph' in
 
                 let _, graph' =
-                  gen_children node_id 1 (SBlock (stmts, [])) graph'
+                  gen_children wrapper_id (parent_depth + 2) (Some wrapper_id) 1
+                    (SBlock (stmts, []))
+                    graph'
                 in
 
-                (true, graph', [ sex_id; block_id ])
+                (true, graph', [ wrapper_id ])
             | SIf (sex, SBlock (stmts1, []), SBlock (stmts2, [])) ->
                 let sex_id = node_id ^ ".0" in
                 let block1_id = node_id ^ ".1" in
@@ -155,35 +228,92 @@ let borrow_ck pipes verbose =
 
                 let sex_node =
                   ExprCatchAll
-                    { parent = Some node_id; node_id = sex_id; value = sex }
+                    {
+                      parent = Some node_id;
+                      node_id = sex_id;
+                      depth = parent_depth + 1;
+                      loop = parent_loop;
+                      value = sex;
+                    }
                 in
 
                 let graph' = StringMap.add sex_id sex_node graph in
 
                 let _, graph' =
-                  gen_children node_id 1 (SBlock (stmts1, [])) graph'
+                  gen_children node_id (parent_depth + 1) parent_loop 1
+                    (SBlock (stmts1, []))
+                    graph'
                 in
                 let _, graph' =
-                  gen_children node_id 2 (SBlock (stmts2, [])) graph'
+                  gen_children node_id (parent_depth + 1) parent_loop 2
+                    (SBlock (stmts2, []))
+                    graph'
                 in
 
                 (true, graph', [ sex_id; block1_id; block2_id ])
-            | SLoop (sex1, sex2, _, sex3, SBlock (stmts, [])) ->
-                let sex1_id = node_id ^ ".0" in
-                let sex2_id = node_id ^ ".1" in
-                let sex3_id = node_id ^ ".2" in
-                let block_id = node_id ^ ".3" in
+            | SLoop (sex1, sex2, ident, sex3, SBlock (stmts, [])) ->
+                let wrapper_id = node_id ^ ".0" in
+                let sex1_id = wrapper_id ^ ".0" in
+                let sex2_id = wrapper_id ^ ".1" in
+                let ident_id = wrapper_id ^ ".2" in
+                let sex3_id = wrapper_id ^ ".3" in
+                let block_id = wrapper_id ^ ".4" in
+                let wrapper_node =
+                  Lifetime
+                    {
+                      parent = Some node_id;
+                      node_id = wrapper_id;
+                      depth = parent_depth + 1;
+                      loop = Some node_id;
+                      children =
+                        [ sex1_id; sex2_id; ident_id; sex3_id; block_id ];
+                      owned_vars = [];
+                    }
+                in
                 let sex_nodes =
                   [
                     ExprCatchAll
-                      { parent = Some node_id; node_id = sex1_id; value = sex1 };
+                      {
+                        parent = Some node_id;
+                        node_id = sex1_id;
+                        depth = parent_depth + 2;
+                        loop = parent_loop;
+                        value = sex1;
+                      };
                     ExprCatchAll
-                      { parent = Some node_id; node_id = sex2_id; value = sex2 };
+                      {
+                        parent = Some node_id;
+                        node_id = sex2_id;
+                        depth = parent_depth + 2;
+                        loop = parent_loop;
+                        value = sex2;
+                      };
                     ExprCatchAll
-                      { parent = Some node_id; node_id = sex3_id; value = sex3 };
+                      {
+                        parent = Some node_id;
+                        node_id = sex3_id;
+                        depth = parent_depth + 2;
+                        loop = parent_loop;
+                        value = sex3;
+                      };
                   ]
                 in
 
+                let ident_node =
+                  Binding
+                    {
+                      parent = Some node_id;
+                      node_id = ident_id;
+                      depth = parent_depth + 2;
+                      loop = parent_loop;
+                      is_mut = false;
+                      typ = Int;
+                      name = ident;
+                      expr = sex1;
+                    }
+                in
+
+                let graph' = StringMap.add wrapper_id wrapper_node graph in
                 let graph' =
                   List.fold_left
                     (fun g sex_node ->
@@ -191,14 +321,17 @@ let borrow_ck pipes verbose =
                       | ExprCatchAll sn ->
                           StringMap.add sn.node_id (ExprCatchAll sn) g
                       | _ -> raise (Failure "panic!"))
-                    graph sex_nodes
+                    graph' sex_nodes
                 in
+                let graph' = StringMap.add ident_id ident_node graph' in
 
                 let _, graph' =
-                  gen_children node_id 3 (SBlock (stmts, [])) graph'
+                  gen_children wrapper_id (parent_depth + 2) (Some wrapper_id) 4
+                    (SBlock (stmts, []))
+                    graph'
                 in
 
-                (true, graph', [ sex1_id; sex2_id; sex3_id; block_id ])
+                (true, graph', [ wrapper_id ])
             | _ -> (false, graph, [])
           in
 
@@ -210,6 +343,8 @@ let borrow_ck pipes verbose =
                    {
                      parent = Some parent_id;
                      node_id;
+                     depth = parent_depth + 1;
+                     loop = parent_loop;
                      children;
                      owned_vars = [];
                    })
@@ -219,7 +354,7 @@ let borrow_ck pipes verbose =
     (* create a block containing the body statements and gen thier nodes *)
     let graph_with_pipe_body =
       snd
-        (gen_children pipe.sname
+        (gen_children pipe.sname 1 None
            (StringMap.cardinal graph_with_pipe_args)
            (SBlock (pipe.sbody, []))
            graph_with_pipe_args)
@@ -231,6 +366,8 @@ let borrow_ck pipes verbose =
         (Lifetime
            {
              parent = None;
+             depth = 0;
+             loop = None;
              children =
                List.rev
                  ((pipe.sname ^ "."
@@ -428,6 +565,8 @@ let borrow_ck pipes verbose =
                  {
                    children = l.children;
                    node_id = l.node_id;
+                   depth = l.depth;
+                   loop = l.loop;
                    parent = l.parent;
                    owned_vars = children_responsible_for_dealloc;
                  })
@@ -703,11 +842,7 @@ let borrow_ck pipes verbose =
               in
               borrow_table')
       | Rebinding rb -> (
-          (* TODO: make sure og binding is MUTABLE *)
-
-          (* if we are rebinding, perhaps we want to remove the old borrow *)
-          (* from the table entry for whatever it was borrowing *)
-          (* in lieu of the new one... we'd need to store nodes w/ borrows *)
+          (* TODO: make sure og binding is MUTABLE, i.e. uses mut keyword *)
           match rb.expr with
           | Borrow _, e | MutBorrow _, e -> (
               match e with
