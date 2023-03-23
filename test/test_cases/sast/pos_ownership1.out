@@ -11,7 +11,10 @@ pipe main |> [] |> [] |> unit {
   {
   {
     int w <| (int : 8);
-    (unit : test <| [(int : w)]);
+  {
+    int a <| (int : w);
+    (unit : test <| [(int : a)]);
+  }
   }
   }
 }
