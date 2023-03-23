@@ -3,7 +3,5 @@ pipe test |> [] |> [x: &'a int] |> unit {
 }
 
 pipe main |> [] |> [] |> unit {
-  int x <| 4;
-  /* test <| [&x]; */
   |> ();
 }

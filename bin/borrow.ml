@@ -716,33 +716,51 @@ let borrow_ck pipes verbose =
     and make sure it matches the return-type lifetime.
   *)
   let validate_arg_lifetimes p =
-    (* if return isn't a borrow, who cares *)
+    let return_lifetime_no_match correct_lifetime =
+      "lifetime of return value in " ^ p.sname
+      ^ " must be the smallest (rightmost) lifetime of all possible returned \
+         arguments: " ^ correct_lifetime
+    and err_unnecessary_lifetime v_name =
+      "variable " ^ v_name ^ " will not be returned from " ^ p.sname
+      ^ " and thus its lifetime isn't required"
+    and make_err er = raise (Failure er) in
+
+    (* we are kinda gonna have to limit returned values to args *)
+    (* vs. allowing re-bindings of refs of args to also be returned *)
+    let possible_ret_vars =
+      Seq.fold_left
+        (fun ret_vals (_id, node) ->
+          match node with
+          | PipeReturn pr -> (
+              match pr.returned with
+              | _, SIdent n -> n :: ret_vals
+              | _ -> ret_vals)
+          | _ -> ret_vals)
+        []
+        (StringMap.to_seq (StringMap.find p.sname graph))
+    in
+
+    (* make sure dev isnt' overly verbose with lifetime decls *)
+    (* a.k.a they aren't adding explicit lifetimes when not necessary *)
+    let _ =
+      List.iter
+        (fun (_, typ, n) ->
+          if not (List.mem n possible_ret_vars) then
+            match typ with
+            | MutBorrow (_, lt) | Borrow (_, lt) ->
+                if lt <> "'_" then make_err (err_unnecessary_lifetime n)
+            | _ -> ())
+        p.sformals
+    in
+
     if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
     then ()
     else
-      let return_lifetime_no_match correct_lifetime =
-        "lifetime of return value must be the smallest (rightmost) lifetime of \
-         all possible returned arguments: " ^ correct_lifetime
-      and make_err er = raise (Failure er) in
       let lt_of_return =
         match p.sreturn_type with
         | MutBorrow (_, lt) | Borrow (_, lt) -> lt
         | _ ->
             make_err "if returning a borrow, it must have an explicit lifetime"
-      in
-      (* we are kinda gonna have to limit returned values to args *)
-      (* vs. allowing re-bindings of refs of args to also be returned *)
-      let possible_ret_vars =
-        Seq.fold_left
-          (fun ret_vals (_id, node) ->
-            match node with
-            | PipeReturn pr -> (
-                match pr.returned with
-                | _, SIdent n -> n :: ret_vals
-                | _ -> ret_vals)
-            | _ -> ret_vals)
-          []
-          (StringMap.to_seq (StringMap.find p.sname graph))
       in
 
       let possible_lts =

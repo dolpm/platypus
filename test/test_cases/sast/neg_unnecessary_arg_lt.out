@@ -1,0 +1,1 @@
+Fatal error: exception Failure("variable x will not be returned from test and thus its lifetime isn't required")
