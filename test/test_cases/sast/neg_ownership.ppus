@@ -1,8 +1,7 @@
 pipe main |> [] |> [] |> unit {
   int x <| 4;
-  while (x <= 4) {
+  {
     int y <| x;
-    int z <| x;
-    /* TODO fix for expr 'x' */
+    x;
   }
 }

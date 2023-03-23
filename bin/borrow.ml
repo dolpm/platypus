@@ -62,6 +62,19 @@ type graph_node =
 
 let borrow_ck pipes verbose =
   let _ = if verbose then print_string "generating graph!\n" else () in
+
+  (* get data that is consistent across all node-types *)
+  let node_common_data n =
+    match n with
+    | Lifetime { parent; node_id; depth; loop; _ }
+    | Binding { parent; node_id; depth; loop; _ }
+    | Rebinding { parent; node_id; depth; loop; _ }
+    | PipeCall { parent; node_id; depth; loop; _ }
+    | PipeReturn { parent; node_id; depth; loop; _ }
+    | ExprCatchAll { parent; node_id; depth; loop; _ } ->
+        (parent, node_id, depth, loop)
+  in
+
   let generate_graph_for_pipe pipe =
     (* create top-level nodes for pipe arguments and add to graph *)
     let graph_with_pipe_args =
@@ -177,6 +190,19 @@ let borrow_ck pipes verbose =
                    depth = parent_depth + 1;
                    loop = parent_loop;
                    returned = expr;
+                 })
+              graph )
+      | SExpr e ->
+          let node_id = parent_id ^ "." ^ string_of_int child_id in
+          ( true,
+            StringMap.add node_id
+              (ExprCatchAll
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   value = e;
                  })
               graph )
       | sstmt ->
@@ -552,8 +578,8 @@ let borrow_ck pipes verbose =
               (fun (st', dealloc_list) child ->
                 match StringMap.find child graph_for_pipe with
                 | Binding b ->
-                    if StringSet.mem b.name st' then
-                      (StringSet.remove b.name st', b.name :: dealloc_list)
+                    if StringMap.mem b.name st' then
+                      (StringMap.remove b.name st', b.name :: dealloc_list)
                     else (st', dealloc_list)
                 | _ -> (st', dealloc_list))
               (symbol_table', []) l.children
@@ -577,21 +603,34 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringSet.mem n symbol_table) then
+                if not (StringMap.mem n symbol_table) then
                   make_err (err_gave_ownership n))
               names
           in
 
           (* if ownership of another var given to new binding *)
           (* remove the original from the table *)
+          (* and validate that rhs is in same loop *)
           let symbol_table' =
             match b.expr with
-            | _ty, SIdent v_name -> StringSet.remove v_name symbol_table
+            | _ty, SIdent v_name ->
+                let v_node =
+                  StringMap.find (StringMap.find v_name symbol_table) graph
+                in
+                let _v_parent, _v_node_id, _v_depth, v_loop =
+                  node_common_data v_node
+                in
+                if v_loop <> b.loop then
+                  raise
+                    (Failure
+                       ("ownership of " ^ v_name
+                      ^ " could be taken in a previous loop iteration"))
+                else StringMap.remove v_name symbol_table
             | _ -> symbol_table
           in
 
           (* add the current binding to the table *)
-          let symbol_table' = StringSet.add b.name symbol_table' in
+          let symbol_table' = StringMap.add b.name b.node_id symbol_table' in
           (symbol_table', graph)
       (* in ExprCatchAll, we only need to check that all found identifiers are in the symbol_table table *)
       (* we don't have to remove anything from the symbol table *)
@@ -605,7 +644,7 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringSet.mem n symbol_table) then
+                if not (StringMap.mem n symbol_table) then
                   make_err (err_gave_ownership n))
               names
           in
@@ -625,14 +664,14 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringSet.mem n symbol_table) then
+                if not (StringMap.mem n symbol_table) then
                   make_err (err_gave_ownership n))
               names
           in
           (symbol_table, graph)
     in
 
-    check_children pipe.sname StringSet.empty graph_for_pipe
+    check_children pipe.sname StringMap.empty graph_for_pipe
   in
   let _graph = print_graph graph in
 
