@@ -108,7 +108,9 @@ let check (_things, pipes) verbosity =
            match s with
            | Assign (is_mut, typ, name, _) -> Some [ (is_mut, typ, name) ]
            | Block stmts -> Some (find_bindings stmts)
-           | While (_, s) | Loop (_, _, _, _, s) -> Some (find_bindings [ s ])
+           | While (_, s) -> Some (find_bindings [ s ])
+           | Loop (_, _, id, _, s1) ->
+               Some ((false, Int, id) :: find_bindings [ s1 ])
            | If (_, s1, s2) -> Some (find_bindings [ s1; s2 ])
            | _ -> None)
          body)
@@ -201,6 +203,14 @@ let check (_things, pipes) verbosity =
                 ^ string_of_expr pipein))
           else
             let check_pipein (_, ft, _) e =
+              (* we will check lifetimes later - just make sure they are ambiguous *)
+              (* for this step *)
+              let ft =
+                match ft with
+                | Borrow (ty, _lt) -> Borrow (ty, "'_")
+                | MutBorrow (ty, _lt) -> MutBorrow (ty, "'_")
+                | f -> f
+              in
               let et, e' = expr e in
               let err =
                 "illegal argument found " ^ string_of_typ et ^ " expected "
