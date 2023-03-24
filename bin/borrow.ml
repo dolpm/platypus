@@ -972,14 +972,10 @@ let borrow_ck pipes verbose =
             ^ "\n")
       in
 
-      let _ =
-        List.iter
-          (fun ((i1, _, _), (i2, _)) ->
-            if i1 <> i2 then
-              make_err (err_explicit_arg_invalid called_pipe.sname))
-          (List.combine sorted borrowed_args_sorted)
-      in
-      ()
+      List.iter
+        (fun ((i1, _, _), (i2, _)) ->
+          if i1 <> i2 then make_err (err_explicit_arg_invalid called_pipe.sname))
+        (List.combine sorted borrowed_args_sorted)
     in
 
     let rec check_children current_node borrow_table =
