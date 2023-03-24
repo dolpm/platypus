@@ -5,7 +5,7 @@ module StringMap = Map.Make (String)
 
 (* Code Generation from the SAST. Returns an LLVM module if successful,
    throws an exception if something is wrong. *)
-let translate (_globals, pipes) =
+let translate (_things, pipes) =
   let context = L.global_context () in
   (* Add types to the context so we can use them in our LLVM code *)
   let i32_t = L.i32_type context
@@ -43,29 +43,6 @@ let translate (_globals, pipes) =
         raise
           (Failure ("Cannot convert type" ^ A.string_of_typ t ^ "to LLVM IR"))
   in
-
-  (* Declare each global variable; remember its value in a map *)
-  (* let _global_vars : L.llvalue StringMap.t =
-     let global_var m (t, n) =
-       let init = match t with
-           A.Float -> L.const_float (ltype_of_typ t) 0.0
-         | A.Int -> L.const_int (ltype_of_typ t) 0
-         | A.Bool -> L.const_int (ltype_of_typ t) 0
-         (* empty char *)
-         (* | A.Char ->
-         (* empty unit *)
-         | A.Unit ->
-         (* null ptr *)
-         | A.Tuple ->
-         | A.String ->
-         | A.Box t     ->
-         | A.Borrow (t, _)   ->
-         | A.MutBorrow (t, _) ->
-         | A.Thing (_, members) ->
-         | A.Ident _   ->  *)
-         | _ -> L.const_int (ltype_of_typ t) 0 (* null ptr *)
-       in StringMap.add n (L.define_global n init the_module) m in
-     List.fold_left global_var StringMap.empty globals in *)
 
   (* Declare printnl_t as a function *)
   let printnl_t = L.function_type i8_t [| i32_t |] in
