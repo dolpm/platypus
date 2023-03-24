@@ -877,7 +877,7 @@ let borrow_ck pipes verbose =
       borrow_table'
     in
 
-    (* list of argument indicies and thier associate origin depths *)
+    (* return the identifier and it's smallest lt (in depth) *)
     let deepest_origin e borrow_table =
       match e with
       (* check for args that are borrowed here *)
@@ -886,20 +886,22 @@ let borrow_ck pipes verbose =
           (* get poss depths of node if exists *)
           let _, _, origin_depths = StringMap.find n borrow_table in
           (* return max depth of all possible origins *)
-          List.fold_left
-            (fun cur_max v -> if v > cur_max then v else cur_max)
-            (-1) origin_depths
+          ( Some n,
+            List.fold_left
+              (fun cur_max v -> if v > cur_max then v else cur_max)
+              (-1) origin_depths )
       | _ty, SIdent n ->
           (* check for args that are already borrows *)
           if StringMap.mem n borrow_table then
             (* get poss depths of node if exists *)
             let _, _, origin_depths = StringMap.find n borrow_table in
             (* return max depth of all possible origins *)
-            List.fold_left
-              (fun cur_max v -> if v > cur_max then v else cur_max)
-              (-1) origin_depths
-          else -1
-      | _ -> -1
+            ( Some n,
+              List.fold_left
+                (fun cur_max v -> if v > cur_max then v else cur_max)
+                (-1) origin_depths )
+          else (None, -1)
+      | _ -> (None, -1)
     in
 
     let validate_p_call_args called_name args borrow_table =
@@ -950,15 +952,18 @@ let borrow_ck pipes verbose =
         snd
           (List.fold_left
              (fun (i, args) arg ->
-               let deepest = deepest_origin arg borrow_table in
-               if deepest = -1 then (i + 1, args)
-               else (i + 1, (i, deepest) :: args))
+               let n, deepest = deepest_origin arg borrow_table in
+               match n with
+               | None -> (i + 1, args)
+               | Some n ->
+                   if deepest = -1 then (i + 1, args)
+                   else (i + 1, (i, n, deepest) :: args))
              (0, []) args)
       in
 
       (* sort from smallest to largest depth (longest -> shortest lt) *)
       let borrowed_args_sorted =
-        List.sort (fun (_i1, d1) (_i2, d2) -> d1 - d2) borrowed_args
+        List.sort (fun (_i1, _n1, d1) (_i2, _n2, d2) -> d1 - d2) borrowed_args
       in
 
       let _ =
@@ -966,16 +971,21 @@ let borrow_ck pipes verbose =
           print_string
             (String.concat " | "
                (List.map
-                  (fun (i, depth) ->
+                  (fun (i, _n, depth) ->
                     string_of_int i ^ " --> " ^ string_of_int depth)
                   borrowed_args_sorted)
             ^ "\n")
       in
 
-      List.iter
-        (fun ((i1, _, _), (i2, _)) ->
-          if i1 <> i2 then make_err (err_explicit_arg_invalid called_pipe.sname))
-        (List.combine sorted borrowed_args_sorted)
+      let _ =
+        List.iter
+          (fun ((i1, _, _), (i2, _, _)) ->
+            if i1 <> i2 then
+              make_err (err_explicit_arg_invalid called_pipe.sname))
+          (List.combine sorted borrowed_args_sorted)
+      in
+
+      borrowed_args_sorted
     in
 
     let rec check_children current_node borrow_table =
@@ -1027,6 +1037,24 @@ let borrow_ck pipes verbose =
                 StringMap.add n
                   (true, [ b.node_id ], [ origin_depth ])
                   borrow_table
+          | _ty, SPipeIn (p_name, args) ->
+              (* if return not borrow, ignore *)
+
+              (* validate all arguments that may borrow things *)
+              let borrow_table' =
+                List.fold_left
+                  (fun borrow_table arg -> ck_expr borrow_table b.node_id arg)
+                  borrow_table args
+              in
+
+              (* validate that the lifetimes of the arguments *)
+              (* align with the explicit lifetimes defined in the called *)
+              (* pipe declaration *)
+              let _return_args_nums_and_depths =
+                validate_p_call_args p_name args borrow_table'
+              in
+
+              borrow_table
           | e ->
               (* chceck all borrows in rhs *)
               let borrows_in_expr = find_borrows e in
