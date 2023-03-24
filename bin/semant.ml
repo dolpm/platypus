@@ -108,7 +108,9 @@ let check (_things, pipes) verbosity =
            match s with
            | Assign (is_mut, typ, name, _) -> Some [ (is_mut, typ, name) ]
            | Block stmts -> Some (find_bindings stmts)
-           | While (_, s) | Loop (_, _, _, _, s) -> Some (find_bindings [ s ])
+           | While (_, s) -> Some (find_bindings [ s ])
+           | Loop (_, _, id, _, s1) ->
+               Some ((false, Int, id) :: find_bindings [ s1 ])
            | If (_, s1, s2) -> Some (find_bindings [ s1; s2 ])
            | _ -> None)
          body)

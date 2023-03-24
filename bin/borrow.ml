@@ -815,6 +815,10 @@ let borrow_ck pipes verbose =
       "variable " ^ v_name
       ^ " can't be returned as it was defined locally. You can only"
       ^ "return references to pipe arguments."
+    and err_explicit_arg_invalid called_pipe =
+      "argument lifetimes in calls to " ^ called_pipe
+      ^ " must match the explicitely defined lifetimes for that pipe \
+         definition."
     and make_err er = raise (Failure er) in
 
     let get_depth_of_defn node ident_name =
@@ -871,6 +875,31 @@ let borrow_ck pipes verbose =
           borrow_table borrows_in_expr
       in
       borrow_table'
+    in
+
+    (* list of argument indicies and thier associate origin depths *)
+    let deepest_origin e borrow_table =
+      match e with
+      (* check for args that are borrowed here *)
+      | _ty, SUnop (MutRef, (_ty2, SIdent n))
+      | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
+          (* get poss depths of node if exists *)
+          let _, _, origin_depths = StringMap.find n borrow_table in
+          (* return max depth of all possible origins *)
+          List.fold_left
+            (fun cur_max v -> if v > cur_max then v else cur_max)
+            (-1) origin_depths
+      | _ty, SIdent n ->
+          (* check for args that are already borrows *)
+          if StringMap.mem n borrow_table then
+            (* get poss depths of node if exists *)
+            let _, _, origin_depths = StringMap.find n borrow_table in
+            (* return max depth of all possible origins *)
+            List.fold_left
+              (fun cur_max v -> if v > cur_max then v else cur_max)
+              (-1) origin_depths
+          else -1
+      | _ -> -1
     in
 
     let rec check_children current_node borrow_table =
@@ -1071,6 +1100,7 @@ let borrow_ck pipes verbose =
             | h :: t -> if x = h then 0 else 1 + index_of_lt x t
           in
 
+          (* sort declaration args from longest to shortest lifetime *)
           let sorted =
             List.sort
               (fun (_i1, _n1, lt1) (_i2, _n2, lt2) ->
@@ -1080,23 +1110,49 @@ let borrow_ck pipes verbose =
           in
 
           let _ =
-            print_string
-              (String.concat "," (List.map (fun (_, n, lt) -> lt ^ " " ^ n) sorted)
-              ^ "\n")
+            if verbose then
+              print_string
+                (String.concat " | "
+                   (List.map
+                      (fun (arg_id, n, lt) ->
+                        string_of_int arg_id ^ " --> " ^ lt ^ " " ^ n)
+                      sorted)
+                ^ "\n")
           in
 
-          (* validate that all explicit lifetimes are ordered correctly *)
+          (* list of argument indicies and thier associated max origin depth *)
+          let borrowed_args =
+            snd
+              (List.fold_left
+                 (fun (i, args) arg ->
+                   let deepest = deepest_origin arg borrow_table' in
+                   if deepest = -1 then (i + 1, args)
+                   else (i + 1, (i, deepest) :: args))
+                 (0, []) pc.args)
+          in
+
+          (* sort from smallest to largest depth (longest -> shortest lt) *)
+          let borrowed_args_sorted =
+            List.sort (fun (_i1, d1) (_i2, d2) -> d1 - d2) borrowed_args
+          in
+
           let _ =
-            (* order args from smallest to largest lifetime *)
+            if verbose then
+              print_string
+                (String.concat " | "
+                   (List.map
+                      (fun (i, depth) ->
+                        string_of_int i ^ " --> " ^ string_of_int depth)
+                      borrowed_args_sorted)
+                ^ "\n")
+          in
+
+          let _ =
             List.iter
-              (fun arg ->
-                (* we only care about order if it is a borrow *)
-                match arg with
-                | _ty, SUnop (MutRef, (_ty2, SIdent _n))
-                | _ty, SUnop (Ref, (_ty2, SIdent _n)) ->
-                    ()
-                | _ -> ())
-              pc.args
+              (fun ((i1, _, _), (i2, _)) ->
+                if i1 <> i2 then
+                  make_err (err_explicit_arg_invalid called_pipe.sname))
+              (List.combine sorted borrowed_args_sorted)
           in
 
           (* and figure out how to handle the return value if a borrow *)
