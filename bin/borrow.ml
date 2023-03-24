@@ -902,6 +902,86 @@ let borrow_ck pipes verbose =
       | _ -> -1
     in
 
+    let validate_p_call_args called_name args borrow_table =
+      let called_pipe = List.find (fun p -> p.sname = called_name) pipes in
+      let call_formals_w_lts =
+        let formals = called_pipe.sformals in
+        List.filter_map
+          (fun (i, (_, typ, n)) ->
+            match typ with
+            | Borrow (_, lt) | MutBorrow (_, lt) ->
+                if lt = "'_" then None else Some (i, n, lt)
+            | _ -> None)
+          (List.rev
+             (snd
+                (List.fold_left
+                   (fun (i, prev) f -> (i + 1, (i, f) :: prev))
+                   (0, []) formals)))
+      in
+
+      let rec index_of_lt x lst =
+        match lst with
+        | [] -> make_err "panic!"
+        | h :: t -> if x = h then 0 else 1 + index_of_lt x t
+      in
+
+      (* sort declaration args from longest to shortest lifetime *)
+      let sorted =
+        List.sort
+          (fun (_i1, _n1, lt1) (_i2, _n2, lt2) ->
+            index_of_lt lt1 called_pipe.slifetimes
+            - index_of_lt lt2 called_pipe.slifetimes)
+          call_formals_w_lts
+      in
+
+      let _ =
+        if verbose then
+          print_string
+            (String.concat " | "
+               (List.map
+                  (fun (arg_id, n, lt) ->
+                    string_of_int arg_id ^ " --> " ^ lt ^ " " ^ n)
+                  sorted)
+            ^ "\n")
+      in
+
+      (* list of argument indicies and thier associated max origin depth *)
+      let borrowed_args =
+        snd
+          (List.fold_left
+             (fun (i, args) arg ->
+               let deepest = deepest_origin arg borrow_table in
+               if deepest = -1 then (i + 1, args)
+               else (i + 1, (i, deepest) :: args))
+             (0, []) args)
+      in
+
+      (* sort from smallest to largest depth (longest -> shortest lt) *)
+      let borrowed_args_sorted =
+        List.sort (fun (_i1, d1) (_i2, d2) -> d1 - d2) borrowed_args
+      in
+
+      let _ =
+        if verbose then
+          print_string
+            (String.concat " | "
+               (List.map
+                  (fun (i, depth) ->
+                    string_of_int i ^ " --> " ^ string_of_int depth)
+                  borrowed_args_sorted)
+            ^ "\n")
+      in
+
+      let _ =
+        List.iter
+          (fun ((i1, _, _), (i2, _)) ->
+            if i1 <> i2 then
+              make_err (err_explicit_arg_invalid called_pipe.sname))
+          (List.combine sorted borrowed_args_sorted)
+      in
+      ()
+    in
+
     let rec check_children current_node borrow_table =
       let current_node = StringMap.find current_node graph_for_pipe in
       match current_node with
@@ -1077,87 +1157,11 @@ let borrow_ck pipes verbose =
               borrow_table pc.args
           in
 
-          let called_pipe = List.find (fun p -> p.sname = pc.pipe_name) pipes in
+          (* validate that the lifetimes of the arguments *)
+          (* align with the explicit lifetimes defined in the called *)
+          (* pipe declaration *)
+          let _ = validate_p_call_args pc.pipe_name pc.args borrow_table' in
 
-          let call_formals_w_lts =
-            let formals = called_pipe.sformals in
-            List.filter_map
-              (fun (i, (_, typ, n)) ->
-                match typ with
-                | Borrow (_, lt) | MutBorrow (_, lt) ->
-                    if lt = "'_" then None else Some (i, n, lt)
-                | _ -> None)
-              (List.rev
-                 (snd
-                    (List.fold_left
-                       (fun (i, prev) f -> (i + 1, (i, f) :: prev))
-                       (0, []) formals)))
-          in
-
-          let rec index_of_lt x lst =
-            match lst with
-            | [] -> make_err "panic!"
-            | h :: t -> if x = h then 0 else 1 + index_of_lt x t
-          in
-
-          (* sort declaration args from longest to shortest lifetime *)
-          let sorted =
-            List.sort
-              (fun (_i1, _n1, lt1) (_i2, _n2, lt2) ->
-                index_of_lt lt1 called_pipe.slifetimes
-                - index_of_lt lt2 called_pipe.slifetimes)
-              call_formals_w_lts
-          in
-
-          let _ =
-            if verbose then
-              print_string
-                (String.concat " | "
-                   (List.map
-                      (fun (arg_id, n, lt) ->
-                        string_of_int arg_id ^ " --> " ^ lt ^ " " ^ n)
-                      sorted)
-                ^ "\n")
-          in
-
-          (* list of argument indicies and thier associated max origin depth *)
-          let borrowed_args =
-            snd
-              (List.fold_left
-                 (fun (i, args) arg ->
-                   let deepest = deepest_origin arg borrow_table' in
-                   if deepest = -1 then (i + 1, args)
-                   else (i + 1, (i, deepest) :: args))
-                 (0, []) pc.args)
-          in
-
-          (* sort from smallest to largest depth (longest -> shortest lt) *)
-          let borrowed_args_sorted =
-            List.sort (fun (_i1, d1) (_i2, d2) -> d1 - d2) borrowed_args
-          in
-
-          let _ =
-            if verbose then
-              print_string
-                (String.concat " | "
-                   (List.map
-                      (fun (i, depth) ->
-                        string_of_int i ^ " --> " ^ string_of_int depth)
-                      borrowed_args_sorted)
-                ^ "\n")
-          in
-
-          let _ =
-            List.iter
-              (fun ((i1, _, _), (i2, _)) ->
-                if i1 <> i2 then
-                  make_err (err_explicit_arg_invalid called_pipe.sname))
-              (List.combine sorted borrowed_args_sorted)
-          in
-
-          (* and figure out how to handle the return value if a borrow *)
-          (* this should probably be handled in the binding/rebinding *)
-          (* portion *)
           borrow_table'
       | PipeReturn pr ->
           (* if the returned value is a borrow, make sure it's an arg *)
