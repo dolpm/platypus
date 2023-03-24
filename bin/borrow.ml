@@ -983,6 +983,46 @@ let borrow_ck pipes verbose =
               (fun borrow_table arg -> ck_expr borrow_table pc.node_id arg)
               borrow_table pc.args
           in
+
+          let call_formals_w_lts =
+            let formals =
+              (List.find (fun p -> p.sname = pc.pipe_name) pipes).sformals
+            in
+            List.filter_map
+              (fun (i, (_, typ, n)) ->
+                match typ with
+                | Borrow (_, lt) | MutBorrow (_, lt) ->
+                    if lt = "'_" then None else Some (i, n)
+                | _ -> None)
+              (List.rev
+                 (snd
+                    (List.fold_left
+                       (fun (i, prev) f -> (i + 1, (i, f) :: prev))
+                       (0, []) formals)))
+          in
+
+          let sorted =
+            List.sort
+            (fun (i1, n1) (i2, n2) -> (
+
+            ))
+            call_formals_w_lts
+          in
+
+          (* validate that all explicit lifetimes are ordered correctly *)
+          let _ =
+            (* order args from smallest to largest lifetime *)
+            List.iter
+              (fun arg ->
+                (* we only care about order if it is a borrow *)
+                match arg with
+                | _ty, SUnop (MutRef, (_ty2, SIdent n))
+                | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
+                    ()
+                | _ -> ())
+              pc.args
+          in
+
           (* and figure out how to handle the return value if a borrow *)
           (* this should probably be handled in the binding/rebinding *)
           (* portion *)
