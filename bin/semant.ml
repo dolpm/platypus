@@ -201,6 +201,14 @@ let check (_things, pipes) verbosity =
                 ^ string_of_expr pipein))
           else
             let check_pipein (_, ft, _) e =
+              (* we will check lifetimes later - just make sure they are ambiguous *)
+              (* for this step *)
+              let ft =
+                match ft with
+                | Borrow (ty, _lt) -> Borrow (ty, "'_")
+                | MutBorrow (ty, _lt) -> MutBorrow (ty, "'_")
+                | f -> f
+              in
               let et, e' = expr e in
               let err =
                 "illegal argument found " ^ string_of_typ et ^ " expected "

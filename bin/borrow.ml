@@ -1048,15 +1048,15 @@ let borrow_ck pipes verbose =
               borrow_table pc.args
           in
 
+          let called_pipe = List.find (fun p -> p.sname = pc.pipe_name) pipes in
+
           let call_formals_w_lts =
-            let formals =
-              (List.find (fun p -> p.sname = pc.pipe_name) pipes).sformals
-            in
+            let formals = called_pipe.sformals in
             List.filter_map
               (fun (i, (_, typ, n)) ->
                 match typ with
                 | Borrow (_, lt) | MutBorrow (_, lt) ->
-                    if lt = "'_" then None else Some (i, n)
+                    if lt = "'_" then None else Some (i, n, lt)
                 | _ -> None)
               (List.rev
                  (snd
@@ -1065,8 +1065,24 @@ let borrow_ck pipes verbose =
                        (0, []) formals)))
           in
 
-          let _sorted =
-            List.sort (fun (_i1, _n1) (_i2, _n2) -> 1) call_formals_w_lts
+          let rec index_of_lt x lst =
+            match lst with
+            | [] -> make_err "panic!"
+            | h :: t -> if x = h then 0 else 1 + index_of_lt x t
+          in
+
+          let sorted =
+            List.sort
+              (fun (_i1, _n1, lt1) (_i2, _n2, lt2) ->
+                index_of_lt lt1 called_pipe.slifetimes
+                - index_of_lt lt2 called_pipe.slifetimes)
+              call_formals_w_lts
+          in
+
+          let _ =
+            print_string
+              (String.concat "," (List.map (fun (_, n, lt) -> lt ^ " " ^ n) sorted)
+              ^ "\n")
           in
 
           (* validate that all explicit lifetimes are ordered correctly *)
