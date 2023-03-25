@@ -824,7 +824,7 @@ let borrow_ck pipes verbose =
       ^ " must match the explicitely defined lifetimes for that pipe \
          definition."
     and err_binding_outlives_borrow =
-      "the variable being bound is outlived "
+      "the variable being bound is outlived"
       ^ " by the definition to which it is being bound."
     and make_err er = raise (Failure er) in
 
@@ -1173,7 +1173,7 @@ let borrow_ck pipes verbose =
                 (* get the origin depth of the new borrow, add it *)
                 let _, b_origin_depth = get_depth_of_defn rb.node_id rb.name in
                 (* binding outlives borrow... unsafe! *)
-                if b_origin_depth < origin_depth then
+                if b_origin_depth > origin_depth then
                   make_err err_binding_outlives_borrow
                 else
                   StringMap.add n
@@ -1198,7 +1198,7 @@ let borrow_ck pipes verbose =
                 (* get the origin depth of the new borrow, add it *)
                 let _, b_origin_depth = get_depth_of_defn rb.node_id rb.name in
                 (* binding outlives borrow... unsafe! *)
-                if b_origin_depth < origin_depth then
+                if b_origin_depth > origin_depth then
                   make_err err_binding_outlives_borrow
                 else
                   StringMap.add n
@@ -1228,9 +1228,15 @@ let borrow_ck pipes verbose =
                   0 borrowed_args
               in
 
+              let _depth_check =
+                if max_arg_depth > origin_depth then
+                  make_err err_binding_outlives_borrow
+              in
+
               let borrow_table' =
                 List.fold_left
                   (fun borrow_table (m, n, _d) ->
+                    (* binding outlives borrow... unsafe! *)
                     if StringMap.mem n borrow_table then
                       let is_mut, borrows = StringMap.find n borrow_table in
                       if is_mut then make_err (err_borrow_after_mut_borrow n)
