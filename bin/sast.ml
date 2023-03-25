@@ -35,6 +35,11 @@ type s_stmt =
   | SAssign of bool * defined_type * string * s_expr
   | SReAssign of string * s_expr
 
+type s_thing_declaration = {
+  stname : string;
+  selements : type_binding list;
+}
+
 type s_pipe_declaration = {
   sname : string;
   (* lifetime delcarations, just a list of lifetimes for now *)
@@ -48,7 +53,7 @@ type s_pipe_declaration = {
   sbody : s_stmt list;
 }
 
-type s_program = defined_type list * s_pipe_declaration list
+type s_program = s_thing_declaration list * s_pipe_declaration list
 
 (* Pretty-printing functions *)
 
@@ -121,14 +126,22 @@ let rec string_of_s_stmt s_stmt pad =
       ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
   | SReAssign (v, e) -> indent pad ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
 
-let string_of_tdecl t =
+(* let string_of_tdecl t =
   match t with
   | Thing (s, l) ->
       "thing " ^ s ^ " <| {\n"
       ^ String.concat ",\n"
           (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
       ^ "\n}"
-  | _ -> ""
+  | _ -> "" *)
+
+let string_of_tdecl tdecl =
+  "thing " ^ tdecl.stname ^ " <| {\n"
+  ^ String.concat ",\n"
+      (List.map
+          (fun v -> match v with _, t, n -> n ^ ": " ^ string_of_typ t)
+          tdecl.selements)
+  ^ "\n}"
 
 let string_of_spdecl pdecl =
   "pipe " ^ pdecl.sname ^ " |> ["

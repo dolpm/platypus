@@ -5,7 +5,7 @@ open Sast
 module StringMap = Map.Make (String)
 
 (* Translates SAST into LLVM module or throws error *)
-let translate (things, pipes) =
+let translate (_things, pipes) =
   let context = L.global_context () in
 
   let i32_t = L.i32_type context
@@ -32,10 +32,10 @@ let translate (things, pipes) =
     | A.Box t -> L.pointer_type (ltype_of_typ t)
     | A.Borrow (t, _) -> L.pointer_type (ltype_of_typ t)
     | A.MutBorrow (t, _) -> L.pointer_type (ltype_of_typ t)
-    | A.Thing (_, eles) ->
+    (* | A.Thing (_, eles) ->
         L.pointer_type
           (L.struct_type context
-             (Array.of_list (List.map (fun (_, t) -> ltype_of_typ t) eles)))
+             (Array.of_list (List.map (fun (_, t) -> ltype_of_typ t) eles))) *)
     | A.Ident _ -> string_t
     | t ->
         raise
@@ -45,19 +45,32 @@ let translate (things, pipes) =
   let printnl_t = L.function_type i8_t [| i32_t |] in
   let _printnl_pipe = L.declare_function "printnl" printnl_t the_module in
 
-  let _thing_decls : (L.lltype StringMap.t) StringMap.t = 
-    let thing_decl m tdecl = 
-      let name : string = fst tdecl
-      and eles_map : L.lltype StringMap.t = 
+  (* Generating code for things. A stringmap of llvalue stringmaps, where each element of the outer stringmap is a thing and each llvalue in the internal stringmap represents an initialized value of an element of the thingm *)
+  (* let _thing_decls : (L.llvalue StringMap.t) StringMap.t = 
+    let thing_decl m (n, (ele_n, ele_t)::eles) = 
+      let init : llvalue = 
+        
+
+        let init_and_add ele = 
+          let rec init_ele = match (snd ele) with
+            A.Float -> L.const_float (ltype_of_typ t) 0.0
+            | _ -> raise (Failure ("TODO"))
+          in 
+          StringMap.add ele_n init_ele 
+      in
+      List.fold_left init_ele StringMap.empty ((ele_n, ele_t)::eles)
+      (* and eles_map : L.lltype StringMap.t = 
         let map_ele mem_m ele = 
           StringMap.add (fst ele) (snd ele) mem_m
         in 
         List.fold_left map_ele StringMap.empty (snd tdecl)
       in 
-      StringMap.add name eles_map m
+      StringMap.add name eles_map m *)
+      in 
+      StringMap.add n (L.define_global n init the_module) m
     in 
     List.fold_left thing_decl StringMap.empty things
-  in
+  in *)
   (* Define all pipes declarations *)
   let pipe_decls : (L.llvalue * s_pipe_declaration) StringMap.t =
     let pipe_decl m pdecl =
