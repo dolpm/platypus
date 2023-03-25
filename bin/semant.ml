@@ -227,6 +227,8 @@ let check (_things, pipes) verbosity =
               | Generic -> first_arg_type
               | Box Generic -> Box first_arg_type
               | Vector Generic -> Vector first_arg_type
+              | Borrow (ty, _) -> Borrow (ty, "'_")
+              | MutBorrow (ty, _) -> MutBorrow (ty, "'_")
               | _ -> pd.return_type
             in
             (ret_type, SPipeIn (pname, args'))
