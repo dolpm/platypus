@@ -1,0 +1,4 @@
+pipe main |> [] |> [] |> unit {
+  string x <| "hello";
+  |> ();
+}
