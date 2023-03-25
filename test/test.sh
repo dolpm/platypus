@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Terminal output colors
+Color_Off='\033[0m'
+BGreen='\033[1;32m'
+BRed='\033[1;31m'
+
 test_dirs=("ast" "sast")
 test_flags=("-a" "-s")
 
@@ -23,9 +28,9 @@ for test in "${!test_dirs[@]}"; do
         output=$(../platypus ${test_flag} ${positive_files[$i]} | diff - ${positive_expected_output[$i]})
 
         if [ "$output" != "" ]; then
-            echo "Test ${positive_files[$i]} failed..."
+            echo -e "Test ${positive_files[$i]} ${BRed}failed...${Color_Off}"
         else
-            echo "Test ${positive_files[$i]} passed!"
+            echo -e "Test ${positive_files[$i]} ${BGreen}passed!${Color_Off}"
         fi
 
     done
@@ -36,9 +41,9 @@ for test in "${!test_dirs[@]}"; do
 
         # We want negative tests to throw errors
         if [ "$output" != "" ]; then
-            echo "Test ${negative_files[$i]} failed..."
+            echo -e "Test ${negative_files[$i]} ${BRed}failed...${Color_Off}"
         else
-            echo "Test ${negative_files[$i]} passed!"
+            echo -e "Test ${negative_files[$i]} ${BGreen}passed!${Color_Off}"
         fi
 
     done

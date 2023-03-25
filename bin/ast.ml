@@ -14,7 +14,7 @@ type defined_type =
   | Borrow of defined_type * string
   | MutBorrow of defined_type * string
   (* name, children names --> children types *)
-  | Thing of string * (string * defined_type) list
+  (* | Thing of string * (string * defined_type) list *)
   | Ident of string
   | Generic
   (* todo: remove... but currently used in semant *)
@@ -72,6 +72,11 @@ type stmt =
   | Assign of bool * defined_type * string * expr
   | ReAssign of string * expr
 
+type thing_declaration = {
+  tname : string;
+  elements : type_binding list;
+}
+
 type pipe_declaration = {
   name : string;
   (* lifetime delcarations, just a list of lifetimes for now *)
@@ -85,7 +90,8 @@ type pipe_declaration = {
   body : stmt list;
 }
 
-type program = defined_type list * pipe_declaration list
+(* type program = defined_type list * pipe_declaration list *)
+type program = thing_declaration list * pipe_declaration list
 
 (* Pretty-printing functions *)
 
@@ -123,7 +129,7 @@ let rec string_of_typ = function
   | Borrow (t, lt) -> "&" ^ lt ^ " " ^ string_of_typ t
   | MutBorrow (t, lt) -> "~&" ^ lt ^ " " ^ string_of_typ t
   (* do we want to print children here? *)
-  | Thing (n, _) -> n
+  (* | Thing (n, _) -> n *)
   | Ident v -> v
   | Generic -> "" (* maybe raise an exception here, or just handle in semant *)
   | Option _ -> ""
@@ -193,14 +199,20 @@ let rec string_of_stmt stmt pad =
       ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
   | ReAssign (v, e) -> indent pad ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
 
-let string_of_tdecl t =
-  match t with
+let string_of_tdecl tdecl =
+  "thing " ^ tdecl.tname ^ " <| {\n"
+  ^ String.concat ",\n"
+      (List.map
+         (fun v -> match v with _, t, n -> indent 1 ^ n ^ ": " ^ string_of_typ t)
+         tdecl.elements)
+  ^ "\n}"
+  (* match t with
   | Thing (s, l) ->
       "thing " ^ s ^ " <| {\n"
       ^ String.concat ",\n"
           (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
       ^ "\n}"
-  | _ -> ""
+  | _ -> "" *)
 
 let string_of_pdecl pdecl =
   "pipe " ^ pdecl.name ^ " |> ["
