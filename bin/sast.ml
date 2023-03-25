@@ -41,7 +41,6 @@ type s_pipe_declaration = {
   (* will probably need lifetime comparisons as well, or they *)
   (* could also enforce sorting from large to small (left to right) *)
   slifetimes : string list;
-  slocals : type_binding list;
   sformals : type_binding list;
   (* locals : type_binding list; *)
   (* ask richard about why locals need to be here? *)
@@ -145,6 +144,6 @@ let string_of_spdecl pdecl =
   ^ String.concat "" (List.map (fun s -> string_of_s_stmt s 1) pdecl.sbody)
   ^ "}\n"
 
-let string_of_sprogram (things, funcs) =
+let string_of_sprogram (things, pipes) =
   String.concat "\n" (List.map string_of_tdecl (List.rev things))
-  ^ String.concat "\n" (List.map string_of_spdecl (List.rev funcs))
+  ^ String.concat "\n" (List.map string_of_spdecl (List.rev pipes))
