@@ -1,0 +1,20 @@
+pipe test |> ['a, 'b] |> [x: &'a int, y: &'b int] |> &'b int {
+  if ((bool : (int : @(&'a int : x)) == (int : 2)))
+  {
+    |> (&'a int : x);
+  }
+  |> (&'b int : y);
+}
+
+pipe main |> [] |> [] |> unit {
+  int x <| (int : 4);
+  while (bool : (int : x) < (int : 5))
+  {
+    int y <| (int : 4);
+    mut &'_ int w <| (&'_ int : &(int : y));
+    loop (int : 0) -> (int : 5) as (z,(int : 1))    {
+      w <| (&'_ int : test <| [(&'_ int : &(int : x)), (&'_ int : &(int : y))]);
+    }
+  }
+  |> (unit : ());
+}

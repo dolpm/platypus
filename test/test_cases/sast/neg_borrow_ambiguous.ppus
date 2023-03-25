@@ -7,9 +7,9 @@ pipe test |> ['a, 'b] |> [x: &'a int, y: &'b int] |> &'b int {
 
 pipe main |> [] |> [] |> unit {
   int x <| 4;
+  mut &int w <| &x;
   while (x < 5) {
     int y <| 4;
-    mut &int w <| &y;
     loop 0 -> 5 as z {
       w <| (test <| [&x, &y]);
     }
