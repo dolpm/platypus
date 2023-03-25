@@ -815,16 +815,23 @@ let borrow_ck pipes verbose =
       "variable " ^ v_name
       ^ " can't be returned as it was defined locally. You can only"
       ^ "return references to pipe arguments."
+    and err_rebinding_of_immutable_binding v_name =
+      "variable " ^ v_name
+      ^ " can't be rebound as it was defined as immutable. please use the mut \
+         keyword." ^ "return references to pipe arguments."
     and err_explicit_arg_invalid called_pipe =
       "argument lifetimes in calls to " ^ called_pipe
       ^ " must match the explicitely defined lifetimes for that pipe \
          definition."
+    and err_binding_outlives_borrow =
+      "the variable being bound is outlived"
+      ^ " by the definition to which it is being bound."
     and make_err er = raise (Failure er) in
 
     let get_depth_of_defn node ident_name =
       let rec inner current_node ident_name =
         match current_node with
-        | None -> 0
+        | None -> (None, 0)
         | Some current_node -> (
             let current_node = StringMap.find current_node graph_for_pipe in
             match current_node with
@@ -843,7 +850,7 @@ let borrow_ck pipes verbose =
                 | Some fc ->
                     let fc' = StringMap.find fc graph_for_pipe in
                     let _, _, depth, _ = node_common_data fc' in
-                    depth
+                    (Some fc', depth)
                 | _ -> inner l.parent ident_name)
             | n ->
                 let parent, _, _, _ = node_common_data n in
@@ -852,165 +859,200 @@ let borrow_ck pipes verbose =
       inner (Some node) ident_name
     in
 
-    let ck_expr borrow_table node_id e =
+    (* all additions will be at the current depth because *)
+    (* it is just an expression that will be instantly evaluated *)
+    let ck_expr borrow_table node_id cur_depth e =
       let borrows_in_expr = find_borrows e in
       let borrow_table' =
         List.fold_left
           (fun borrow_table (n, is_mut) ->
             if StringMap.mem n borrow_table then
-              let borrow_is_mut, borrow_node_ids, origin_depths =
-                StringMap.find n borrow_table
-              in
-              if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
+              let is_mut', borrows = StringMap.find n borrow_table in
+              if is_mut' then make_err (err_borrow_after_mut_borrow n)
               else if is_mut then make_err (err_mut_borrow_after_borrow n)
               else
                 StringMap.add n
-                  (borrow_is_mut, node_id :: borrow_node_ids, origin_depths)
+                  (is_mut', (node_id, cur_depth) :: borrows)
                   borrow_table
-            else
-              let origin_depth = get_depth_of_defn node_id n in
-              StringMap.add n
-                (is_mut, [ node_id ], [ origin_depth ])
-                borrow_table)
+            else StringMap.add n (is_mut, [ (node_id, cur_depth) ]) borrow_table)
           borrow_table borrows_in_expr
       in
       borrow_table'
     in
 
     (* return the identifier and it's smallest lt (in depth) *)
-    let deepest_origin e borrow_table =
+    let deepest_origin e cur_node_id =
       match e with
       (* check for args that are borrowed here *)
-      | _ty, SUnop (MutRef, (_ty2, SIdent n))
-      | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
-          (* get poss depths of node if exists *)
-          let _, _, origin_depths = StringMap.find n borrow_table in
-          (* return max depth of all possible origins *)
-          ( Some n,
-            List.fold_left
-              (fun cur_max v -> if v > cur_max then v else cur_max)
-              (-1) origin_depths )
+      | _ty, SUnop (MutRef, (_, SIdent n))
+      | _ty, SUnop (Ref, (_, SIdent n))
       | _ty, SIdent n ->
-          (* check for args that are already borrows *)
-          if StringMap.mem n borrow_table then
-            (* get poss depths of node if exists *)
-            let _, _, origin_depths = StringMap.find n borrow_table in
-            (* return max depth of all possible origins *)
-            ( Some n,
-              List.fold_left
-                (fun cur_max v -> if v > cur_max then v else cur_max)
-                (-1) origin_depths )
-          else (None, -1)
+          (* return max depth of all possible origins *)
+          (Some n, snd (get_depth_of_defn cur_node_id n))
       | _ -> (None, -1)
     in
 
-    let validate_p_call_args called_name args borrow_table =
+    let validate_p_call_args called_name args cur_node_id =
       let called_pipe = List.find (fun p -> p.sname = called_name) pipes in
-      let call_formals_w_lts =
-        let formals = called_pipe.sformals in
-        List.filter_map
-          (fun (i, (_, typ, n)) ->
-            match typ with
-            | Borrow (_, lt) | MutBorrow (_, lt) ->
-                if lt = "'_" then None else Some (i, n, lt)
-            | _ -> None)
-          (List.rev
-             (snd
-                (List.fold_left
-                   (fun (i, prev) f -> (i + 1, (i, f) :: prev))
-                   (0, []) formals)))
-      in
+      if List.length called_pipe.slifetimes = 0 then []
+      else
+        let call_formals_w_lts =
+          let formals = called_pipe.sformals in
+          List.filter_map
+            (fun (i, (_, typ, n)) ->
+              match typ with
+              | Borrow (_, lt) ->
+                  if lt = "'_" then None else Some (false, i, n, lt)
+              | MutBorrow (_, lt) ->
+                  if lt = "'_" then None else Some (true, i, n, lt)
+              | _ -> None)
+            (List.rev
+               (snd
+                  (List.fold_left
+                     (fun (i, prev) f -> (i + 1, (i, f) :: prev))
+                     (0, []) formals)))
+        in
 
-      let rec index_of_lt x lst =
-        match lst with
-        | [] -> make_err "panic!"
-        | h :: t -> if x = h then 0 else 1 + index_of_lt x t
-      in
+        let rec index_of_lt x lst =
+          match lst with
+          | [] -> make_err "panic!"
+          | h :: t -> if x = h then 0 else 1 + index_of_lt x t
+        in
 
-      (* sort declaration args from longest to shortest lifetime *)
-      let sorted =
-        List.sort
-          (fun (_i1, _n1, lt1) (_i2, _n2, lt2) ->
-            index_of_lt lt1 called_pipe.slifetimes
-            - index_of_lt lt2 called_pipe.slifetimes)
-          call_formals_w_lts
-      in
+        (* sort declaration args from longest to shortest lifetime *)
+        let sorted =
+          List.sort
+            (fun (_m1, _i1, _n1, lt1) (_m2, _i2, _n2, lt2) ->
+              index_of_lt lt1 called_pipe.slifetimes
+              - index_of_lt lt2 called_pipe.slifetimes)
+            call_formals_w_lts
+        in
 
-      let _ =
-        if verbose then
-          print_string
-            (String.concat " | "
-               (List.map
-                  (fun (arg_id, n, lt) ->
-                    string_of_int arg_id ^ " --> " ^ lt ^ " " ^ n)
-                  sorted)
-            ^ "\n")
-      in
+        let _ =
+          if verbose then
+            print_string
+              (String.concat " | "
+                 (List.map
+                    (fun (_mut, arg_id, n, lt) ->
+                      string_of_int arg_id ^ " --> " ^ lt ^ " " ^ n)
+                    sorted)
+              ^ "\n")
+        in
 
-      (* list of argument indicies and thier associated max origin depth *)
-      let borrowed_args =
-        snd
-          (List.fold_left
-             (fun (i, args) arg ->
-               let n, deepest = deepest_origin arg borrow_table in
-               match n with
-               | None -> (i + 1, args)
-               | Some n ->
-                   if deepest = -1 then (i + 1, args)
-                   else (i + 1, (i, n, deepest) :: args))
-             (0, []) args)
-      in
+        (* list of argument indicies and thier associated max origin depth *)
+        let borrowed_args =
+          snd
+            (List.fold_left
+               (fun (i, args) arg ->
+                 let n, deepest = deepest_origin arg cur_node_id in
+                 match n with
+                 | None -> (i + 1, args)
+                 | Some n ->
+                     if deepest = -1 then (i + 1, args)
+                     else (i + 1, (i, n, deepest) :: args))
+               (0, []) args)
+        in
 
-      (* sort from smallest to largest depth (longest -> shortest lt) *)
-      let borrowed_args_sorted =
-        List.sort (fun (_i1, _n1, d1) (_i2, _n2, d2) -> d1 - d2) borrowed_args
-      in
+        (* sort from smallest to largest depth (longest -> shortest lt) *)
+        let borrowed_args_sorted =
+          List.sort (fun (_i1, _n1, d1) (_i2, _n2, d2) -> d1 - d2) borrowed_args
+        in
 
-      let _ =
-        if verbose then
-          print_string
-            (String.concat " | "
-               (List.map
-                  (fun (i, _n, depth) ->
-                    string_of_int i ^ " --> " ^ string_of_int depth)
-                  borrowed_args_sorted)
-            ^ "\n")
-      in
+        let _ =
+          if verbose then
+            print_string
+              (String.concat " | "
+                 (List.map
+                    (fun (i, _n, depth) ->
+                      string_of_int i ^ " --> " ^ string_of_int depth)
+                    borrowed_args_sorted)
+              ^ "\n")
+        in
 
-      let _ =
-        List.iter
-          (fun ((i1, _, _), (i2, _, _)) ->
+        let _ =
+          List.iter
+            (fun ((_, i1, _, _), (i2, _, _)) ->
+              if i1 <> i2 then
+                make_err (err_explicit_arg_invalid called_pipe.sname))
+            (List.combine sorted borrowed_args_sorted)
+        in
+
+        List.map
+          (fun ((m, i1, _, _), (i2, n, d)) ->
             if i1 <> i2 then
-              make_err (err_explicit_arg_invalid called_pipe.sname))
+              make_err (err_explicit_arg_invalid called_pipe.sname)
+            else (m, n, d))
           (List.combine sorted borrowed_args_sorted)
-      in
-
-      borrowed_args_sorted
     in
 
-    let rec check_children current_node borrow_table =
-      let current_node = StringMap.find current_node graph_for_pipe in
+    (*
+      return:
+        - borrow table
+      
+      params:
+        - current node id
+        - current depth
+        - borrow table
+
+      borrow table:
+        - ident --> (is_mut, [(node_id_of_borrow, max_depth)])
+          - max_depth is the highest depth that a borrow
+            can be re-assigned to.
+
+      Note: at the end of each lifetime, we can go through the map and remove
+            all items whose max_depth value is equivalent to the current depth
+
+      example:
+        - if we bind the return value of a function which could be the borrow
+          of either a variable `a`, or a variable `b`, to a variable `c`
+          which is in the parent lifetime we would return the following:
+
+            ...
+            a --> (false, [...(node_id_of_rebind, cur_height - 1)])
+            b --> (false, [...(node_id_of_rebind, cur_height - 1)])
+
+    *)
+    let rec check_children' cur_node_id cur_depth borrow_table =
+      let current_node = StringMap.find cur_node_id graph_for_pipe in
       match current_node with
       | Lifetime l ->
-          (* build borrow table up from left to right child *)
-          (* we can throw out the table updates once we break out of *)
-          (* this scope (since the borrows will all fall out) *)
-          let _borrow_table' =
+          (* check all children in order, removing expired entries *)
+          (* after visiting each child branch *)
+          let borrow_table' =
             List.fold_left
-              (fun borrow_table child -> check_children child borrow_table)
+              (fun borrow_table child ->
+                (* check child *)
+                let borrow_table' =
+                  check_children' child (cur_depth + 1) borrow_table
+                in
+
+                borrow_table')
               borrow_table l.children
           in
-          borrow_table
+          (* remove all entries that expired *)
+          let borrow_table' =
+            StringMap.filter_map
+              (fun _k (is_mut, borrows) ->
+                let borrows' =
+                  List.filter
+                    (fun (_nid, max_depth) -> max_depth < cur_depth)
+                    borrows
+                in
+                if List.length borrows' = 0 then None
+                else Some (is_mut, borrows'))
+              borrow_table'
+          in
+          borrow_table'
       | Binding b -> (
-          (* check if rhs borrows anything in expr (validate invariants) *)
-          (* if it is a borrow itself, add to borrow table *)
+          (* we don't need to handle idents because *)
+          (* that would be an ownership problem *)
           match b.expr with
           | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
               (* new immutable borrow *)
               let n_is_borrowed = StringMap.mem n borrow_table in
 
               if n_is_borrowed then
-                let borrow_is_mut, borrow_node_ids, origin_depths =
+                let borrow_is_mut, borrow_node_ids =
                   StringMap.find n borrow_table
                 in
                 (* if already mutably borrowed *)
@@ -1019,13 +1061,10 @@ let borrow_ck pipes verbose =
                   (* if already immutably borrowed *)
                   (* note: can re-use origin depth from prev. borrow *)
                   StringMap.add n
-                    (false, b.node_id :: borrow_node_ids, origin_depths)
+                    (false, (b.node_id, cur_depth) :: borrow_node_ids)
                     borrow_table
               else
-                let origin_depth = get_depth_of_defn b.node_id n in
-                StringMap.add n
-                  (false, [ b.node_id ], [ origin_depth ])
-                  borrow_table
+                StringMap.add n (false, [ (b.node_id, cur_depth) ]) borrow_table
           | _ty, SUnop (MutRef, (_ty2, SIdent n)) ->
               (* new mutable borrow *)
               let n_is_borrowed = StringMap.mem n borrow_table in
@@ -1033,162 +1072,206 @@ let borrow_ck pipes verbose =
               if n_is_borrowed then make_err (err_mut_borrow_after_borrow n)
                 (* if not borrowed *)
               else
-                let origin_depth = get_depth_of_defn b.node_id n in
-                StringMap.add n
-                  (true, [ b.node_id ], [ origin_depth ])
-                  borrow_table
+                StringMap.add n (true, [ (b.node_id, cur_depth) ]) borrow_table
           | _ty, SPipeIn (p_name, args) ->
-              (* if return not borrow, ignore *)
-
               (* validate all arguments that may borrow things *)
               let borrow_table' =
                 List.fold_left
-                  (fun borrow_table arg -> ck_expr borrow_table b.node_id arg)
+                  (fun borrow_table arg ->
+                    ck_expr borrow_table b.node_id cur_depth arg)
                   borrow_table args
               in
 
               (* validate that the lifetimes of the arguments *)
               (* align with the explicit lifetimes defined in the called *)
-              (* pipe declaration *)
-              let _return_args_nums_and_depths =
-                validate_p_call_args p_name args borrow_table'
+              (* pipe declaration (iff return type is a borrow) *)
+              let borrowed_args = validate_p_call_args p_name args b.node_id in
+
+              (* get max depth of all the args *)
+              (* until which we will hold these borrows *)
+              let max_arg_depth =
+                List.fold_left
+                  (fun m (_, _, d) -> if d > m then d else m)
+                  0 borrowed_args
               in
 
-              borrow_table
-          | e ->
-              (* chceck all borrows in rhs *)
-              let borrows_in_expr = find_borrows e in
               let borrow_table' =
                 List.fold_left
-                  (fun borrow_table (n, is_mut) ->
-                    let has_b_map_entry = StringMap.mem n borrow_table in
-                    if has_b_map_entry then
-                      let borrow_is_mut, borrow_node_ids, origin_depths =
-                        StringMap.find n borrow_table
-                      in
-                      if is_mut then make_err (err_mut_borrow_after_borrow n)
-                      else if (* if current borrow is mutable *)
-                              borrow_is_mut
-                      then make_err (err_borrow_after_mut_borrow n)
+                  (fun borrow_table (m, n, _d) ->
+                    if StringMap.mem n borrow_table then
+                      let is_mut, borrows = StringMap.find n borrow_table in
+                      if is_mut then make_err (err_borrow_after_mut_borrow n)
+                      else if m then make_err (err_mut_borrow_after_borrow n)
                       else
                         StringMap.add n
-                          ( borrow_is_mut,
-                            b.node_id :: borrow_node_ids,
-                            origin_depths )
+                          (false, (b.node_id, max_arg_depth) :: borrows)
                           borrow_table
                     else
-                      (* this is the first borrow on n *)
-                      let origin_depth = get_depth_of_defn b.node_id n in
                       StringMap.add n
-                        (is_mut, [ b.node_id ], [ origin_depth ])
+                        (m, [ (b.node_id, max_arg_depth) ])
                         borrow_table)
-                  borrow_table borrows_in_expr
+                  borrow_table' borrowed_args
               in
-              borrow_table')
+
+              borrow_table'
+          (* TODO: IDENT THAT IS A REF *)
+          (* if the rhs is an arbitrary expr, check for borrows *)
+          | e -> ck_expr borrow_table b.node_id cur_depth e)
       | Rebinding rb -> (
-          (* TODO: make sure og binding is MUTABLE, i.e. uses mut keyword *)
+          (* make sure original binding is mutable *)
+          let origin_node, origin_depth =
+            get_depth_of_defn rb.node_id rb.name
+          in
+          let _ =
+            match origin_node with
+            | Some (Binding b) ->
+                if not b.is_mut then
+                  make_err (err_rebinding_of_immutable_binding rb.name)
+            | _ ->
+                make_err
+                  ("panic! couldn't find original definition of " ^ rb.name)
+          in
+
+          let remove_borrows_for_binding borrow_table =
+            (* remove the borrow from the currently-borrowed-ident *)
+            (* as the borrow will be replaced by our new one *)
+            let borrow_table' =
+              StringMap.map
+                (fun (is_mut, borrows) ->
+                  ( is_mut,
+                    List.filter
+                      (fun (nid, _depth) ->
+                        let node_of_borrow =
+                          StringMap.find nid graph_for_pipe
+                        in
+                        match node_of_borrow with
+                        | Binding b2 -> b2.name <> rb.name
+                        | Rebinding rb2 -> rb2.name <> rb.name
+                        | _ -> true)
+                      borrows ))
+                borrow_table
+            in
+
+            (* remove entries who have no more borrows on them *)
+            let borrow_table' =
+              StringMap.filter
+                (fun _ (_, bs) -> List.length bs > 0)
+                borrow_table'
+            in
+
+            borrow_table'
+          in
+
           match rb.expr with
-          | Borrow _, e | MutBorrow _, e -> (
-              match e with
-              | SUnop (MutRef, (_ty2, SIdent n)) ->
-                  (* if we are rebinding a borrow , we want to remove the *)
-                  (* old borrow from the table entry for whatever it was *)
-                  (* borrowing in lieu of the new one *)
-                  let borrow_table' =
-                    StringMap.map
-                      (fun (is_mut, borrowing_node_ids, origin_depths) ->
-                        ( is_mut,
-                          List.filter
-                            (fun nid ->
-                              let node_of_borrow =
-                                StringMap.find nid graph_for_pipe
-                              in
-                              match node_of_borrow with
-                              | Binding b2 -> b2.name <> rb.name
-                              | Rebinding rb2 -> rb2.name <> rb.name
-                              | _ -> true)
-                            borrowing_node_ids,
-                          origin_depths ))
-                      borrow_table
+          (* rebinding of some borrow to a new mutable borrow *)
+          | _ty, SUnop (MutRef, (_ty2, SIdent n)) ->
+              let borrow_table' = remove_borrows_for_binding borrow_table in
+
+              let has_b_map_entry = StringMap.mem n borrow_table' in
+              if has_b_map_entry then make_err (err_mut_borrow_after_borrow n)
+              else
+                (* get the origin depth of the new borrow, add it *)
+                let _, b_origin_depth = get_depth_of_defn rb.node_id rb.name in
+                (* binding outlives borrow... unsafe! *)
+                if b_origin_depth > origin_depth then
+                  make_err err_binding_outlives_borrow
+                else
+                  StringMap.add n
+                    (true, [ (rb.node_id, b_origin_depth) ])
+                    borrow_table'
+              (* rebinding of some borrow to a new immutable borrow *)
+          | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
+              let borrow_table' = remove_borrows_for_binding borrow_table in
+
+              let has_b_map_entry = StringMap.mem n borrow_table' in
+              if has_b_map_entry then
+                let is_mut, bs = StringMap.find n borrow_table' in
+                if is_mut then make_err (err_borrow_after_mut_borrow n)
+                else
+                  let _, b_origin_depth =
+                    get_depth_of_defn rb.node_id rb.name
                   in
-                  (* remove entries whose borrow nodes are [] *)
-                  let borrow_table' =
-                    StringMap.filter
-                      (fun _ (_, bids, _) -> List.length bids > 0)
-                      borrow_table'
-                  in
-                  let has_b_map_entry = StringMap.mem n borrow_table' in
-                  if has_b_map_entry then
-                    make_err (err_mut_borrow_after_borrow n)
-                  else
-                    (* get the origin depth of the new borrow, add it *)
-                    let origin_depth = get_depth_of_defn rb.node_id n in
-                    StringMap.add n
-                      (true, [ rb.node_id ], [ origin_depth ])
-                      borrow_table'
-              | SUnop (Ref, (_ty2, SIdent n)) ->
-                  (* if we are rebinding a borrow , we want to remove the *)
-                  (* old borrow from the table entry for whatever it was *)
-                  (* borrowing in lieu of the new one *)
-                  let borrow_table' =
-                    StringMap.map
-                      (fun (is_mut, borrowing_node_ids, origin_depths) ->
-                        ( is_mut,
-                          List.filter
-                            (fun nid ->
-                              let node_of_borrow =
-                                StringMap.find nid graph_for_pipe
-                              in
-                              match node_of_borrow with
-                              | Binding b2 -> b2.name <> rb.name
-                              | Rebinding rb2 -> rb2.name <> rb.name
-                              | _ -> true)
-                            borrowing_node_ids,
-                          origin_depths ))
-                      borrow_table
-                  in
-                  (* remove entries whose borrow nodes are [] *)
-                  let borrow_table' =
-                    StringMap.filter
-                      (fun _ (_, bids, _) -> List.length bids > 0)
-                      borrow_table'
-                  in
-                  let has_b_map_entry = StringMap.mem n borrow_table' in
-                  if has_b_map_entry then
-                    let entry_is_mut, entry_node_ids, origin_depths =
-                      StringMap.find n borrow_table'
-                    in
-                    if entry_is_mut then
-                      make_err (err_borrow_after_mut_borrow n)
+                  StringMap.add n
+                    (false, (rb.node_id, b_origin_depth) :: bs)
+                    borrow_table'
+              else
+                (* get the origin depth of the new borrow, add it *)
+                let _, b_origin_depth = get_depth_of_defn rb.node_id rb.name in
+                (* binding outlives borrow... unsafe! *)
+                if b_origin_depth > origin_depth then
+                  make_err err_binding_outlives_borrow
+                else
+                  StringMap.add n
+                    (true, [ (rb.node_id, b_origin_depth) ])
+                    borrow_table'
+          | _ty, SPipeIn (p_name, args) ->
+              let borrow_table' = remove_borrows_for_binding borrow_table in
+
+              (* validate all arguments that may borrow things *)
+              let borrow_table' =
+                List.fold_left
+                  (fun borrow_table arg ->
+                    ck_expr borrow_table rb.node_id cur_depth arg)
+                  borrow_table' args
+              in
+
+              (* validate that the lifetimes of the arguments *)
+              (* align with the explicit lifetimes defined in the called *)
+              (* pipe declaration (iff return type is a borrow) *)
+              let borrowed_args = validate_p_call_args p_name args rb.node_id in
+
+              (* get max depth of all the args *)
+              (* until which we will hold these borrows *)
+              let max_arg_depth =
+                List.fold_left
+                  (fun m (_, _, d) -> if d > m then d else m)
+                  0 borrowed_args
+              in
+
+              let _depth_check =
+                if max_arg_depth > origin_depth then
+                  make_err err_binding_outlives_borrow
+              in
+
+              let borrow_table' =
+                List.fold_left
+                  (fun borrow_table (m, n, _d) ->
+                    (* binding outlives borrow... unsafe! *)
+                    if StringMap.mem n borrow_table then
+                      let is_mut, borrows = StringMap.find n borrow_table in
+                      if is_mut then make_err (err_borrow_after_mut_borrow n)
+                      else if m then make_err (err_mut_borrow_after_borrow n)
+                      else
+                        StringMap.add n
+                          (false, (rb.node_id, max_arg_depth) :: borrows)
+                          borrow_table
                     else
                       StringMap.add n
-                        (false, rb.node_id :: entry_node_ids, origin_depths)
-                        borrow_table'
-                  else
-                    let origin_depth = get_depth_of_defn rb.node_id n in
-                    StringMap.add n
-                      (false, [ rb.node_id ], [ origin_depth ])
-                      borrow_table'
-              | SPipeIn _ ->
-                  borrow_table (* TODO! validate args AND return IFF borrow *)
-              | _ -> ck_expr borrow_table rb.node_id rb.expr)
-          | _ -> borrow_table)
+                        (m, [ (rb.node_id, max_arg_depth) ])
+                        borrow_table)
+                  borrow_table' borrowed_args
+              in
+
+              borrow_table'
+          | e -> ck_expr borrow_table rb.node_id cur_depth e)
       | PipeCall pc ->
           (* validate all arguments that may borrow things *)
           let borrow_table' =
             List.fold_left
-              (fun borrow_table arg -> ck_expr borrow_table pc.node_id arg)
+              (fun borrow_table arg ->
+                ck_expr borrow_table pc.node_id cur_depth arg)
               borrow_table pc.args
           in
 
           (* validate that the lifetimes of the arguments *)
           (* align with the explicit lifetimes defined in the called *)
           (* pipe declaration *)
-          let _ = validate_p_call_args pc.pipe_name pc.args borrow_table' in
+          let _ = validate_p_call_args pc.pipe_name pc.args pc.node_id in
 
           borrow_table'
       | PipeReturn pr ->
-          (* if the returned value is a borrow, make sure it's an arg *)
+          (* make sure the returned value is an arg if it *)
+          (* is a borrow *)
           let _ =
             match pr.returned with
             | _ty, SUnop (MutRef, (_ty2, SIdent n))
@@ -1200,15 +1283,20 @@ let borrow_ck pipes verbose =
                 | None -> make_err (err_local_borrow_returned n))
             | _ -> ()
           in
+
           (* then just validate the expression *)
-          let borrow_table' = ck_expr borrow_table pr.node_id pr.returned in
+          let borrow_table' =
+            ck_expr borrow_table pr.node_id cur_depth pr.returned
+          in
+
           borrow_table'
       | ExprCatchAll eca ->
           (* validate the expression and update the table *)
-          ck_expr borrow_table eca.node_id eca.value
+          ck_expr borrow_table eca.node_id cur_depth eca.value
     in
 
-    let _ = check_children pipe.sname StringMap.empty in
+    let _ = check_children' pipe.sname 0 StringMap.empty in
+
     ()
   in
 

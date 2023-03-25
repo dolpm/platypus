@@ -157,6 +157,6 @@ let string_of_spdecl pdecl =
   ^ String.concat "" (List.map (fun s -> string_of_s_stmt s 1) pdecl.sbody)
   ^ "}\n"
 
-let string_of_sprogram (things, pipes) =
+let string_of_sprogram (things, funcs) =
   String.concat "\n" (List.map string_of_tdecl (List.rev things))
-  ^ String.concat "\n" (List.map string_of_spdecl (List.rev pipes))
+  ^ String.concat "\n" (List.map string_of_spdecl (List.rev funcs))

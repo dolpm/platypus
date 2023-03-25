@@ -1,4 +1,0 @@
-pipe main |> [] |> [] |> unit {
-    int x <| 4;
-  printnl <| [int_to_string <| [x]];
-}
