@@ -8,7 +8,7 @@ pipe main |> [] |> [] |> unit {
    {
     int y <| x;
 
-    loop 0 -> 10 as i {
+    {
       /* y gives ownership to smhmee */
       int schmee <| y;
       test <| [schmee];

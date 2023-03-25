@@ -1,0 +1,1 @@
+Fatal error: exception Failure("lifetime of return value in test must be the smallest (rightmost) lifetime of all possible returned arguments: 'b")

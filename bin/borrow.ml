@@ -8,12 +8,16 @@ type graph_node =
       parent : string option;
       children : string list;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       owned_vars : string list;
     }
   | Binding of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       is_mut : bool;
       (* TODO: REMOVE? *)
@@ -24,6 +28,8 @@ type graph_node =
   | Rebinding of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       name : string;
       expr : s_expr;
@@ -31,6 +37,8 @@ type graph_node =
   | PipeCall of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       pipe_name : string;
       args : s_expr list;
@@ -38,18 +46,35 @@ type graph_node =
   | PipeReturn of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       returned : s_expr;
     }
   | ExprCatchAll of {
       parent : string option;
       node_id : string;
+      depth : int;
+      loop : string option;
       (* rest *)
       value : s_expr;
     }
 
 let borrow_ck pipes verbose =
   let _ = if verbose then print_string "generating graph!\n" else () in
+
+  (* get data that is consistent across all node-types *)
+  let node_common_data n =
+    match n with
+    | Lifetime { parent; node_id; depth; loop; _ }
+    | Binding { parent; node_id; depth; loop; _ }
+    | Rebinding { parent; node_id; depth; loop; _ }
+    | PipeCall { parent; node_id; depth; loop; _ }
+    | PipeReturn { parent; node_id; depth; loop; _ }
+    | ExprCatchAll { parent; node_id; depth; loop; _ } ->
+        (parent, node_id, depth, loop)
+  in
+
   let generate_graph_for_pipe pipe =
     (* create top-level nodes for pipe arguments and add to graph *)
     let graph_with_pipe_args =
@@ -63,6 +88,8 @@ let borrow_ck pipes verbose =
                     {
                       parent = Some pipe.sname;
                       node_id = child_id;
+                      depth = 1;
+                      loop = None;
                       is_mut;
                       typ;
                       name;
@@ -77,7 +104,8 @@ let borrow_ck pipes verbose =
          returns (bool * graph) where bool denotes whether any nodes
          were added.
       *)
-    let rec gen_children parent_id child_id stmt graph =
+    let rec gen_children parent_id parent_depth parent_loop child_id stmt graph
+        =
       match stmt with
       | SBlock (stmts, _owned_vars) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
@@ -85,7 +113,8 @@ let borrow_ck pipes verbose =
             List.fold_left
               (fun (child_id, graph, children) stmt ->
                 let was_updated, graph =
-                  gen_children node_id child_id stmt graph
+                  gen_children node_id (parent_depth + 1) parent_loop child_id
+                    stmt graph
                 in
                 if was_updated then
                   ( child_id + 1,
@@ -99,6 +128,8 @@ let borrow_ck pipes verbose =
               (Lifetime
                  {
                    parent = Some parent_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
                    node_id;
                    children = List.rev children;
                    owned_vars = [];
@@ -109,45 +140,113 @@ let borrow_ck pipes verbose =
           ( true,
             StringMap.add node_id
               (Binding
-                 { parent = Some parent_id; node_id; is_mut; typ; name; expr })
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   is_mut;
+                   typ;
+                   name;
+                   expr;
+                 })
               graph )
       | SReAssign (name, expr) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           ( true,
             StringMap.add node_id
-              (Rebinding { parent = Some parent_id; node_id; name; expr })
+              (Rebinding
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   name;
+                   expr;
+                 })
               graph )
       | SExpr (_typ_of_exp, SPipeIn (pipe_name, args)) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           ( true,
             StringMap.add node_id
-              (PipeCall { parent = Some parent_id; node_id; pipe_name; args })
+              (PipeCall
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   pipe_name;
+                   args;
+                 })
               graph )
       | SPipeOut expr ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           ( true,
             StringMap.add node_id
-              (PipeReturn { parent = Some parent_id; node_id; returned = expr })
+              (PipeReturn
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   returned = expr;
+                 })
+              graph )
+      | SExpr e ->
+          let node_id = parent_id ^ "." ^ string_of_int child_id in
+          ( true,
+            StringMap.add node_id
+              (ExprCatchAll
+                 {
+                   parent = Some parent_id;
+                   node_id;
+                   depth = parent_depth + 1;
+                   loop = parent_loop;
+                   value = e;
+                 })
               graph )
       | sstmt ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           let matched, graph', children =
             match sstmt with
             | SWhile (sex, SBlock (stmts, [])) ->
-                let sex_id = node_id ^ ".0" in
-                let block_id = node_id ^ ".1" in
+                let wrapper_id = node_id ^ ".0" in
+                let sex_id = wrapper_id ^ ".0" in
+                let block_id = wrapper_id ^ ".1" in
+
+                let block_wrapper =
+                  Lifetime
+                    {
+                      parent = Some node_id;
+                      node_id = wrapper_id;
+                      depth = parent_depth + 1;
+                      loop = Some node_id;
+                      children = [ sex_id; block_id ];
+                      owned_vars = [];
+                    }
+                in
+
                 let sex_node =
                   ExprCatchAll
-                    { parent = Some node_id; node_id = sex_id; value = sex }
+                    {
+                      parent = Some wrapper_id;
+                      node_id = sex_id;
+                      depth = parent_depth + 2;
+                      loop = Some node_id;
+                      value = sex;
+                    }
                 in
 
-                let graph' = StringMap.add sex_id sex_node graph in
+                let graph' = StringMap.add wrapper_id block_wrapper graph in
+                let graph' = StringMap.add sex_id sex_node graph' in
 
                 let _, graph' =
-                  gen_children node_id 1 (SBlock (stmts, [])) graph'
+                  gen_children wrapper_id (parent_depth + 2) (Some wrapper_id) 1
+                    (SBlock (stmts, []))
+                    graph'
                 in
 
-                (true, graph', [ sex_id; block_id ])
+                (true, graph', [ wrapper_id ])
             | SIf (sex, SBlock (stmts1, []), SBlock (stmts2, [])) ->
                 let sex_id = node_id ^ ".0" in
                 let block1_id = node_id ^ ".1" in
@@ -155,35 +254,92 @@ let borrow_ck pipes verbose =
 
                 let sex_node =
                   ExprCatchAll
-                    { parent = Some node_id; node_id = sex_id; value = sex }
+                    {
+                      parent = Some node_id;
+                      node_id = sex_id;
+                      depth = parent_depth + 1;
+                      loop = parent_loop;
+                      value = sex;
+                    }
                 in
 
                 let graph' = StringMap.add sex_id sex_node graph in
 
                 let _, graph' =
-                  gen_children node_id 1 (SBlock (stmts1, [])) graph'
+                  gen_children node_id (parent_depth + 1) parent_loop 1
+                    (SBlock (stmts1, []))
+                    graph'
                 in
                 let _, graph' =
-                  gen_children node_id 2 (SBlock (stmts2, [])) graph'
+                  gen_children node_id (parent_depth + 1) parent_loop 2
+                    (SBlock (stmts2, []))
+                    graph'
                 in
 
                 (true, graph', [ sex_id; block1_id; block2_id ])
-            | SLoop (sex1, sex2, _, sex3, SBlock (stmts, [])) ->
-                let sex1_id = node_id ^ ".0" in
-                let sex2_id = node_id ^ ".1" in
-                let sex3_id = node_id ^ ".2" in
-                let block_id = node_id ^ ".3" in
+            | SLoop (sex1, sex2, ident, sex3, SBlock (stmts, [])) ->
+                let wrapper_id = node_id ^ ".0" in
+                let sex1_id = wrapper_id ^ ".0" in
+                let sex2_id = wrapper_id ^ ".1" in
+                let ident_id = wrapper_id ^ ".2" in
+                let sex3_id = wrapper_id ^ ".3" in
+                let block_id = wrapper_id ^ ".4" in
+                let wrapper_node =
+                  Lifetime
+                    {
+                      parent = Some node_id;
+                      node_id = wrapper_id;
+                      depth = parent_depth + 1;
+                      loop = Some node_id;
+                      children =
+                        [ sex1_id; sex2_id; ident_id; sex3_id; block_id ];
+                      owned_vars = [];
+                    }
+                in
                 let sex_nodes =
                   [
                     ExprCatchAll
-                      { parent = Some node_id; node_id = sex1_id; value = sex1 };
+                      {
+                        parent = Some node_id;
+                        node_id = sex1_id;
+                        depth = parent_depth + 2;
+                        loop = parent_loop;
+                        value = sex1;
+                      };
                     ExprCatchAll
-                      { parent = Some node_id; node_id = sex2_id; value = sex2 };
+                      {
+                        parent = Some node_id;
+                        node_id = sex2_id;
+                        depth = parent_depth + 2;
+                        loop = parent_loop;
+                        value = sex2;
+                      };
                     ExprCatchAll
-                      { parent = Some node_id; node_id = sex3_id; value = sex3 };
+                      {
+                        parent = Some node_id;
+                        node_id = sex3_id;
+                        depth = parent_depth + 2;
+                        loop = parent_loop;
+                        value = sex3;
+                      };
                   ]
                 in
 
+                let ident_node =
+                  Binding
+                    {
+                      parent = Some node_id;
+                      node_id = ident_id;
+                      depth = parent_depth + 2;
+                      loop = parent_loop;
+                      is_mut = false;
+                      typ = Int;
+                      name = ident;
+                      expr = sex1;
+                    }
+                in
+
+                let graph' = StringMap.add wrapper_id wrapper_node graph in
                 let graph' =
                   List.fold_left
                     (fun g sex_node ->
@@ -191,14 +347,17 @@ let borrow_ck pipes verbose =
                       | ExprCatchAll sn ->
                           StringMap.add sn.node_id (ExprCatchAll sn) g
                       | _ -> raise (Failure "panic!"))
-                    graph sex_nodes
+                    graph' sex_nodes
                 in
+                let graph' = StringMap.add ident_id ident_node graph' in
 
                 let _, graph' =
-                  gen_children node_id 3 (SBlock (stmts, [])) graph'
+                  gen_children wrapper_id (parent_depth + 2) (Some wrapper_id) 4
+                    (SBlock (stmts, []))
+                    graph'
                 in
 
-                (true, graph', [ sex1_id; sex2_id; sex3_id; block_id ])
+                (true, graph', [ wrapper_id ])
             | _ -> (false, graph, [])
           in
 
@@ -210,6 +369,8 @@ let borrow_ck pipes verbose =
                    {
                      parent = Some parent_id;
                      node_id;
+                     depth = parent_depth + 1;
+                     loop = parent_loop;
                      children;
                      owned_vars = [];
                    })
@@ -219,7 +380,7 @@ let borrow_ck pipes verbose =
     (* create a block containing the body statements and gen thier nodes *)
     let graph_with_pipe_body =
       snd
-        (gen_children pipe.sname
+        (gen_children pipe.sname 1 None
            (StringMap.cardinal graph_with_pipe_args)
            (SBlock (pipe.sbody, []))
            graph_with_pipe_args)
@@ -231,6 +392,8 @@ let borrow_ck pipes verbose =
         (Lifetime
            {
              parent = None;
+             depth = 0;
+             loop = None;
              children =
                List.rev
                  ((pipe.sname ^ "."
@@ -415,8 +578,8 @@ let borrow_ck pipes verbose =
               (fun (st', dealloc_list) child ->
                 match StringMap.find child graph_for_pipe with
                 | Binding b ->
-                    if StringSet.mem b.name st' then
-                      (StringSet.remove b.name st', b.name :: dealloc_list)
+                    if StringMap.mem b.name st' then
+                      (StringMap.remove b.name st', b.name :: dealloc_list)
                     else (st', dealloc_list)
                 | _ -> (st', dealloc_list))
               (symbol_table', []) l.children
@@ -428,6 +591,8 @@ let borrow_ck pipes verbose =
                  {
                    children = l.children;
                    node_id = l.node_id;
+                   depth = l.depth;
+                   loop = l.loop;
                    parent = l.parent;
                    owned_vars = children_responsible_for_dealloc;
                  })
@@ -438,21 +603,34 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringSet.mem n symbol_table) then
+                if not (StringMap.mem n symbol_table) then
                   make_err (err_gave_ownership n))
               names
           in
 
           (* if ownership of another var given to new binding *)
           (* remove the original from the table *)
+          (* and validate that rhs is in same loop *)
           let symbol_table' =
             match b.expr with
-            | _ty, SIdent v_name -> StringSet.remove v_name symbol_table
+            | _ty, SIdent v_name ->
+                let v_node =
+                  StringMap.find (StringMap.find v_name symbol_table) graph
+                in
+                let _v_parent, _v_node_id, _v_depth, v_loop =
+                  node_common_data v_node
+                in
+                if v_loop <> b.loop then
+                  raise
+                    (Failure
+                       ("ownership of " ^ v_name
+                      ^ " could be taken in a previous loop iteration"))
+                else StringMap.remove v_name symbol_table
             | _ -> symbol_table
           in
 
           (* add the current binding to the table *)
-          let symbol_table' = StringSet.add b.name symbol_table' in
+          let symbol_table' = StringMap.add b.name b.node_id symbol_table' in
           (symbol_table', graph)
       (* in ExprCatchAll, we only need to check that all found identifiers are in the symbol_table table *)
       (* we don't have to remove anything from the symbol table *)
@@ -466,7 +644,7 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringSet.mem n symbol_table) then
+                if not (StringMap.mem n symbol_table) then
                   make_err (err_gave_ownership n))
               names
           in
@@ -486,14 +664,14 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringSet.mem n symbol_table) then
+                if not (StringMap.mem n symbol_table) then
                   make_err (err_gave_ownership n))
               names
           in
           (symbol_table, graph)
     in
 
-    check_children pipe.sname StringSet.empty graph_for_pipe
+    check_children pipe.sname StringMap.empty graph_for_pipe
   in
   let _graph = print_graph graph in
 
@@ -538,33 +716,53 @@ let borrow_ck pipes verbose =
     and make sure it matches the return-type lifetime.
   *)
   let validate_arg_lifetimes p =
-    (* if return isn't a borrow, who cares *)
+    let err_return_lifetime_no_match correct_lifetime =
+      "lifetime of return value in " ^ p.sname
+      ^ " must be the smallest (rightmost) lifetime of all possible returned \
+         arguments: " ^ correct_lifetime
+    and err_unnecessary_lifetime v_name =
+      "variable " ^ v_name ^ " will not be returned from " ^ p.sname
+      ^ " and thus its lifetime isn't required"
+    and err_lifetime_not_defined lt =
+      "lifetime " ^ lt ^ " used but not defined in " ^ p.sname
+    and make_err er = raise (Failure er) in
+
+    (* we are kinda gonna have to limit returned values to args *)
+    (* vs. allowing re-bindings of refs of args to also be returned *)
+    let possible_ret_vars =
+      Seq.fold_left
+        (fun ret_vals (_id, node) ->
+          match node with
+          | PipeReturn pr -> (
+              match pr.returned with
+              | _, SIdent n -> n :: ret_vals
+              | _ -> ret_vals)
+          | _ -> ret_vals)
+        []
+        (StringMap.to_seq (StringMap.find p.sname graph))
+    in
+
+    (* make sure dev isnt' overly verbose with lifetime decls *)
+    (* a.k.a they aren't adding explicit lifetimes when not necessary *)
+    let _ =
+      List.iter
+        (fun (_, typ, n) ->
+          if not (List.mem n possible_ret_vars) then
+            match typ with
+            | MutBorrow (_, lt) | Borrow (_, lt) ->
+                if lt <> "'_" then make_err (err_unnecessary_lifetime n)
+            | _ -> ())
+        p.sformals
+    in
+
     if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
     then ()
     else
-      let return_lifetime_no_match correct_lifetime =
-        "lifetime of return value must be the smallest (rightmost) lifetime of \
-         all possible returned arguments: " ^ correct_lifetime
-      and make_err er = raise (Failure er) in
       let lt_of_return =
         match p.sreturn_type with
         | MutBorrow (_, lt) | Borrow (_, lt) -> lt
         | _ ->
             make_err "if returning a borrow, it must have an explicit lifetime"
-      in
-      (* we are kinda gonna have to limit returned values to args *)
-      (* vs. allowing re-bindings of refs of args to also be returned *)
-      let possible_ret_vars =
-        Seq.fold_left
-          (fun ret_vals (_id, node) ->
-            match node with
-            | PipeReturn pr -> (
-                match pr.returned with
-                | _, SIdent n -> n :: ret_vals
-                | _ -> ret_vals)
-            | _ -> ret_vals)
-          []
-          (StringMap.to_seq (StringMap.find p.sname graph))
       in
 
       let possible_lts =
@@ -582,7 +780,7 @@ let borrow_ck pipes verbose =
           (fun (smallest, lt_as_str) cur_lt ->
             let rec index_of_lt x lst =
               match lst with
-              | [] -> raise (Failure "Not Found")
+              | [] -> make_err (err_lifetime_not_defined x)
               | h :: t -> if x = h then 0 else 1 + index_of_lt x t
             in
             let i = index_of_lt cur_lt p.slifetimes in
@@ -590,7 +788,7 @@ let borrow_ck pipes verbose =
           (-1, "'_") possible_lts
       in
       if lt_of_return <> snd smallest_possible_lt then
-        make_err (return_lifetime_no_match (snd smallest_possible_lt))
+        make_err (err_return_lifetime_no_match (snd smallest_possible_lt))
       else ()
   in
 
@@ -617,7 +815,42 @@ let borrow_ck pipes verbose =
       "variable " ^ v_name
       ^ " can't be returned as it was defined locally. You can only"
       ^ "return references to pipe arguments."
+    and err_explicit_arg_invalid called_pipe =
+      "argument lifetimes in calls to " ^ called_pipe
+      ^ " must match the explicitely defined lifetimes for that pipe \
+         definition."
     and make_err er = raise (Failure er) in
+
+    let get_depth_of_defn node ident_name =
+      let rec inner current_node ident_name =
+        match current_node with
+        | None -> 0
+        | Some current_node -> (
+            let current_node = StringMap.find current_node graph_for_pipe in
+            match current_node with
+            | Lifetime l -> (
+                let found =
+                  List.find_opt
+                    (fun c ->
+                      (* todo: do rebindings matter here? *)
+                      let c = StringMap.find c graph_for_pipe in
+                      match c with
+                      | Binding b -> if b.name = ident_name then true else false
+                      | _ -> false)
+                    l.children
+                in
+                match found with
+                | Some fc ->
+                    let fc' = StringMap.find fc graph_for_pipe in
+                    let _, _, depth, _ = node_common_data fc' in
+                    depth
+                | _ -> inner l.parent ident_name)
+            | n ->
+                let parent, _, _, _ = node_common_data n in
+                inner parent ident_name)
+      in
+      inner (Some node) ident_name
+    in
 
     let ck_expr borrow_table node_id e =
       let borrows_in_expr = find_borrows e in
@@ -625,19 +858,134 @@ let borrow_ck pipes verbose =
         List.fold_left
           (fun borrow_table (n, is_mut) ->
             if StringMap.mem n borrow_table then
-              let borrow_is_mut, borrow_node_ids =
+              let borrow_is_mut, borrow_node_ids, origin_depths =
                 StringMap.find n borrow_table
               in
               if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
               else if is_mut then make_err (err_mut_borrow_after_borrow n)
               else
                 StringMap.add n
-                  (borrow_is_mut, node_id :: borrow_node_ids)
+                  (borrow_is_mut, node_id :: borrow_node_ids, origin_depths)
                   borrow_table
-            else StringMap.add n (is_mut, [ node_id ]) borrow_table)
+            else
+              let origin_depth = get_depth_of_defn node_id n in
+              StringMap.add n
+                (is_mut, [ node_id ], [ origin_depth ])
+                borrow_table)
           borrow_table borrows_in_expr
       in
       borrow_table'
+    in
+
+    (* return the identifier and it's smallest lt (in depth) *)
+    let deepest_origin e borrow_table =
+      match e with
+      (* check for args that are borrowed here *)
+      | _ty, SUnop (MutRef, (_ty2, SIdent n))
+      | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
+          (* get poss depths of node if exists *)
+          let _, _, origin_depths = StringMap.find n borrow_table in
+          (* return max depth of all possible origins *)
+          ( Some n,
+            List.fold_left
+              (fun cur_max v -> if v > cur_max then v else cur_max)
+              (-1) origin_depths )
+      | _ty, SIdent n ->
+          (* check for args that are already borrows *)
+          if StringMap.mem n borrow_table then
+            (* get poss depths of node if exists *)
+            let _, _, origin_depths = StringMap.find n borrow_table in
+            (* return max depth of all possible origins *)
+            ( Some n,
+              List.fold_left
+                (fun cur_max v -> if v > cur_max then v else cur_max)
+                (-1) origin_depths )
+          else (None, -1)
+      | _ -> (None, -1)
+    in
+
+    let validate_p_call_args called_name args borrow_table =
+      let called_pipe = List.find (fun p -> p.sname = called_name) pipes in
+      let call_formals_w_lts =
+        let formals = called_pipe.sformals in
+        List.filter_map
+          (fun (i, (_, typ, n)) ->
+            match typ with
+            | Borrow (_, lt) | MutBorrow (_, lt) ->
+                if lt = "'_" then None else Some (i, n, lt)
+            | _ -> None)
+          (List.rev
+             (snd
+                (List.fold_left
+                   (fun (i, prev) f -> (i + 1, (i, f) :: prev))
+                   (0, []) formals)))
+      in
+
+      let rec index_of_lt x lst =
+        match lst with
+        | [] -> make_err "panic!"
+        | h :: t -> if x = h then 0 else 1 + index_of_lt x t
+      in
+
+      (* sort declaration args from longest to shortest lifetime *)
+      let sorted =
+        List.sort
+          (fun (_i1, _n1, lt1) (_i2, _n2, lt2) ->
+            index_of_lt lt1 called_pipe.slifetimes
+            - index_of_lt lt2 called_pipe.slifetimes)
+          call_formals_w_lts
+      in
+
+      let _ =
+        if verbose then
+          print_string
+            (String.concat " | "
+               (List.map
+                  (fun (arg_id, n, lt) ->
+                    string_of_int arg_id ^ " --> " ^ lt ^ " " ^ n)
+                  sorted)
+            ^ "\n")
+      in
+
+      (* list of argument indicies and thier associated max origin depth *)
+      let borrowed_args =
+        snd
+          (List.fold_left
+             (fun (i, args) arg ->
+               let n, deepest = deepest_origin arg borrow_table in
+               match n with
+               | None -> (i + 1, args)
+               | Some n ->
+                   if deepest = -1 then (i + 1, args)
+                   else (i + 1, (i, n, deepest) :: args))
+             (0, []) args)
+      in
+
+      (* sort from smallest to largest depth (longest -> shortest lt) *)
+      let borrowed_args_sorted =
+        List.sort (fun (_i1, _n1, d1) (_i2, _n2, d2) -> d1 - d2) borrowed_args
+      in
+
+      let _ =
+        if verbose then
+          print_string
+            (String.concat " | "
+               (List.map
+                  (fun (i, _n, depth) ->
+                    string_of_int i ^ " --> " ^ string_of_int depth)
+                  borrowed_args_sorted)
+            ^ "\n")
+      in
+
+      let _ =
+        List.iter
+          (fun ((i1, _, _), (i2, _, _)) ->
+            if i1 <> i2 then
+              make_err (err_explicit_arg_invalid called_pipe.sname))
+          (List.combine sorted borrowed_args_sorted)
+      in
+
+      borrowed_args_sorted
     in
 
     let rec check_children current_node borrow_table =
@@ -662,32 +1010,60 @@ let borrow_ck pipes verbose =
               let n_is_borrowed = StringMap.mem n borrow_table in
 
               if n_is_borrowed then
-                let borrow_is_mut, borrow_node_ids =
+                let borrow_is_mut, borrow_node_ids, origin_depths =
                   StringMap.find n borrow_table
                 in
                 (* if already mutably borrowed *)
                 if borrow_is_mut then make_err (err_borrow_after_mut_borrow n)
                 else
                   (* if already immutably borrowed *)
+                  (* note: can re-use origin depth from prev. borrow *)
                   StringMap.add n
-                    (false, b.node_id :: borrow_node_ids)
+                    (false, b.node_id :: borrow_node_ids, origin_depths)
                     borrow_table
-              else StringMap.add n (false, [ b.node_id ]) borrow_table
+              else
+                let origin_depth = get_depth_of_defn b.node_id n in
+                StringMap.add n
+                  (false, [ b.node_id ], [ origin_depth ])
+                  borrow_table
           | _ty, SUnop (MutRef, (_ty2, SIdent n)) ->
               (* new mutable borrow *)
               let n_is_borrowed = StringMap.mem n borrow_table in
               (* if already borrowed *)
               if n_is_borrowed then make_err (err_mut_borrow_after_borrow n)
                 (* if not borrowed *)
-              else StringMap.add n (true, [ b.node_id ]) borrow_table
+              else
+                let origin_depth = get_depth_of_defn b.node_id n in
+                StringMap.add n
+                  (true, [ b.node_id ], [ origin_depth ])
+                  borrow_table
+          | _ty, SPipeIn (p_name, args) ->
+              (* if return not borrow, ignore *)
+
+              (* validate all arguments that may borrow things *)
+              let borrow_table' =
+                List.fold_left
+                  (fun borrow_table arg -> ck_expr borrow_table b.node_id arg)
+                  borrow_table args
+              in
+
+              (* validate that the lifetimes of the arguments *)
+              (* align with the explicit lifetimes defined in the called *)
+              (* pipe declaration *)
+              let _return_args_nums_and_depths =
+                validate_p_call_args p_name args borrow_table'
+              in
+
+              borrow_table
           | e ->
+              (* chceck all borrows in rhs *)
               let borrows_in_expr = find_borrows e in
               let borrow_table' =
                 List.fold_left
                   (fun borrow_table (n, is_mut) ->
                     let has_b_map_entry = StringMap.mem n borrow_table in
                     if has_b_map_entry then
-                      let borrow_is_mut, borrow_node_ids =
+                      let borrow_is_mut, borrow_node_ids, origin_depths =
                         StringMap.find n borrow_table
                       in
                       if is_mut then make_err (err_mut_borrow_after_borrow n)
@@ -696,18 +1072,21 @@ let borrow_ck pipes verbose =
                       then make_err (err_borrow_after_mut_borrow n)
                       else
                         StringMap.add n
-                          (borrow_is_mut, b.node_id :: borrow_node_ids)
-                          borrow_table (* this is the first borrow on n *)
-                    else StringMap.add n (is_mut, [ b.node_id ]) borrow_table)
+                          ( borrow_is_mut,
+                            b.node_id :: borrow_node_ids,
+                            origin_depths )
+                          borrow_table
+                    else
+                      (* this is the first borrow on n *)
+                      let origin_depth = get_depth_of_defn b.node_id n in
+                      StringMap.add n
+                        (is_mut, [ b.node_id ], [ origin_depth ])
+                        borrow_table)
                   borrow_table borrows_in_expr
               in
               borrow_table')
       | Rebinding rb -> (
-          (* TODO: make sure og binding is MUTABLE *)
-
-          (* if we are rebinding, perhaps we want to remove the old borrow *)
-          (* from the table entry for whatever it was borrowing *)
-          (* in lieu of the new one... we'd need to store nodes w/ borrows *)
+          (* TODO: make sure og binding is MUTABLE, i.e. uses mut keyword *)
           match rb.expr with
           | Borrow _, e | MutBorrow _, e -> (
               match e with
@@ -717,7 +1096,7 @@ let borrow_ck pipes verbose =
                   (* borrowing in lieu of the new one *)
                   let borrow_table' =
                     StringMap.map
-                      (fun (is_mut, borrowing_node_ids) ->
+                      (fun (is_mut, borrowing_node_ids, origin_depths) ->
                         ( is_mut,
                           List.filter
                             (fun nid ->
@@ -728,26 +1107,32 @@ let borrow_ck pipes verbose =
                               | Binding b2 -> b2.name <> rb.name
                               | Rebinding rb2 -> rb2.name <> rb.name
                               | _ -> true)
-                            borrowing_node_ids ))
+                            borrowing_node_ids,
+                          origin_depths ))
                       borrow_table
                   in
                   (* remove entries whose borrow nodes are [] *)
                   let borrow_table' =
                     StringMap.filter
-                      (fun _ (_, bids) -> List.length bids > 0)
+                      (fun _ (_, bids, _) -> List.length bids > 0)
                       borrow_table'
                   in
                   let has_b_map_entry = StringMap.mem n borrow_table' in
                   if has_b_map_entry then
                     make_err (err_mut_borrow_after_borrow n)
-                  else StringMap.add n (true, [ rb.node_id ]) borrow_table'
+                  else
+                    (* get the origin depth of the new borrow, add it *)
+                    let origin_depth = get_depth_of_defn rb.node_id n in
+                    StringMap.add n
+                      (true, [ rb.node_id ], [ origin_depth ])
+                      borrow_table'
               | SUnop (Ref, (_ty2, SIdent n)) ->
                   (* if we are rebinding a borrow , we want to remove the *)
                   (* old borrow from the table entry for whatever it was *)
                   (* borrowing in lieu of the new one *)
                   let borrow_table' =
                     StringMap.map
-                      (fun (is_mut, borrowing_node_ids) ->
+                      (fun (is_mut, borrowing_node_ids, origin_depths) ->
                         ( is_mut,
                           List.filter
                             (fun nid ->
@@ -758,28 +1143,34 @@ let borrow_ck pipes verbose =
                               | Binding b2 -> b2.name <> rb.name
                               | Rebinding rb2 -> rb2.name <> rb.name
                               | _ -> true)
-                            borrowing_node_ids ))
+                            borrowing_node_ids,
+                          origin_depths ))
                       borrow_table
                   in
                   (* remove entries whose borrow nodes are [] *)
                   let borrow_table' =
                     StringMap.filter
-                      (fun _ (_, bids) -> List.length bids > 0)
+                      (fun _ (_, bids, _) -> List.length bids > 0)
                       borrow_table'
                   in
                   let has_b_map_entry = StringMap.mem n borrow_table' in
                   if has_b_map_entry then
-                    let entry_is_mut, entry_node_ids =
+                    let entry_is_mut, entry_node_ids, origin_depths =
                       StringMap.find n borrow_table'
                     in
                     if entry_is_mut then
                       make_err (err_borrow_after_mut_borrow n)
                     else
                       StringMap.add n
-                        (false, rb.node_id :: entry_node_ids)
+                        (false, rb.node_id :: entry_node_ids, origin_depths)
                         borrow_table'
-                  else StringMap.add n (false, [ rb.node_id ]) borrow_table'
-              | SPipeIn _ -> borrow_table (* TODO! *)
+                  else
+                    let origin_depth = get_depth_of_defn rb.node_id n in
+                    StringMap.add n
+                      (false, [ rb.node_id ], [ origin_depth ])
+                      borrow_table'
+              | SPipeIn _ ->
+                  borrow_table (* TODO! validate args AND return IFF borrow *)
               | _ -> ck_expr borrow_table rb.node_id rb.expr)
           | _ -> borrow_table)
       | PipeCall pc ->
@@ -789,9 +1180,12 @@ let borrow_ck pipes verbose =
               (fun borrow_table arg -> ck_expr borrow_table pc.node_id arg)
               borrow_table pc.args
           in
-          (* and figure out how to handle the return value if a borrow *)
-          (* this should probably be handled in the binding/rebinding *)
-          (* portion *)
+
+          (* validate that the lifetimes of the arguments *)
+          (* align with the explicit lifetimes defined in the called *)
+          (* pipe declaration *)
+          let _ = validate_p_call_args pc.pipe_name pc.args borrow_table' in
+
           borrow_table'
       | PipeReturn pr ->
           (* if the returned value is a borrow, make sure it's an arg *)

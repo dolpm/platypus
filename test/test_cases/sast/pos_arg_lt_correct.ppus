@@ -13,7 +13,7 @@ pipe main |> [] |> [] |> unit {
   while (x < 5) {
     int y <| 4;
     loop 0 -> 5 as z {
-      test <| [&x, &z, &y];
+      test <| [&x, &y, &z];
     }
   }
   |> ();

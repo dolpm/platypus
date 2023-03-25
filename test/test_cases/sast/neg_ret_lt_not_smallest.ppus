@@ -1,0 +1,12 @@
+pipe test |> ['a, 'b] |> [x: &'a int, y: &'b int] |> &'a int {
+  if (@x == 2) {
+    |> x;
+  } else {
+    |> y;
+  }
+}
+
+pipe main |> [] |> [] |> unit {
+  int x <| 4;
+  |> ();
+}

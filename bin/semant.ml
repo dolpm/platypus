@@ -108,7 +108,9 @@ let check (_things, pipes) verbosity =
            match s with
            | Assign (is_mut, typ, name, _) -> Some [ (is_mut, typ, name) ]
            | Block stmts -> Some (find_bindings stmts)
-           | While (_, s) | Loop (_, _, _, _, s) -> Some (find_bindings [ s ])
+           | While (_, s) -> Some (find_bindings [ s ])
+           | Loop (_, _, id, _, s1) ->
+               Some ((false, Int, id) :: find_bindings [ s1 ])
            | If (_, s1, s2) -> Some (find_bindings [ s1; s2 ])
            | _ -> None)
          body)
@@ -178,6 +180,11 @@ let check (_things, pipes) verbosity =
             | (And | Or) when same && t1 = Bool -> Bool
             | (Lt | Leq | Gt | Geq) when same && (t1 = Int || t1 = Float) ->
                 Bool
+            | (Equal | Neq)
+              when same
+                   && (t1 = Int || t1 = Float || t1 = String || t1 = Char
+                     || t1 = Bool) ->
+                Bool
             | _ ->
                 raise
                   (Failure
@@ -196,6 +203,14 @@ let check (_things, pipes) verbosity =
                 ^ string_of_expr pipein))
           else
             let check_pipein (_, ft, _) e =
+              (* we will check lifetimes later - just make sure they are ambiguous *)
+              (* for this step *)
+              let ft =
+                match ft with
+                | Borrow (ty, _lt) -> Borrow (ty, "'_")
+                | MutBorrow (ty, _lt) -> MutBorrow (ty, "'_")
+                | f -> f
+              in
               let et, e' = expr e in
               let err =
                 "illegal argument found " ^ string_of_typ et ^ " expected "
@@ -264,7 +279,11 @@ let check (_things, pipes) verbosity =
           let t' = check_assign t Bool err in
           SWhile ((t', e'), check_stmt s)
       | PipeOut e -> SPipeOut (expr e)
-      | _ -> SExpr (Unit, SNoexpr)
+      | If (e, stmt1, stmt2) ->
+          let t, e' = expr e in
+          let err = "expected boolean " ^ string_of_expr e in
+          let t' = check_assign t Bool err in
+          SIf ((t', e'), check_stmt stmt1, check_stmt stmt2)
     in
     {
       sreturn_type = p.return_type;
