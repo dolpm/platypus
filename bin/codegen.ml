@@ -2,6 +2,7 @@ module L = Llvm
 module A = Ast
 
 open Sast
+
 module StringMap = Map.Make (String)
 
 (* Translates SAST into LLVM module or throws error *)
@@ -99,16 +100,14 @@ StringMap.add name eles_map m *)
   in
 
   (* Fill the body of a pipe by with local and formal bindings *)
-  let _build_pipe_body pdecl =
+  let build_pipe_body pdecl =
     let the_pipe, _ = StringMap.find pdecl.sname pipe_decls in
     let builder = L.builder_at_end context (L.entry_block the_pipe) in
 
     let _int_format_str = L.build_global_stringptr "%d\n" "fmt" builder
     and _float_format_str = L.build_global_stringptr "%g\n" "fmt" builder in
 
-    (* Return a map of bindings of names and stored local variables *)
-    (* needs work: formals instead of locals as there are no locals? *)
-    (* let _local_vars =
+    let _local_vars =
       let add_formal m (_m, t, n) p =
         let () = L.set_value_name n p in
         let local = L.build_alloca (ltype_of_typ t) n builder in
@@ -125,10 +124,10 @@ StringMap.add name eles_map m *)
         List.fold_left2 add_formal StringMap.empty pdecl.sformals
           (Array.to_list (L.params the_pipe))
       in
-      List.fold_left add_local formals pdecl.slocals
-    in *)
+      List.fold_left add_local formals (Semant.find_bindings pdecl.body)
+    in
 
     ()
   in
-  let _ = thing_decls in
+  let _ = List.iter build_function_body functions in
   the_module
