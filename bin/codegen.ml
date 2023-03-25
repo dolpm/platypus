@@ -47,7 +47,7 @@ let translate (things, pipes) =
   let _printnl_pipe = L.declare_function "printnl" printnl_t the_module in
 
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
-  let thing_decls : L.llvalue StringMap.t = 
+  let _thing_decls : L.llvalue StringMap.t = 
     let thing_decl m tdecl = 
       let name = tdecl.stname in
       let init = 
@@ -107,27 +107,36 @@ StringMap.add name eles_map m *)
     let _int_format_str = L.build_global_stringptr "%d\n" "fmt" builder
     and _float_format_str = L.build_global_stringptr "%g\n" "fmt" builder in
 
-    let _local_vars =
-      let add_formal m (_m, t, n) p =
+    let _formals =
+      let add_formal m (_, t, n) p = 
         let () = L.set_value_name n p in
         let local = L.build_alloca (ltype_of_typ t) n builder in
-        let _ = L.build_store p local builder in
-        StringMap.add n local m
+        let _  = L.build_store p local builder in
+      StringMap.add n local m 
       in
-
-      let add_local m (_m, t, n) =
-        let local_var = L.build_alloca (ltype_of_typ t) n builder in
-        StringMap.add n local_var m
-      in
-
-      let formals =
-        List.fold_left2 add_formal StringMap.empty pdecl.sformals
-          (Array.to_list (L.params the_pipe))
-      in
-      List.fold_left add_local formals (Semant.find_bindings pdecl.body)
+      List.fold_left2 add_formal StringMap.empty pdecl.sformals
+        (Array.to_list (L.params the_pipe))
     in
-
+    (* lookup should be defined inside body? *)
+    let rec expr builder ((_, e) : sexpr) = match e with
+      SIntLiteral ->
+    | SFloatLiteral ->
+    | SBoolLiteral ->
+    | SCharLiteral ->
+    | SUnitLiteral->
+    | SStringLiteral ->
+    (* assignable thing value *)
+    | SThingValue ->
+    | STupleValue ->
+    | STupleIndex ->
+    | SIdent ->
+    | SBinop ->
+    | SUnop ->
+    (* function call, takes in fn name and a list of inputs *)
+    | SPipeIn ->
+    | SNoexpr ->
+    in
     ()
   in
-  let _ = List.iter build_function_body functions in
+  let _ = List.iter build_pipe_body pipes in
   the_module
