@@ -45,8 +45,8 @@ let translate (things, pipes) =
   let printnl_t = L.function_type i8_t [| i32_t |] in
   let _printnl_pipe = L.declare_function "printnl" printnl_t the_module in
 
-  (* Generating code for things. A stringmap of llvalue stringmaps, where each element of the outer stringmap is a thing and each llvalue in the internal stringmap represents an initialized value of an element of the thingm *)
-  let _thing_decls : L.llvalue StringMap.t = 
+  (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
+  let thing_decls : L.llvalue StringMap.t = 
     let thing_decl m tdecl = 
       let name = tdecl.stname in
       let init = 
@@ -99,7 +99,7 @@ StringMap.add name eles_map m *)
   in
 
   (* Fill the body of a pipe by with local and formal bindings *)
-  let build_pipe_body pdecl =
+  let _build_pipe_body pdecl =
     let the_pipe, _ = StringMap.find pdecl.sname pipe_decls in
     let builder = L.builder_at_end context (L.entry_block the_pipe) in
 
@@ -130,5 +130,5 @@ StringMap.add name eles_map m *)
 
     ()
   in
-  let _ = List.iter build_pipe_body pipes in
+  let _ = thing_decls in
   the_module
