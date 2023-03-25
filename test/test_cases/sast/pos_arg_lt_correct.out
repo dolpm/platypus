@@ -16,7 +16,7 @@ pipe main |> [] |> [] |> unit {
   {
     int y <| (int : 4);
     loop (int : 0) -> (int : 5) as (z,(int : 1))    {
-      (&'c int : test <| [(&'_ int : &(int : x)), (&'_ int : &(int : y)), (&'_ int : &(int : z))]);
+      (&'_ int : test <| [(&'_ int : &(int : x)), (&'_ int : &(int : y)), (&'_ int : &(int : z))]);
     }
   }
   |> (unit : ());

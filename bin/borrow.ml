@@ -1018,27 +1018,31 @@ let borrow_ck pipes verbose =
       | Lifetime l ->
           (* check all children in order, removing expired entries *)
           (* after visiting each child branch *)
-          List.fold_left
-            (fun borrow_table child ->
-              (* check child *)
-              let borrow_table' =
-                check_children' child (cur_depth + 1) borrow_table
-              in
-              (* remove all entries that expired *)
-              let borrow_table' =
-                StringMap.filter_map
-                  (fun _k (is_mut, borrows) ->
-                    let borrows' =
-                      List.filter
-                        (fun (_nid, max_depth) -> max_depth < cur_depth)
-                        borrows
-                    in
-                    if List.length borrows' = 0 then None
-                    else Some (is_mut, borrows'))
-                  borrow_table'
-              in
-              borrow_table')
-            borrow_table l.children
+          let borrow_table' =
+            List.fold_left
+              (fun borrow_table child ->
+                (* check child *)
+                let borrow_table' =
+                  check_children' child (cur_depth + 1) borrow_table
+                in
+
+                borrow_table')
+              borrow_table l.children
+          in
+          (* remove all entries that expired *)
+          let borrow_table' =
+            StringMap.filter_map
+              (fun _k (is_mut, borrows) ->
+                let borrows' =
+                  List.filter
+                    (fun (_nid, max_depth) -> max_depth < cur_depth)
+                    borrows
+                in
+                if List.length borrows' = 0 then None
+                else Some (is_mut, borrows'))
+              borrow_table'
+          in
+          borrow_table'
       | Binding b -> (
           (* we don't need to handle idents because *)
           (* that would be an ownership problem *)
