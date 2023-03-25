@@ -155,7 +155,6 @@ let check (_things, pipes) verbosity =
             match op with
             | Neg when t1 = Int || t1 = Float -> t1
             | Not when t1 = Bool -> t1
-            (* todo: how do we handle custom lifetimes??? *)
             | Ref -> Borrow (t1, "'_")
             | MutRef -> MutBorrow (t1, "'_")
             | Deref
