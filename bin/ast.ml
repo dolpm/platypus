@@ -203,7 +203,7 @@ let string_of_tdecl tdecl =
   "thing " ^ tdecl.tname ^ " <| {\n"
   ^ String.concat ",\n"
       (List.map
-         (fun v -> match v with _, t, n -> n ^ ": " ^ string_of_typ t)
+         (fun v -> match v with _, t, n -> indent 1 ^ n ^ ": " ^ string_of_typ t)
          tdecl.elements)
   ^ "\n}"
   (* match t with

@@ -174,9 +174,9 @@ args_list:
 tdecl:
   THING IDENT LPIPE LBRACE
     thing_child_list
-  RBRACE { Thing($2, List.rev $5) }
+  RBRACE { {tname = $2 ; elements = List.rev $5} }
 
 /* currently just doing false for mutable but this should be handled */
 thing_child_list:
-  | IDENT COLON typ                              { [($1, $3)] }
-  | thing_child_list COMMA IDENT COLON typ       { ($3, $5) :: $1 }
+  | IDENT COLON typ                              { [(false, $3, $1)] }
+  | thing_child_list COMMA IDENT COLON typ       { (false, $5, $3) :: $1 }
