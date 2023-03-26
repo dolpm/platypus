@@ -184,6 +184,7 @@ let check (_things, pipes) verbosity =
                    && (t1 = Int || t1 = Float || t1 = String || t1 = Char
                      || t1 = Bool) ->
                 Bool
+            | Concat when same && t1 = String && t2 = String -> String
             | _ ->
                 raise
                   (Failure
