@@ -1,6 +1,6 @@
 %{ open Ast %}
 
-%token SEMI RANGE COLON DOT LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE ASSIGN REASSIGN LPIPE RPIPE MUT
+%token SEMI RANGE COLON DOT LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE CONCAT ASSIGN REASSIGN LPIPE RPIPE MUT
 %token NOT EQ NEQ LT LEQ GT GEQ AND OR DEREF BORROW MUTBORROW THING
 %token IF ELSE NOELSE WHILE CHAR INT STRING BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> INTLIT
@@ -147,18 +147,19 @@ expr:
   | expr DIVIDE expr { Binop($1, Div,   $3)   }
   | expr EQ     expr { Binop($1, Equal, $3)   }
   | expr NEQ    expr { Binop($1, Neq,   $3)   }
-  | expr LT     expr { Binop($1, Lt,  $3)   }
+  | expr LT     expr { Binop($1, Lt,  $3)     }
   | expr LEQ    expr { Binop($1, Leq,   $3)   }
-  | expr GT     expr { Binop($1, Gt, $3) }
+  | expr GT     expr { Binop($1, Gt, $3)      }
   | expr GEQ    expr { Binop($1, Geq,   $3)   }
   | expr AND    expr { Binop($1, And,   $3)   }
   | expr OR     expr { Binop($1, Or,    $3)   }
+  | expr CONCAT expr { Binop($1, Concat, $3)  }
 
-  | MINUS expr %prec NOT { Unop(Neg, $2)      }
-  | NOT expr         { Unop(Not, $2)          }
-  | DEREF expr       { Unop(Deref, $2)      }
-  | BORROW expr         { Unop(Ref, $2)          }
-  | MUTBORROW expr         { Unop(MutRef, $2)          }
+  | MINUS expr %prec NOT  { Unop(Neg, $2)      }
+  | NOT expr              { Unop(Not, $2)      }
+  | DEREF expr            { Unop(Deref, $2)    }
+  | BORROW expr           { Unop(Ref, $2)      }
+  | MUTBORROW expr        { Unop(MutRef, $2)   }
 
   | IDENT LPIPE LBRACKET args_opt RBRACKET { PipeIn($1, $4)  }
   | LPAREN expr RPAREN { $2                   }
