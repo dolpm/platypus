@@ -184,6 +184,15 @@ let check (_things, pipes) verbosity =
                    && (t1 = Int || t1 = Float || t1 = String || t1 = Char
                      || t1 = Bool) ->
                 Bool
+            | (Add | Sub | Mult | Div) when same && (t1 = Int || t1 = Float) -> (
+              match (t1, t2) with
+              | (Int, Int) -> Int
+              | (Float, Float) -> Float
+              | (Float, Int) -> Float
+              | (Int, Float) -> Float
+              | _ -> raise (
+                Failure ("invalid operands for arithmetic operation " ^ string_of_op op))
+              )
             | Concat when same && t1 = String && t2 = String -> String
             | _ ->
                 raise
