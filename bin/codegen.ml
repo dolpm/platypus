@@ -118,7 +118,7 @@ StringMap.add name eles_map m *)
         (Array.to_list (L.params the_pipe))
     in
     (* lookup should be defined inside body? *)
-    let rec expr builder ((_, e) : sexpr) = match e with
+    (* let rec expr builder ((_, e) : sexpr) = match e with
       SIntLiteral ->
     | SFloatLiteral ->
     | SBoolLiteral ->
@@ -135,7 +135,7 @@ StringMap.add name eles_map m *)
     (* function call, takes in fn name and a list of inputs *)
     | SPipeIn ->
     | SNoexpr ->
-    in
+    in *)
     ()
   in
   let _ = List.iter build_pipe_body pipes in
