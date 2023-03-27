@@ -108,7 +108,8 @@ StringMap.add name eles_map m *)
     let the_pipe, _ = StringMap.find pdecl.sname pipe_decls in
     let builder = L.builder_at_end context (L.entry_block the_pipe) in
 
-    let _int_format_str = L.build_global_stringptr "%d\n" "fmt" builder
+    let newline_str = L.build_global_stringptr "%s\n" "fmt_nl" builder
+    and _int_format_str = L.build_global_stringptr "%d\n" "fmt" builder
     and _float_format_str = L.build_global_stringptr "%g\n" "fmt" builder in
 
     let _formals =
@@ -140,7 +141,7 @@ StringMap.add name eles_map m *)
       (* function call, takes in fn name and a list of inputs *)
       | SPipeIn ("printnl", [e]) ->
         L.build_call printf_func
-          [| expr builder e |]
+          [| newline_str ; expr builder e |]
           "printf" builder
       | SPipeIn (pname, args) ->
         let pdef, pdecl = StringMap.find pname pipe_decls in
