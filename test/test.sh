@@ -5,8 +5,8 @@ Color_Off='\033[0m'
 BGreen='\033[1;32m'
 BRed='\033[1;31m'
 
-test_dirs=("ast" "sast")
-test_flags=("-a" "-s")
+test_dirs=("ast" "sast", "codegen")
+test_flags=("-a" "-s", "-l")
 
 for test in "${!test_dirs[@]}"; do
     test_dir=${test_dirs[$test]}

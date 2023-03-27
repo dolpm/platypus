@@ -12,16 +12,8 @@ platypus.native : clean
 test : platypus.native
 	opam exec -- dune test
 
-# Usage: make file=NAME_OF_PPUS_FILE compile ; ./a
-compile : platypus.native 
-	./platypus -l $(file) > a.ll
-	llvm-as a.ll -o a.bc
-	llc -filetype=obj a.bc -o a.o
-	clang a.o -no-pie -o a
-
 zip : clean
 	zip -r rodrigo_and_friends.zip . -x ".*"
-
 
 .PHONY : clean
 clean :
