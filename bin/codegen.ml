@@ -43,8 +43,12 @@ let translate (things, pipes) =
           (Failure ("Cannot convert type" ^ A.string_of_typ t ^ "to LLVM IR"))
   in
 
-  let printnl_t = L.function_type i8_t [| i32_t |] in
-  let _printnl_pipe = L.declare_function "printnl" printnl_t the_module in
+  let printnl_t : L.lltype = 
+    L.var_arg_function_type i32_t [| L.pointer_type i8_t |]
+  in
+  let _printnl_pipe : L.llvalue = 
+    L.declare_function "printnl" printnl_t the_module
+  in
 
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
   let _thing_decls : L.llvalue StringMap.t = 
@@ -134,6 +138,10 @@ StringMap.add name eles_map m *)
       | SBinop ->
       | SUnop -> *)
       (* function call, takes in fn name and a list of inputs *)
+      | SPipeIn ("printnl", [e]) ->
+        L.build_call _printnl_pipe
+          [| expr builder e |]
+          "printf" builder
       | SPipeIn (pname, args) ->
         let pdef, pdecl = StringMap.find pname pipe_decls in
         let llargs = List.rev (List.map (expr builder) (List.rev args)) in

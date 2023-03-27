@@ -4,6 +4,7 @@ pipe test |> [] |> [x: string] |> int {
 
 
 pipe main |> [] |> [] |> unit {
+  printnl <| ["Hello World!"];
   test <| ["Hello World!"];
 
   |> ();
