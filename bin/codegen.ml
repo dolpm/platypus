@@ -118,24 +118,57 @@ StringMap.add name eles_map m *)
         (Array.to_list (L.params the_pipe))
     in
     (* lookup should be defined inside body? *)
-    (* let rec expr builder ((_, e) : sexpr) = match e with
-      SIntLiteral ->
-    | SFloatLiteral ->
-    | SBoolLiteral ->
-    | SCharLiteral ->
-    | SUnitLiteral->
-    | SStringLiteral ->
-    (* assignable thing value *)
-    | SThingValue ->
-    | STupleValue ->
-    | STupleIndex ->
-    | SIdent ->
-    | SBinop ->
-    | SUnop ->
-    (* function call, takes in fn name and a list of inputs *)
-    | SPipeIn ->
-    | SNoexpr ->
-    in *)
+    let rec expr (builder : L.llbuilder) ((_, e) : s_expr) : L.llvalue = 
+      match e with
+        SIntLiteral i -> L.const_int i32_t i
+      (* | SFloatLiteral ->
+      | SBoolLiteral ->
+      | SCharLiteral -> *)
+      | SUnitLiteral-> L.const_null unit_t 
+      | SStringLiteral s -> L.build_global_stringptr s "str" builder
+      (* assignable thing value *)
+      (* | SThingValue ->
+      | STupleValue ->
+      | STupleIndex ->
+      | SIdent ->
+      | SBinop ->
+      | SUnop -> *)
+      (* function call, takes in fn name and a list of inputs *)
+      | SPipeIn (pname, args) ->
+        let pdef, pdecl = StringMap.find pname pipe_decls in
+        let llargs = List.rev (List.map (expr builder) (List.rev args)) in
+        let result = 
+          match pdecl.sreturn_type with A.Unit -> "" | _ -> pname ^ "_result"
+        in
+        L.build_call pdef (Array.of_list llargs) result builder
+        (* Dummy add instruction *)
+      | _ -> L.build_add (L.const_int i32_t 0) (L.const_int i32_t 0) "" 
+                    builder
+    in
+
+    let _add_terminal (builder : L.llbuilder) instr : unit = 
+      match L.block_terminator (L.insertion_block builder) with
+      | Some _ -> ()
+      | None -> ignore (instr builder) 
+    in
+    
+    let rec stmt builder = function
+      SBlock (sl, _) -> List.fold_left stmt builder sl
+      | SExpr e ->
+        let _ = expr builder e in
+        builder
+      | SPipeOut e ->
+        let _ =
+          match pdecl.sreturn_type with
+            | A.Unit -> L.build_ret_void builder
+            | _ -> L.build_ret (expr builder e) builder 
+        in
+        builder
+      | _ -> builder
+    in
+
+    let _builder = stmt builder (SBlock (pdecl.sbody, [])) in
+
     ()
   in
   let _ = List.iter build_pipe_body pipes in

@@ -1,0 +1,10 @@
+pipe test |> [] |> [x: string] |> int {
+  |> 10;
+}
+
+
+pipe main |> [] |> [] |> unit {
+  test <| ["Hello World!"];
+
+  |> ();
+}
