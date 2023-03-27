@@ -15,9 +15,10 @@ test : platypus.native
 zip : clean
 	zip -r rodrigo_and_friends.zip . -x ".*"
 
-
 .PHONY : clean
 clean :
 	dune clean
+	rm -rf *.bc *.ll *.o
+	rm -rf ./a
 	rm -rf ./platypus
 	rm -rf ./rodrigo_and_friends.zip

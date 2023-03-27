@@ -301,10 +301,15 @@ let check (_things, pipes) verbosity =
     }
   in
 
+
   let s_pipes = List.map check_pipe pipes in
+  (* For the borrow checker, will not be included in final SAST *)
+  let s_pipes_with_builtins = 
+    List.map check_pipe (List.map snd (StringMap.bindings pipe_decls)) 
+  in
 
   (* boolean denotes verbosity - set to true if you want to *)
   (* see generated graph nodes and fn tests *)
-  let _ltg = borrow_ck s_pipes verbosity in
+  let _ltg = borrow_ck s_pipes_with_builtins verbosity in
 
   ([], s_pipes)
