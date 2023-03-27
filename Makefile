@@ -12,6 +12,7 @@ platypus.native : clean
 test : platypus.native
 	opam exec -- dune test
 
+# Usage: make file=NAME_OF_PPUS_FILE compile ; ./a
 compile : platypus.native 
 	./platypus -l $(file) > a.ll
 	llvm-as a.ll -o a.bc
