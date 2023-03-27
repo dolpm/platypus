@@ -18,7 +18,5 @@ zip : clean
 .PHONY : clean
 clean :
 	dune clean
-	rm -rf *.bc *.ll *.o
-	rm -rf ./a
-	rm -rf ./platypus
+	find . -maxdepth 1 -type f -perm -ugo=x -delete
 	rm -rf ./rodrigo_and_friends.zip
