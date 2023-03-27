@@ -1,0 +1,4 @@
+pipe main |> [] |> [] |> unit {
+  printnl <| ["The old god is dead. The mountain trembles as the new deity ascends the throne..."];
+  |> ();
+}

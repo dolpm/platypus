@@ -4,6 +4,7 @@ all : platypus.native
 install : 
 	opam install dune
 	opam install llvm=14.0.6
+	opam install ctypes-foreign
 
 platypus.native : clean
 	opam exec -- dune build
