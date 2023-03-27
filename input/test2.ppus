@@ -1,11 +1,5 @@
-pipe test |> [] |> [x: string] |> int {
-  |> 10;
-}
-
-
 pipe main |> [] |> [] |> unit {
   printnl <| ["Hello World!"];
-  test <| ["Hello World!"];
 
   |> ();
 }
