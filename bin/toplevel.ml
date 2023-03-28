@@ -5,6 +5,8 @@ let () =
   let set_action a () = action := a in
   let verbosity = ref false in
   let set_verbosity () = verbosity := true in
+  let keep = ref false in
+  let set_keep () = keep := true in
   let speclist =
     [
       ("-a", Arg.Unit (set_action Ast), "Print the AST");
@@ -12,6 +14,7 @@ let () =
       ("-v", Arg.Unit set_verbosity, "Print the AST");
       ("-l", Arg.Unit (set_action LLVM_IR), "Print the generated LLVM IR");
       ("-c", Arg.Unit (set_action Compile), "Compile the platypus program");
+      ("-k", Arg.Unit set_keep, "Keep intermediary files");
       ( "-e",
         Arg.Unit (set_action Exec),
         "Compile and execute the platypus program" );
@@ -42,15 +45,16 @@ let () =
           let _ = Llvm_analysis.assert_valid_module m in
           match c with
           | Compile ->
-              let _bc = Llvm_bitwriter.write_bitcode_file m "tmp.bc" in
+              let _bc = Llvm_bitwriter.write_bitcode_file m (!f_name ^ ".bc") in
               let _ =
                 Sys.command
-                  ("llc -filetype=obj tmp.bc -o tmp.o && clang tmp.o -o "
-                 ^ !f_name)
+                  ("llc -filetype=obj " ^ !f_name ^ ".bc -o  " ^ !f_name
+                 ^ ".o && clang  " ^ !f_name ^ ".o -o " ^ !f_name)
               in
-              (* clean up tmp files *)
-              let _ = Sys.remove "tmp.bc" in
-              Sys.remove "tmp.o"
+              (* clean up tmp files if -k not present *)
+              if not !keep then
+                let _ = Sys.remove (!f_name ^ ".bc") in
+                Sys.remove (!f_name ^ ".o")
           | Exec ->
               (* create the jit *)
               let jit =

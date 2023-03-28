@@ -32,4 +32,5 @@ zip : clean
 clean :
 	dune clean
 	find . -maxdepth 1 -type f -perm -ugo=x -delete
+	rm -rf *.bc *.o
 	rm -rf ./rodrigo_and_friends.zip
