@@ -7,6 +7,7 @@ Platypus is a language designed to combine a safety-first ownership model and a 
 #### install required packages &rarr; ```make install```
 #### build the compiler &rarr; ```make```
 #### run tests &rarr; ```make test```
+#### run test &rarr; ```make test type=[ast|sast|codegen|compile] name=[test_name]```
 
 #
 
