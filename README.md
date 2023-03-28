@@ -1,17 +1,16 @@
-![oink](logo.png)
-
-Platypus is a language designed to combine a safety-first ownership model and a developer friendly syntax. The intention is to enforce memory-safe practices at compilation, significantly reducing the runtime’s memory management overhead. Rust, the largest competitor in this domain, is a low-level systems language that can be difficult to understand for a user who is used to higher-level languages such as Python and JavaScript. Our goal is to act as an intermediary between these two parties.
+![oink](helloworld.png)
 
 #
 
-#### install required packages &rarr; ```make install```
-#### build the compiler &rarr; ```make```
-#### run tests &rarr; ```make test```
-#### run test &rarr; ```make test type=[ast|sast|codegen|compile] name=[test_name]```
+#### make commands:
+##### install required packages &rarr; ```make install```
+##### build the compiler &rarr; ```make```
+##### run tests &rarr; ```make test```
+##### run test &rarr; ```make test type=[ast|sast|codegen|compile] name=[test_name]```
 
 #
 
-#### commands:
+#### compiler commands:
 ##### print AST &rarr; ```./platypus -a ./path/to/file.ppus```
 ##### print SAST &rarr; ```./platypus -a ./path/to/file.ppus```
 ##### print LLVM IR &rarr; ```./platypus -l ./path/to/file.ppus```
@@ -20,8 +19,22 @@ Platypus is a language designed to combine a safety-first ownership model and a 
 
 #
 
+#### integration testing suite:
+##### pos_hello_world &rarr; ```make test type=compile name=pos_hello_world```
+- A very simple program test consisting of a platypus main function
+which prints a string using the *printnl* function and exits. The desired output is the string being passed to *printnl*.
+
+#
+
+#### test validation:
+For all test types, the testing program will validate the output of
+a compiler command on a ```.ppus``` input file matches the expected output -- the desired output can be found in the ```.out``` file for each test.  For integration tests, we use llvm's executionengine to fetch this output (```-e```) to avoid the maintenance of auxiliary files during the usual compilation process (```-c```). If a program can't be compiled, the stderr output of the compiler command will be compared to the desired output.
+
+#
+
 #### references
 - ```microc compiler```
+- ```llvm.moe```
 
 #
 
