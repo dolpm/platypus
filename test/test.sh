@@ -35,7 +35,7 @@ run_test () {
 }
 
 # Map from type of test to needed compiler flag
-declare -A flag_map=( ["ast"]="-a" ["sast"]="-s" ["codegen"]="-l" ["compile"]="-e")
+declare flag_map=( ["ast"]="-a" ["sast"]="-s" ["codegen"]="-l" ["compile"]="-e")
 
 if [ ! -z $ttype ]
 then
