@@ -13,10 +13,10 @@ platypus.native : clean
 # TESTING RULE USAGE
 #	to run entire test suite: make test
 #
-# 	to run a specific test: make test type=ast|sast name=NAME_OF_TEST
+# 	to run a specific test: make test type=ast|sast|codegen|compile name=NAME_OF_TEST
 #		ex. make test type=ast name=pos_thing
 #
-#	to run all tests of a specific type: make test type=ast|sast
+#	to run all tests of a specific type: make test type=ast|sast|codegen|compile
 #		ex. make test type=sast
 
 # Export env vars to be used by test shell scripty
