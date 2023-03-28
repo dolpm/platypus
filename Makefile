@@ -4,6 +4,7 @@ all : platypus.native
 install : 
 	opam install dune
 	opam install llvm=14.0.6
+	opam install ctypes-foreign
 
 platypus.native : clean
 	opam exec -- dune build
@@ -24,21 +25,11 @@ test : export tname = ${name}
 test : platypus.native
 	opam exec -- dune test
 
-# Usage: make file=NAME_OF_PPUS_FILE compile ; ./a
-compile : platypus.native 
-	./platypus -l $(file) > a.ll
-	llvm-as a.ll -o a.bc
-	llc -filetype=obj a.bc -o a.o
-	clang a.o -no-pie -o a
-
 zip : clean
 	zip -r rodrigo_and_friends.zip . -x ".*"
-
 
 .PHONY : clean
 clean :
 	dune clean
-	rm -rf *.bc *.ll *.o
-	rm -rf ./a
-	rm -rf ./platypus
+	find . -maxdepth 1 -type f -perm -ugo=x -delete
 	rm -rf ./rodrigo_and_friends.zip

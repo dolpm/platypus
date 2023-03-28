@@ -33,6 +33,7 @@ type binary_operator =
   | Geq
   | And
   | Or
+  | Concat
 
 type unary_operator = Neg | Not | Deref | Ref | MutRef
 type fn_sig = defined_type list * defined_type
@@ -108,6 +109,7 @@ let string_of_op = function
   | Geq -> ">="
   | And -> "and"
   | Or -> "or"
+  | Concat -> "||"
 
 let string_of_uop = function
   | Neg -> "-"

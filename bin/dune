@@ -1,7 +1,13 @@
 (executable
  (public_name platypus)
  (name toplevel)
- (libraries platypus llvm))
+ (libraries
+  platypus
+  llvm
+  llvm.analysis
+  llvm.executionengine
+  llvm.bitwriter
+  ctypes.foreign))
 
 (rule
  (target scanner.ml)

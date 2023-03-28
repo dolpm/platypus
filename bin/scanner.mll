@@ -28,6 +28,8 @@ rule token = parse
   | '*'      { TIMES }
   | '/'      { DIVIDE }
 
+  | "||"     { CONCAT }
+
   | '&'      { BORROW }
   | '@'      { DEREF }
   | "~&"      { MUTBORROW }

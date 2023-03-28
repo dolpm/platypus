@@ -5,8 +5,8 @@ Color_Off='\033[0m'
 BGreen='\033[1;32m'
 BRed='\033[1;31m'
 
-test_dirs=("ast" "sast")
-test_flags=("-a" "-s")
+test_dirs=("ast" "sast" "codegen" "compile")
+test_flags=("-a" "-s" "-l" "-e")
 
 # Bash is my religion.
 run_test () {
@@ -58,11 +58,11 @@ for test in "${!test_dirs[@]}"; do
     test_flag=${test_flags[$test]}
 
     
-    positive_files=($(ls -d ./test_cases/${test_dir}/pos_*.ppus))
-    positive_expected_output=($(ls -d ./test_cases/${test_dir}/pos_*.out))
+    positive_files=($(ls -d ./test_cases/${test_dir}/pos_*.ppus 2>/dev/null))
+    positive_expected_output=($(ls -d ./test_cases/${test_dir}/pos_*.out 2>/dev/null))
 
-    negative_files=($(ls -d ./test_cases/${test_dir}/neg_*.ppus))
-    negative_expected_output=($(ls -d ./test_cases/${test_dir}/neg_*.out))
+    negative_files=($(ls -d ./test_cases/${test_dir}/neg_*.ppus 2>/dev/null))
+    negative_expected_output=($(ls -d ./test_cases/${test_dir}/neg_*.out 2>/dev/null))
 
     num_tests=$(( ${#positive_files[@]} + ${#negative_files[@]} ))
     echo "Running $num_tests ${test_dir} tests..."
