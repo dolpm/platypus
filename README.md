@@ -1,4 +1,4 @@
-![oink](helloworld.png)
+![oink](logo.png)
 
 #
 
@@ -23,16 +23,10 @@
 
 ```-v``` &rarr; enable verbose compilation output
 **usage:** ```./platypus -c -v ./test/test_cases/compile/pos_hello_world.ppus```
-#
-
-#### integration testing suite:
-##### pos_hello_world &rarr; ```make test type=compile name=pos_hello_world```
-- A very simple program test consisting of a platypus main function
-which prints a string using the *printnl* function and exits. The desired output is the string being passed to *printnl*.
 
 #
 
-#### test validation:
+#### testing mechanisms:
 For all test types, the testing program will validate the output of
 a compiler command on a ```.ppus``` input file matches the expected output -- the desired output can be found in the ```.out``` file for each test.  For integration tests, we use llvm's executionengine to fetch this output (```-e```) to avoid the maintenance of auxiliary files during the usual compilation process (```-c```). If a program can't be compiled, the stderr output of the compiler command will be compared to the desired output.
 
