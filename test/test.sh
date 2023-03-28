@@ -32,6 +32,9 @@ run_test () {
     fi
 }
 
+test_dirs=("ast" "sast" "codegen" "compile")
+test_flags=("-a" "-s" "-l" "-e")
+
 flag_map=(
     "ast|-a"
     "sast|-s"
@@ -45,7 +48,7 @@ then
     test_dirs=($ttype)
 
     # get the correct flags
-    test_flags=""
+    test_flags=()
     for item in "${flag_map[@]}"
     do
         ttyp=$(echo "${item}"|awk -F "|" '{print $1}')
@@ -62,14 +65,10 @@ then
         in_file="./test_cases/${ttype}/${tname}.ppus"
         out_file="./test_cases/${ttype}/${tname}.out"
 
-        run_test $in_file $out_file ${test_flags}
+        run_test $in_file $out_file ${test_flags[0]}
         exit 0
     fi
 fi
-
-test_dirs=("ast" "sast" "codegen" "compile")
-test_flags=("-a" "-s" "-l" "-e")
-
 for test in "${!test_dirs[@]}"; do
     test_dir=${test_dirs[$test]}
     test_flag=${test_flags[$test]}
