@@ -18,9 +18,10 @@
 ##### execute (JIT) &rarr; ```./platypus -e ./path/to/file.ppus```
 
 #### extra flags:
-- ```-k``` &rarr; persist intermediary files (```*.o```, ```*.bc```) generated during compilation
+```-k``` &rarr; persist intermediary files (```*.o```, ```*.bc```) generated during compilation
 **usage:** ```./platypus -c -k ./test/test_cases/compile/pos_hello_world.ppus```
-- ```-v``` &rarr; enable verbose compilation output
+
+```-v``` &rarr; enable verbose compilation output
 **usage:** ```./platypus -c -v ./test/test_cases/compile/pos_hello_world.ppus```
 #
 
