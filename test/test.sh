@@ -4,9 +4,7 @@
 Color_Off='\033[0m'
 BGreen='\033[1;32m'
 BRed='\033[1;31m'
-
-test_dirs=("ast" "sast" "codegen" "compile")
-test_flags=("-a" "-s" "-l" "-e")
+BYellowUnderlined='\033[4;33m'
 
 # Bash is my religion.
 run_test () {
@@ -28,19 +26,35 @@ run_test () {
     fi
 
     if [ "$output" != "" ]; then
-        echo -e "Test ${in_file} ${BRed}failed...${Color_Off}"
+        echo -e "${in_file} ${BRed}failed...${Color_Off}"
     else
-        echo -e "Test ${in_file} ${BGreen}passed!${Color_Off}"
+        echo -e "${in_file} ${BGreen}passed!${Color_Off}"
     fi
 }
 
-# Map from type of test to needed compiler flag
-declare flag_map=( ["ast"]="-a" ["sast"]="-s" ["codegen"]="-l" ["compile"]="-e")
+flag_map=(
+    "ast|-a"
+    "sast|-s"
+    "codegen|-l"
+    "compile|-e"
+)
+
 
 if [ ! -z $ttype ]
 then
     test_dirs=($ttype)
-    test_flags=("${flag_map[$ttype]}")
+
+    # get the correct flags
+    test_flags=""
+    for item in "${flag_map[@]}"
+    do
+        ttyp=$(echo "${item}"|awk -F "|" '{print $1}')
+        flags=$(echo "${item}"|awk -F "|" '{print $2}')
+        if [ "$ttype" = "$ttyp" ]
+        then 
+            test_flags=($flags)
+        fi
+    done
 
     # Just run the single specified test
     if [ ! -z $tname ]
@@ -48,10 +62,13 @@ then
         in_file="./test_cases/${ttype}/${tname}.ppus"
         out_file="./test_cases/${ttype}/${tname}.out"
 
-        run_test $in_file $out_file ${flag_map[$ttype]}
+        run_test $in_file $out_file ${test_flags}
         exit 0
     fi
 fi
+
+test_dirs=("ast" "sast" "codegen" "compile")
+test_flags=("-a" "-s" "-l" "-e")
 
 for test in "${!test_dirs[@]}"; do
     test_dir=${test_dirs[$test]}
@@ -65,9 +82,7 @@ for test in "${!test_dirs[@]}"; do
     negative_expected_output=($(ls -d ./test_cases/${test_dir}/neg_*.out 2>/dev/null))
 
     num_tests=$(( ${#positive_files[@]} + ${#negative_files[@]} ))
-    echo "Running $num_tests ${test_dir} tests..."
-
-    #${#a[@]}
+    echo -e "${BYellowUnderlined}Running $num_tests ${test_dir} tests...${Color_Off}"
 
     for i in "${!positive_files[@]}"; do
         run_test ${positive_files[$i]} ${positive_expected_output[$i]} \
