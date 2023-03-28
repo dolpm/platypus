@@ -1,5 +1,7 @@
 (test
  (deps (:test test.sh)
+       (env_var ttype)
+       (env_var tname)
        (glob_files ../platypus)
        (glob_files ./test_cases/ast/*)
        (glob_files ./test_cases/sast/*)
