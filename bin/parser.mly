@@ -18,7 +18,7 @@
 %right LPIPE
 %left OR
 %left AND
-%left EQ NEQ
+%left EQ NEQ CONCAT
 %left LT GT LEQ GEQ
 %left PLUS MINUS
 %left TIMES DIVIDE

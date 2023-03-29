@@ -939,7 +939,7 @@ let borrow_ck pipes verbose =
               ^ "\n")
         in
 
-        (* list of argument indicies and thier associated max origin depth *)
+        (* list of argument indices and their associated max origin depth *)
         let borrowed_args =
           snd
             (List.fold_left
