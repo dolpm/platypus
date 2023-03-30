@@ -1263,6 +1263,18 @@ let borrow_ck pipes verbose =
               borrow_table pc.args
           in
 
+          (* return values that aren't borrow or unit need to be assigned *)
+          (* to an owner *)
+          let pipe = List.find (fun p -> p.sname = pc.pipe_name) pipes in
+          let _ =
+            match pipe.sreturn_type with
+            | Borrow _ | MutBorrow _ | Unit -> ()
+            | _ ->
+                make_err
+                  "If the returned value from the call to isn't a borrow or \
+                   unit, it must be assigned to an owner."
+          in
+
           (* validate that the lifetimes of the arguments *)
           (* align with the explicit lifetimes defined in the called *)
           (* pipe declaration *)
