@@ -1,0 +1,8 @@
+pipe test |> [] |> [x: int] |> unit {
+  |> ();
+}
+
+pipe main |> [] |> [] |> unit {
+  test <| [1];
+  |> ();
+}
