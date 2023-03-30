@@ -649,8 +649,16 @@ let borrow_ck pipes verbose =
               names
           in
 
-          (* if return type is a ref, inject  *)
-          (symbol_table, graph)
+          let symbol_table' =
+            List.fold_left
+              (fun symbol_table' n ->
+                if not (StringMap.mem n symbol_table') then
+                  make_err (err_gave_ownership n)
+                else StringMap.remove n symbol_table')
+              symbol_table names
+          in
+
+          (symbol_table', graph)
       | v ->
           let e =
             match v with

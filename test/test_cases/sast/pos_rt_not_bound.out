@@ -2,7 +2,13 @@ pipe test |> [] |> [x: int] |> unit {
   |> (unit : ());
 }
 
+pipe test1 |> ['a] |> [x: &'a int] |> &'a int {
+  |> (&'a int : x);
+}
+
 pipe main |> [] |> [] |> unit {
   (unit : test <| [(int : 1)]);
+  int x <| (int : 1);
+  (&'_ int : test1 <| [(&'_ int : &(int : x))]);
   |> (unit : ());
 }
