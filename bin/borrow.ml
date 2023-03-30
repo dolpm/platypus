@@ -826,7 +826,9 @@ let borrow_ck pipes verbose =
     and err_rebinding_of_immutable_binding v_name =
       "variable " ^ v_name
       ^ " can't be rebound as it was defined as immutable. please use the mut \
-         keyword." ^ "return references to pipe arguments."
+         keyword."
+    and err_reassign_of_borrowed v_name =
+      "variable " ^ v_name ^ " can't be reassigned as it is already borrowed."
     and err_explicit_arg_invalid called_pipe =
       "argument lifetimes in calls to " ^ called_pipe
       ^ " must match the explicitely defined lifetimes for that pipe \
@@ -1135,6 +1137,8 @@ let borrow_ck pipes verbose =
             | Some (Binding b) ->
                 if not b.is_mut then
                   make_err (err_rebinding_of_immutable_binding rb.name)
+                else if StringMap.mem b.name borrow_table then
+                  make_err (err_reassign_of_borrowed b.name)
             | _ ->
                 make_err
                   ("panic! couldn't find original definition of " ^ rb.name)
