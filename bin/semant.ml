@@ -144,6 +144,33 @@ let check (_things, pipes) verbosity =
       with Not_found -> raise (Failure ("undeclared identifier " ^ s))
     in
 
+    (* Assure return statement exists *)
+    let assert_return (slist : stmt list) =
+      let rec check_stmt (have_seen_return : bool) (s : stmt) =
+        match s with
+        | PipeOut _ -> true
+        | If (_, stmt1, stmt2) -> (
+            match stmt2 with
+            | Expr NoExpr -> have_seen_return
+            | _ ->
+                if
+                  have_seen_return
+                  || check_stmt have_seen_return stmt1
+                     && check_stmt have_seen_return stmt2
+                then true
+                else make_err ("return value not provided in " ^ p.name))
+        | Block sl ->
+            List.fold_left check_stmt have_seen_return (List.rev sl)
+            || have_seen_return
+        | While (_, stmt) | Loop (_, _, _, _, stmt) ->
+            check_stmt have_seen_return stmt
+        | _ -> false
+      in
+      List.fold_left check_stmt false (List.rev slist)
+    in
+
+    let _ = assert_return p.body in
+
     (* Return a semantically-checked expression, i.e. with a type *)
     let rec expr = function
       | IntLiteral l -> (Int, SIntLiteral l)
