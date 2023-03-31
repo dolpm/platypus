@@ -1,6 +1,6 @@
 pipe main |> [] |> [] |> unit {
   int x <| (int : 4);
-{
+{(id: 1)
   &'_ int y <| (&'_ int : &(int : x));
   &'_ int z <| (&'_ int : &(int : x));
 }

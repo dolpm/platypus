@@ -2,8 +2,11 @@ open Ast
 open Sast
 open Borrow
 module StringMap = Map.Make (String)
+module IntMap = Map.Make (Int)
 
 let check (_things, pipes) verbosity =
+  let cur_sblock_id = ref 0 in
+
   (* built in pipe definitions *)
   (* (name, [param(is_mut, type, name)], ret_type) *)
   let stdlib_pipe_decls =
@@ -243,7 +246,12 @@ let check (_things, pipes) verbosity =
     (* Return a semantically-checked statement, i.e. containing s_exprs *)
     let rec check_stmt = function
       | Expr e -> SExpr (expr e)
-      | Block sl -> SBlock (List.map check_stmt sl, [])
+      | Block sl ->
+          SBlock
+            ( List.map check_stmt sl,
+              [],
+              let _ = cur_sblock_id := !cur_sblock_id + 1 in
+              !cur_sblock_id - 1 )
       | Assign (is_mut, t, name, e) as ass ->
           let _, lt = type_of_identifier name and rt, e' = expr e in
           let err =
@@ -287,29 +295,53 @@ let check (_things, pipes) verbosity =
           let t' = check_assign t Bool err in
           SIf ((t', e'), check_stmt stmt1, check_stmt stmt2)
     in
+    let sbody =
+      if StringMap.mem p.name built_in_pipe_decls then []
+      else
+        match check_stmt (Block p.body) with
+        | SBlock (sl, _, _sblock_id) -> sl
+        | _ ->
+            let err = "internal error: block didn't become a block?" in
+            raise (Failure err)
+    in
     {
       sreturn_type = p.return_type;
       sname = p.name;
       slifetimes = p.lifetimes;
       sformals = formals';
-      sbody =
-        (match check_stmt (Block p.body) with
-        | SBlock (sl, _) -> sl
-        | _ ->
-            let err = "internal error: block didn't become a block?" in
-            raise (Failure err));
+      sbody;
     }
   in
 
-
-  let s_pipes = List.map check_pipe pipes in
-  (* For the borrow checker, will not be included in final SAST *)
-  let s_pipes_with_builtins = 
-    List.map check_pipe (List.map snd (StringMap.bindings pipe_decls)) 
+  let s_pipes_with_builtins =
+    List.map check_pipe (List.map snd (StringMap.bindings pipe_decls))
   in
+
+  (* For the borrow checker, will not be included in final SAST *)
 
   (* boolean denotes verbosity - set to true if you want to *)
   (* see generated graph nodes and fn tests *)
-  let _ltg = borrow_ck s_pipes_with_builtins verbosity in
+  let node_ownership_map = borrow_ck s_pipes_with_builtins verbosity in
+
+  (* remove built-in pdecls before returing *)
+  let s_pipes =
+    List.filter
+      (fun p_decl -> not (StringMap.mem p_decl.sname built_in_pipe_decls))
+      s_pipes_with_builtins
+  in
+
+  (* print block ownership map *)
+  let _ =
+    if verbosity then
+      let _ = print_string "\nownership:\n" in
+      let _ =
+        List.iter
+          (fun (k, v) ->
+            print_string
+              ("block " ^ string_of_int k ^ " --> " ^ String.concat "," v ^ "\n"))
+          (IntMap.bindings node_ownership_map)
+      in
+      print_string "\n"
+  in
 
   ([], s_pipes)

@@ -1,10 +1,10 @@
 pipe test |> ['a, 'b, 'c] |> [x: &'a int, y: &'b int, z: &'c int] |> &'c int {
   if ((bool : (int : @(&'a int : x)) == (int : 2)))
-  {
+  {(id: 5)
     |> (&'a int : x);
   }
   if ((bool : (int : @(&'b int : y)) == (int : 2)))
-  {
+  {(id: 7)
     |> (&'b int : y);
   }
   |> (&'c int : z);
@@ -13,9 +13,9 @@ pipe test |> ['a, 'b, 'c] |> [x: &'a int, y: &'b int, z: &'c int] |> &'c int {
 pipe main |> [] |> [] |> unit {
   int x <| (int : 4);
   while (bool : (int : x) < (int : 5))
-  {
+  {(id: 1)
     int y <| (int : 4);
-    loop (int : 0) -> (int : 5) as (z,(int : 1))    {
+    loop (int : 0) -> (int : 5) as (z,(int : 1))    {(id: 2)
       (&'_ int : test <| [(&'_ int : &(int : x)), (&'_ int : &(int : y)), (&'_ int : &(int : z))]);
     }
   }

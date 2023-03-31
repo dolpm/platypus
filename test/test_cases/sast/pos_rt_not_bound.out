@@ -1,9 +1,9 @@
-pipe test |> [] |> [x: int] |> unit {
-  |> (unit : ());
-}
-
 pipe test1 |> ['a] |> [x: &'a int] |> &'a int {
   |> (&'a int : x);
+}
+
+pipe test |> [] |> [x: int] |> unit {
+  |> (unit : ());
 }
 
 pipe main |> [] |> [] |> unit {

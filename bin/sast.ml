@@ -22,7 +22,10 @@ and sx =
 
 type s_stmt =
   (* string list contains symbols owned at end of life *)
-  | SBlock of s_stmt list * string list
+  | SBlock of
+      s_stmt list
+      * string list
+      * int (* int is id to map it to borrow checker graph node *)
   | SExpr of s_expr
   (* return equivalent *)
   | SPipeOut of s_expr
@@ -35,10 +38,7 @@ type s_stmt =
   | SAssign of bool * defined_type * string * s_expr
   | SReAssign of string * s_expr
 
-type s_thing_declaration = {
-  stname : string;
-  selements : type_binding list;
-}
+type s_thing_declaration = { stname : string; selements : type_binding list }
 
 type s_pipe_declaration = {
   sname : string;
@@ -94,15 +94,15 @@ let rec indent x =
 
 let rec string_of_s_stmt s_stmt pad =
   match s_stmt with
-  | SBlock (s_stmts, _owned_vars) ->
+  | SBlock (s_stmts, _owned_vars, sblock_id) ->
       indent (pad - 1)
-      ^ "{\n"
+      ^ "{(id: " ^ string_of_int sblock_id ^ ")\n"
       ^ String.concat "" (List.map (fun s -> string_of_s_stmt s pad) s_stmts)
       ^ indent (pad - 1)
       ^ "}\n"
   | SExpr s_expr -> indent pad ^ string_of_s_expr s_expr ^ ";\n"
   | SPipeOut s_expr -> indent pad ^ "|> " ^ string_of_s_expr s_expr ^ ";\n"
-  | SIf (e, s, SBlock ([], _)) ->
+  | SIf (e, s, SBlock ([], _, _sblock_id)) ->
       indent pad ^ "if (" ^ string_of_s_expr e ^ ")\n"
       ^ string_of_s_stmt s (pad + 1)
   | SIf (e, s1, s2) -> (
@@ -127,20 +127,20 @@ let rec string_of_s_stmt s_stmt pad =
   | SReAssign (v, e) -> indent pad ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
 
 (* let string_of_tdecl t =
-  match t with
-  | Thing (s, l) ->
-      "thing " ^ s ^ " <| {\n"
-      ^ String.concat ",\n"
-          (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
-      ^ "\n}"
-  | _ -> "" *)
+   match t with
+   | Thing (s, l) ->
+       "thing " ^ s ^ " <| {\n"
+       ^ String.concat ",\n"
+           (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
+       ^ "\n}"
+   | _ -> "" *)
 
 let string_of_tdecl tdecl =
   "thing " ^ tdecl.stname ^ " <| {\n"
   ^ String.concat ",\n"
       (List.map
-          (fun v -> match v with _, t, n -> n ^ ": " ^ string_of_typ t)
-          tdecl.selements)
+         (fun v -> match v with _, t, n -> n ^ ": " ^ string_of_typ t)
+         tdecl.selements)
   ^ "\n}"
 
 let string_of_spdecl pdecl =
