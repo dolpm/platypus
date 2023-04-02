@@ -5,13 +5,13 @@ pipe test |> [] |> [x: int] |> unit {
 pipe main |> [] |> [] |> unit {
   int x <| (int : 4);
   int z <| (int : 4);
-{
+{(id: 1)
   int y <| (int : x);
   while (bool : (int : y) < (int : 4))
-  {
-  {
+  {(id: 2)
+  {(id: 3)
     int w <| (int : 8);
-  {
+  {(id: 4)
     int a <| (int : w);
     (unit : test <| [(int : a)]);
   }

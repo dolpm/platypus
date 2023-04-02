@@ -1,5 +1,5 @@
 pipe main |> [] |> [] |> unit {
-  int x <| (int : 4);
+  mut int x <| (int : 4);
   int z <| (int : 4);
   mut &'_ int y <| (&'_ int : &(int : x));
   y <| (&'_ int : &(int : z));

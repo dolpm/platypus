@@ -162,7 +162,7 @@ StringMap.add name eles_map m *)
     in
     
     let rec stmt builder = function
-      SBlock (sl, _) -> List.fold_left stmt builder sl
+      SBlock (sl, _, _) -> List.fold_left stmt builder sl
       | SExpr e ->
         let _ = expr builder e in
         builder
@@ -176,7 +176,7 @@ StringMap.add name eles_map m *)
       | _ -> builder
     in
 
-    let _builder = stmt builder (SBlock (pdecl.sbody, [])) in
+    let _builder = stmt builder (SBlock (pdecl.sbody, [], -1)) in
 
     ()
   in

@@ -1,0 +1,12 @@
+pipe main |> [] |> [] |> unit {
+  while (true) {
+    if (true) {
+      |> ();
+    } else {
+      if (true) {
+        |> ();
+      }
+      |> ();
+    }
+  } 
+}

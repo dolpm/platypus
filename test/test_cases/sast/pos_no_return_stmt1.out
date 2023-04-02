@@ -1,0 +1,17 @@
+pipe main |> [] |> [] |> unit {
+  while (bool : true)
+  {(id: 1)
+    if ((bool : true))
+    {(id: 5)
+      |> (unit : ());
+    }
+    else
+    {(id: 2)
+      if ((bool : true))
+      {(id: 4)
+        |> (unit : ());
+      }
+      |> (unit : ());
+    }
+  }
+}

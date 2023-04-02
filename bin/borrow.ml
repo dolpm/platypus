@@ -1,7 +1,7 @@
 open Sast
 open Ast
 module StringMap = Map.Make (String)
-module StringSet = Set.Make (String)
+module IntMap = Map.Make (Int)
 
 type graph_node =
   | Lifetime of {
@@ -12,6 +12,7 @@ type graph_node =
       loop : string option;
       (* rest *)
       owned_vars : string list;
+      assoc_sblock_id : int option;
     }
   | Binding of {
       parent : string option;
@@ -107,7 +108,7 @@ let borrow_ck pipes verbose =
     let rec gen_children parent_id parent_depth parent_loop child_id stmt graph
         =
       match stmt with
-      | SBlock (stmts, _owned_vars) ->
+      | SBlock (stmts, _owned_vars, sblock_id) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           let _, updated_graph, children =
             List.fold_left
@@ -133,6 +134,8 @@ let borrow_ck pipes verbose =
                    node_id;
                    children = List.rev children;
                    owned_vars = [];
+                   assoc_sblock_id =
+                     (if sblock_id = -1 then None else Some sblock_id);
                  })
               updated_graph )
       | SAssign (is_mut, typ, name, expr) ->
@@ -209,7 +212,7 @@ let borrow_ck pipes verbose =
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           let matched, graph', children =
             match sstmt with
-            | SWhile (sex, SBlock (stmts, [])) ->
+            | SWhile (sex, SBlock (stmts, [], sblock_id)) ->
                 let wrapper_id = node_id ^ ".0" in
                 let sex_id = wrapper_id ^ ".0" in
                 let block_id = wrapper_id ^ ".1" in
@@ -223,6 +226,7 @@ let borrow_ck pipes verbose =
                       loop = Some node_id;
                       children = [ sex_id; block_id ];
                       owned_vars = [];
+                      assoc_sblock_id = None;
                     }
                 in
 
@@ -242,12 +246,15 @@ let borrow_ck pipes verbose =
 
                 let _, graph' =
                   gen_children wrapper_id (parent_depth + 2) (Some wrapper_id) 1
-                    (SBlock (stmts, []))
+                    (SBlock (stmts, [], sblock_id))
                     graph'
                 in
 
                 (true, graph', [ wrapper_id ])
-            | SIf (sex, SBlock (stmts1, []), SBlock (stmts2, [])) ->
+            | SIf
+                ( sex,
+                  SBlock (stmts1, [], sblock_id1),
+                  SBlock (stmts2, [], sblock_id2) ) ->
                 let sex_id = node_id ^ ".0" in
                 let block1_id = node_id ^ ".1" in
                 let block2_id = node_id ^ ".2" in
@@ -267,17 +274,17 @@ let borrow_ck pipes verbose =
 
                 let _, graph' =
                   gen_children node_id (parent_depth + 1) parent_loop 1
-                    (SBlock (stmts1, []))
+                    (SBlock (stmts1, [], sblock_id1))
                     graph'
                 in
                 let _, graph' =
                   gen_children node_id (parent_depth + 1) parent_loop 2
-                    (SBlock (stmts2, []))
+                    (SBlock (stmts2, [], sblock_id2))
                     graph'
                 in
 
                 (true, graph', [ sex_id; block1_id; block2_id ])
-            | SLoop (sex1, sex2, ident, sex3, SBlock (stmts, [])) ->
+            | SLoop (sex1, sex2, ident, sex3, SBlock (stmts, [], sblock_id)) ->
                 let wrapper_id = node_id ^ ".0" in
                 let sex1_id = wrapper_id ^ ".0" in
                 let sex2_id = wrapper_id ^ ".1" in
@@ -294,6 +301,7 @@ let borrow_ck pipes verbose =
                       children =
                         [ sex1_id; sex2_id; ident_id; sex3_id; block_id ];
                       owned_vars = [];
+                      assoc_sblock_id = None;
                     }
                 in
                 let sex_nodes =
@@ -353,7 +361,7 @@ let borrow_ck pipes verbose =
 
                 let _, graph' =
                   gen_children wrapper_id (parent_depth + 2) (Some wrapper_id) 4
-                    (SBlock (stmts, []))
+                    (SBlock (stmts, [], sblock_id))
                     graph'
                 in
 
@@ -373,6 +381,7 @@ let borrow_ck pipes verbose =
                      loop = parent_loop;
                      children;
                      owned_vars = [];
+                     assoc_sblock_id = None;
                    })
                 graph' )
     in
@@ -382,7 +391,7 @@ let borrow_ck pipes verbose =
       snd
         (gen_children pipe.sname 1 None
            (StringMap.cardinal graph_with_pipe_args)
-           (SBlock (pipe.sbody, []))
+           (SBlock (pipe.sbody, [], -1))
            graph_with_pipe_args)
     in
 
@@ -404,6 +413,7 @@ let borrow_ck pipes verbose =
                          (StringMap.bindings graph_with_pipe_args)));
              node_id = pipe.sname;
              owned_vars = [];
+             assoc_sblock_id = None;
            })
         graph_with_pipe_body
     in
@@ -445,6 +455,14 @@ let borrow_ck pipes verbose =
                         print_string
                           ("owned_vars: "
                           ^ String.concat ", " l.owned_vars
+                          ^ "\n")
+                      in
+                      let _ =
+                        print_string
+                          ("assoc_sblock_id: "
+                          ^ (match l.assoc_sblock_id with
+                            | Some pid -> string_of_int pid
+                            | None -> "None")
                           ^ "\n")
                       in
                       print_string
@@ -595,6 +613,7 @@ let borrow_ck pipes verbose =
                    loop = l.loop;
                    parent = l.parent;
                    owned_vars = children_responsible_for_dealloc;
+                   assoc_sblock_id = l.assoc_sblock_id;
                  })
               graph' )
       | Binding b ->
@@ -649,8 +668,16 @@ let borrow_ck pipes verbose =
               names
           in
 
-          (* if return type is a ref, inject  *)
-          (symbol_table, graph)
+          let symbol_table' =
+            List.fold_left
+              (fun symbol_table' n ->
+                if not (StringMap.mem n symbol_table') then
+                  make_err (err_gave_ownership n)
+                else StringMap.remove n symbol_table')
+              symbol_table names
+          in
+
+          (symbol_table', graph)
       | v ->
           let e =
             match v with
@@ -818,7 +845,9 @@ let borrow_ck pipes verbose =
     and err_rebinding_of_immutable_binding v_name =
       "variable " ^ v_name
       ^ " can't be rebound as it was defined as immutable. please use the mut \
-         keyword." ^ "return references to pipe arguments."
+         keyword."
+    and err_reassign_of_borrowed v_name =
+      "variable " ^ v_name ^ " can't be reassigned as it is already borrowed."
     and err_explicit_arg_invalid called_pipe =
       "argument lifetimes in calls to " ^ called_pipe
       ^ " must match the explicitely defined lifetimes for that pipe \
@@ -828,8 +857,10 @@ let borrow_ck pipes verbose =
       ^ " by the definition to which it is being bound."
     and make_err er = raise (Failure er) in
 
-    let get_depth_of_defn node ident_name =
-      let rec inner current_node ident_name =
+    let get_depth_of_defn (node : string) (ident_name : string) :
+        graph_node option * int =
+      let rec inner (current_node : string option) (ident_name : string) :
+          graph_node option * int =
         match current_node with
         | None -> (None, 0)
         | Some current_node -> (
@@ -859,6 +890,23 @@ let borrow_ck pipes verbose =
       inner (Some node) ident_name
     in
 
+    let assert_binding_mutable (node_id : string) (name : string) : unit =
+      let node_opt, _ = get_depth_of_defn node_id name in
+      let node =
+        match node_opt with None -> make_err "swedish panic!" | Some v -> v
+      in
+      let _ =
+        match node with
+        | Binding b ->
+            if not b.is_mut then
+              make_err
+                ("can't take out mutable borrow on an immutable binding " ^ name
+               ^ ". please use the 'mut' keyword in the original binding.")
+        | _ -> make_err "How is this not a binding?!"
+      in
+      ()
+    in
+
     (* all additions will be at the current depth because *)
     (* it is just an expression that will be instantly evaluated *)
     let ck_expr borrow_table node_id cur_depth e =
@@ -874,7 +922,9 @@ let borrow_ck pipes verbose =
                 StringMap.add n
                   (is_mut', (node_id, cur_depth) :: borrows)
                   borrow_table
-            else StringMap.add n (is_mut, [ (node_id, cur_depth) ]) borrow_table)
+            else
+              let _ = if is_mut then assert_binding_mutable node_id n in
+              StringMap.add n (is_mut, [ (node_id, cur_depth) ]) borrow_table)
           borrow_table borrows_in_expr
       in
       borrow_table'
@@ -1072,6 +1122,7 @@ let borrow_ck pipes verbose =
               if n_is_borrowed then make_err (err_mut_borrow_after_borrow n)
                 (* if not borrowed *)
               else
+                let _ = assert_binding_mutable b.node_id n in
                 StringMap.add n (true, [ (b.node_id, cur_depth) ]) borrow_table
           | _ty, SPipeIn (p_name, args) ->
               (* validate all arguments that may borrow things *)
@@ -1107,6 +1158,7 @@ let borrow_ck pipes verbose =
                           (false, (b.node_id, max_arg_depth) :: borrows)
                           borrow_table
                     else
+                      let _ = if m then assert_binding_mutable b.node_id n in
                       StringMap.add n
                         (m, [ (b.node_id, max_arg_depth) ])
                         borrow_table)
@@ -1127,6 +1179,8 @@ let borrow_ck pipes verbose =
             | Some (Binding b) ->
                 if not b.is_mut then
                   make_err (err_rebinding_of_immutable_binding rb.name)
+                else if StringMap.mem b.name borrow_table then
+                  make_err (err_reassign_of_borrowed b.name)
             | _ ->
                 make_err
                   ("panic! couldn't find original definition of " ^ rb.name)
@@ -1176,6 +1230,7 @@ let borrow_ck pipes verbose =
                 if b_origin_depth > origin_depth then
                   make_err err_binding_outlives_borrow
                 else
+                  let _ = assert_binding_mutable rb.node_id n in
                   StringMap.add n
                     (true, [ (rb.node_id, b_origin_depth) ])
                     borrow_table'
@@ -1246,6 +1301,7 @@ let borrow_ck pipes verbose =
                           (false, (rb.node_id, max_arg_depth) :: borrows)
                           borrow_table
                     else
+                      let _ = if m then assert_binding_mutable rb.node_id n in
                       StringMap.add n
                         (m, [ (rb.node_id, max_arg_depth) ])
                         borrow_table)
@@ -1261,6 +1317,18 @@ let borrow_ck pipes verbose =
               (fun borrow_table arg ->
                 ck_expr borrow_table pc.node_id cur_depth arg)
               borrow_table pc.args
+          in
+
+          (* return values that aren't borrow or unit need to be assigned *)
+          (* to an owner *)
+          let pipe = List.find (fun p -> p.sname = pc.pipe_name) pipes in
+          let _ =
+            match pipe.sreturn_type with
+            | Borrow _ | MutBorrow _ | Unit -> ()
+            | _ ->
+                make_err
+                  "If the returned value from the call to isn't a borrow or \
+                   unit, it must be assigned to an owner."
           in
 
           (* validate that the lifetimes of the arguments *)
@@ -1309,4 +1377,22 @@ let borrow_ck pipes verbose =
       pipes
   in
 
-  ()
+  let id_owned_vars_table =
+    List.fold_left
+      (fun map (_, p_graph) ->
+        List.fold_left
+          (fun map' (_, v) ->
+            match v with
+            | Lifetime l -> (
+                match l.assoc_sblock_id with
+                | None -> map'
+                | Some sbid ->
+                    if List.length l.owned_vars = 0 then map'
+                    else IntMap.add sbid l.owned_vars map')
+            | _ -> map')
+          map
+          (StringMap.bindings p_graph))
+      IntMap.empty (StringMap.bindings graph)
+  in
+
+  id_owned_vars_table

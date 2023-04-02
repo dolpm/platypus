@@ -1,0 +1,6 @@
+pipe main |> [] |> [] |> unit {
+  mut int y <| 1;
+  &int x <| &y;
+  y <| 10;
+  |> ();
+}
