@@ -1,0 +1,3 @@
+pipe main |> [] |> [] |> unit {
+    Vector_push <| [Vector_alloc <| [], true];
+}

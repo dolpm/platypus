@@ -3,6 +3,6 @@ pipe main |> [] |> [] |> unit {
   int z <| (int : 4);
   mut &'_ int y <| (&'_ int : &(int : x));
   y <| (&'_ int : &(int : z));
-  int w <| (~&'_ int : ~&(int : x));
+  ~&'_ int w <| (~&'_ int : ~&(int : x));
   |> (unit : ());
 }
