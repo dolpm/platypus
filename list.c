@@ -3,14 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 
-struct List {
+struct Vector {
 	int length;
 	int capacity;
 	void* list;
 };
 
-struct List* Vector_alloc () {
-	struct List *l = (struct List *)malloc(sizeof(struct List));
+struct Vector* Vector_alloc () {
+	struct Vector *l = (struct Vector *)malloc(sizeof(struct Vector));
 	l->capacity = 10;
 	l->length = 0;
 	l->list = malloc(l->capacity * sizeof(void*));	
@@ -18,14 +18,14 @@ struct List* Vector_alloc () {
 	return l;
 }
 
-void* Vector_get (struct List *v, int index) {
+void* Vector_get (struct Vector *v, int index) {
 	// TODO: throw with err message
 	assert(index < v->length);
 	
 	return *(void**)(v->list + (index * sizeof(void*)));
 }
 
-void Vector_free (struct List *v) {
+void Vector_free (struct Vector *v) {
 	for (int i = 0; i < v->length; i++) {
 		void* addr = *(void**)(v->list + (i * sizeof(void*)));
 		free(addr);
@@ -35,20 +35,17 @@ void Vector_free (struct List *v) {
 	free(v);
 }
 
-void Vector_grow (struct List* v) {
+void Vector_grow (struct Vector* v) {
 	v->capacity = v->capacity + 10;
-	void* new_chunk = malloc((v->capacity) * sizeof(void*));
-	void* copied_list = memcpy(new_chunk, v->list, (size_t) v->length);
-	free(v->list);
-	v->list = copied_list;
+	v->list = realloc(v->list, v->capacity * sizeof(void*));
 }
 
-void Vector_shrink (struct List *v) {
+void Vector_shrink (struct Vector *v) {
 	v->capacity = v->capacity / 2;
-	v->list = realloc(v->list, (size_t) v->capacity);
+	v->list = realloc(v->list, v->capacity * sizeof(void*));
 }
 
-void Vector_push (struct List *v, void *new_value) {
+void Vector_push (struct Vector *v, void *new_value) {
 	if (v->length + 1 >= v->capacity) {
 		Vector_grow(v);
 	}
@@ -58,11 +55,12 @@ void Vector_push (struct List *v, void *new_value) {
 	v->length ++;
 }
 
-void* Vector_pop (struct List *v) {
+void* Vector_pop (struct Vector *v) {
 	// TODO: throw err message
 	assert (v->length > 0);
 
-	void* value = v->list + ((v->length +1) * sizeof(void*));
+	void* value = Vector_get(v, v->length-1);
+
 	v->length --;
 
 	if (v->length < v->capacity /2) {
@@ -73,21 +71,28 @@ void* Vector_pop (struct List *v) {
 }
 
 int main () {
-	struct List* l = Vector_alloc();
-	int *val1 = malloc(sizeof(int));
-	*val1 = 26;
+	struct Vector* l = Vector_alloc();
 	
-	int *val2 = malloc(sizeof(int));
-	*val2 = 1738;
+	for (int i = 0; i < 100; i ++) {
+		int *val = malloc(sizeof(int));
+		*val = i;
+		Vector_push(l, (void *) val);
+	}
 	
+	printf("vector capacity: %d\n", l->capacity);
 
-	Vector_push(l, (void*) val1);
-	Vector_push(l, (void*) val2);
+	for (int i = 0; i < 51; i ++) {
+		void* out = Vector_pop(l);
+		free(out);
+	}
 
-	int* x = (int *)Vector_get(l, 0);
-		
-	printf("pooped value: %d\n", *x);
-	
+
+	printf("vector capacity: %d\n", l->capacity);
+
+	for (int i = 0; i < l->length; i ++) {
+		printf("value at index %d %d\n", i, *(int *)Vector_get(l, i));
+	}
+
 	Vector_free(l);
 
 	return 0;
