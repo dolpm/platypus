@@ -16,11 +16,11 @@ pipe main |> [] |> [] |> unit {
   {(id: 1)
     if ((bool : (int : x) == (int : 2)))
     {(id: 3)
-      int z <| (&'_ int : &(int : x));
+      &'_ int z <| (&'_ int : &(int : x));
       int y <| (int : 4);
       mut &'_ int w <| (&'_ int : &(int : y));
       loop (int : 0) -> (int : 5) as (xyz,(int : 1))      {(id: 4)
-        w <| (&'_ int : test <| [(&'_ int : &(int : x)), (&'_ int : &(int : y)), (&'_ int : &(int : z))]);
+        w <| (&'_ int : test <| [(&'_ int : &(int : x)), (&'_ int : &(int : y)), (&'_ int : z)]);
       }
     }
   }
