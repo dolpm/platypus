@@ -26,6 +26,7 @@ let check (_things, pipes) verbosity =
         [ (true, Vector Generic, "x"); (false, Generic, "y") ],
         Unit );
       ("Vector_pop", [ (true, Vector Generic, "x") ], Generic);
+      ("test_vec_create", [], Unit);
       ("option_is_none", [ (false, Option Generic, "x") ], Bool);
       ("option_is_some", [ (false, Option Generic, "x") ], Bool);
     ]
@@ -226,7 +227,7 @@ let check (_things, pipes) verbosity =
                     ^ string_of_expr e))
           in
           (ty, SBinop ((t1, e1'), op, (t2, e2')))
-       | PipeIn (pname, args) as pipein ->
+      | PipeIn (pname, args) as pipein ->
           let pd = get_pipe pname in
           let param_length = List.length pd.formals in
           if List.length args != param_length then
@@ -253,37 +254,49 @@ let check (_things, pipes) verbosity =
               (check_assign ft et err, e')
             in
             (* Make sure all generics are the same *)
-            let solve_generic = 
-                let generic_type = 
-                  List.fold_left2 
-                  (fun accum_t (_,ft,_) (et,_) -> 
+            let solve_generic =
+              let generic_type =
+                List.fold_left2
+                  (fun accum_t (_, ft, _) (et, _) ->
                     match ft with
-                    | Generic -> 
-                      (match accum_t with Generic -> et | _ -> raise (Failure "generic conflict-- two generics map to different types"))
-                    | _ -> accum_t) Generic pd.formals args_checked
-                in
-                let generic_substitution = 
-                  List.map 
-                    (fun (a,ft,c) -> 
-                      let t = (match ft with 
-                        Generic -> generic_type
-                        | Vector Generic -> Vector generic_type
-                        | typ -> typ)
-                      in (a,t,c)) 
-                    pd.formals
-                in 
-                List.map2 check_pipein generic_substitution args
+                    | Generic -> (
+                        match accum_t with
+                        | Generic -> et
+                        | _ ->
+                            raise
+                              (Failure
+                                 "generic conflict-- two generics map to \
+                                  different types"))
+                    | _ -> accum_t)
+                  Generic pd.formals args_checked
+              in
+              let generic_substitution =
+                List.map
+                  (fun (a, ft, c) ->
+                    let t =
+                      match ft with
+                      | Generic -> generic_type
+                      | Vector Generic -> Vector generic_type
+                      | typ -> typ
+                    in
+                    (a, t, c))
+                  pd.formals
+              in
+              List.map2 check_pipein generic_substitution args
             in
             let args' = solve_generic in
             let first_arg_type =
               if List.length args' > 0 then fst (List.hd args') else Generic
             in
-            let ret_type = (match pname with
+            let ret_type =
+              match pname with
               | "Heap_alloc" -> Box first_arg_type
-              | "Vector_pop" | "Vector_get" -> 
-                (match first_arg_type with Vector t -> t | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Vector_pop" | "Vector_get" -> (
+                  match first_arg_type with
+                  | Vector t -> t
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | _ -> pd.return_type
-            ) in
+            in
             let ret_type =
               match ret_type with
               | Borrow (ty, _) -> Borrow (ty, "'_")

@@ -1,3 +1,4 @@
 pipe main |> [] |> [] |> unit {
-    Vector_push <| [Vector_alloc <| [], true];
+    test_vec_create <| [];
+    |> ();
 }

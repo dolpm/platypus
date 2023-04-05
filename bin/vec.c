@@ -71,7 +71,7 @@ void *Vector_pop(struct Vector *v) {
   return value;
 }
 
-int main() {
+int test_vec_create() {
   struct Vector *l = Vector_alloc();
 
   for (int i = 0; i < 11; i++) {
