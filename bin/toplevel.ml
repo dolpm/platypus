@@ -41,6 +41,12 @@ let () =
       | LLVM_IR ->
           print_string (Llvm.string_of_llmodule (Codegen.translate sast))
       | c -> (
+          (* link llvm into our context *)
+          let _ =
+            Llvm_irreader.parse_ir (Llvm.global_context ())
+              (Llvm.MemoryBuffer.of_string Builtins.as_llvm_ir)
+          in
+
           let m = Codegen.translate sast in
           let _ = Llvm_analysis.assert_valid_module m in
           match c with
