@@ -13,11 +13,11 @@
 
 (rule
  (target builtins.ml)
- (deps builtin.sh vec.c)
+ (deps link.sh vec.c)
  (action
   (chdir
    %{workspace_root}
-   (run %{bin:sh} ./bin/builtin.sh %{target}))))
+   (run %{bin:sh} ./bin/link.sh %{target}))))
 
 (rule
  (target scanner.ml)
