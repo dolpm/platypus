@@ -2,7 +2,6 @@ open Ast
 open Sast
 open Borrow
 module StringMap = Map.Make (String)
-module IntMap = Map.Make (Int)
 
 let check (_things, pipes) verbosity =
   let cur_sblock_id = ref 0 in
@@ -185,8 +184,16 @@ let check (_things, pipes) verbosity =
             match op with
             | Neg when t1 = Int || t1 = Float -> t1
             | Not when t1 = Bool -> t1
-            | Ref -> Borrow (t1, "'_")
-            | MutRef -> MutBorrow (t1, "'_")
+            | Ref -> (
+                match t1 with
+                | MutBorrow _ | Borrow _ ->
+                    make_err "can't take a borrow of a borrow"
+                | _ -> Borrow (t1, "'_"))
+            | MutRef -> (
+                match t1 with
+                | MutBorrow _ | Borrow _ ->
+                    make_err "can't take a borrow of a borrow"
+                | _ -> MutBorrow (t1, "'_"))
             | Deref
               when match t1 with
                    | Borrow (_, _) | MutBorrow (_, _) -> true
@@ -214,15 +221,18 @@ let check (_things, pipes) verbosity =
                    && (t1 = Int || t1 = Float || t1 = String || t1 = Char
                      || t1 = Bool) ->
                 Bool
-            | (Add | Sub | Mult | Div) when same && (t1 = Int || t1 = Float) -> (
-              match (t1, t2) with
-              | (Int, Int) -> Int
-              | (Float, Float) -> Float
-              | (Float, Int) -> Float
-              | (Int, Float) -> Float
-              | _ -> raise (
-                Failure ("invalid operands for arithmetic operation " ^ string_of_op op))
-              )
+            | (Add | Sub | Mult | Div) when same && (t1 = Int || t1 = Float)
+              -> (
+                match (t1, t2) with
+                | Int, Int -> Int
+                | Float, Float -> Float
+                | Float, Int -> Float
+                | Int, Float -> Float
+                | _ ->
+                    raise
+                      (Failure
+                         ("invalid operands for arithmetic operation "
+                        ^ string_of_op op)))
             | Concat when same && t1 = String && t2 = String -> String
             | _ ->
                 raise
@@ -285,9 +295,8 @@ let check (_things, pipes) verbosity =
       | Block sl ->
           SBlock
             ( List.map check_stmt sl,
-              [],
               let _ = cur_sblock_id := !cur_sblock_id + 1 in
-              !cur_sblock_id - 1 )
+              string_of_int (!cur_sblock_id - 1) )
       | Assign (is_mut, t, name, e) as ass ->
           let _, lt = type_of_identifier name and rt, e' = expr e in
           let err =
@@ -335,11 +344,12 @@ let check (_things, pipes) verbosity =
       if StringMap.mem p.name built_in_pipe_decls then []
       else
         match check_stmt (Block p.body) with
-        | SBlock (sl, _, _sblock_id) -> sl
+        | SBlock (sl, _sblock_id) -> sl
         | _ ->
             let err = "internal error: block didn't become a block?" in
             raise (Failure err)
     in
+
     {
       sreturn_type = p.return_type;
       sname = p.name;
@@ -373,11 +383,35 @@ let check (_things, pipes) verbosity =
       let _ =
         List.iter
           (fun (k, v) ->
-            print_string
-              ("block " ^ string_of_int k ^ " --> " ^ String.concat "," v ^ "\n"))
-          (IntMap.bindings node_ownership_map)
+            print_string ("block " ^ k ^ " --> " ^ String.concat "," v ^ "\n"))
+          (StringMap.bindings node_ownership_map)
       in
       print_string "\n"
   in
 
-  ([], s_pipes)
+  let s_pipes_w_wrappers =
+    List.map
+      (fun p ->
+        {
+          sreturn_type = p.sreturn_type;
+          sname = p.sname;
+          slifetimes = p.slifetimes;
+          sformals = p.sformals;
+          (*
+            We wrap each function body with two blocks, the outermost one owns
+            the function args and the second one contains the function body.
+            We do this so that our SAST function structure corresponds to the dummy-lifetime structure 
+            for functions that we create in the borrow-checker. This will allow us to free owned 
+            arguments appropriately in codegen.
+          *)
+          sbody =
+            [
+              SBlock
+                ( [ SBlock (p.sbody, p.sname ^ "_wrapper") ],
+                  p.sname ^ "_with_args" );
+            ];
+        })
+      s_pipes
+  in
+
+  ([], s_pipes_w_wrappers)

@@ -24,8 +24,7 @@ type s_stmt =
   (* string list contains symbols owned at end of life *)
   | SBlock of
       s_stmt list
-      * string list
-      * int (* int is id to map it to borrow checker graph node *)
+      * string (* string is id to map it to borrow checker graph node *)
   | SExpr of s_expr
   (* return equivalent *)
   | SPipeOut of s_expr
@@ -94,15 +93,15 @@ let rec indent x =
 
 let rec string_of_s_stmt s_stmt pad =
   match s_stmt with
-  | SBlock (s_stmts, _owned_vars, sblock_id) ->
+  | SBlock (s_stmts, sblock_id) ->
       indent (pad - 1)
-      ^ "{(id: " ^ string_of_int sblock_id ^ ")\n"
+      ^ "{(id: " ^ sblock_id ^ ")\n"
       ^ String.concat "" (List.map (fun s -> string_of_s_stmt s pad) s_stmts)
       ^ indent (pad - 1)
       ^ "}\n"
   | SExpr s_expr -> indent pad ^ string_of_s_expr s_expr ^ ";\n"
   | SPipeOut s_expr -> indent pad ^ "|> " ^ string_of_s_expr s_expr ^ ";\n"
-  | SIf (e, s, SBlock ([], _, _sblock_id)) ->
+  | SIf (e, s, SBlock ([], _sblock_id)) ->
       indent pad ^ "if (" ^ string_of_s_expr e ^ ")\n"
       ^ string_of_s_stmt s (pad + 1)
   | SIf (e, s1, s2) -> (

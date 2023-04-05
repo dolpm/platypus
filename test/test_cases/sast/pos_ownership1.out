@@ -1,8 +1,14 @@
 pipe test |> [] |> [x: int] |> unit {
+{(id: test_with_args)
+{(id: test_wrapper)
   |> (unit : ());
+}
+}
 }
 
 pipe main |> [] |> [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
   int x <| (int : 4);
   int z <| (int : 4);
 {(id: 1)
@@ -19,4 +25,6 @@ pipe main |> [] |> [] |> unit {
   }
 }
   |> (unit : ());
+}
+}
 }

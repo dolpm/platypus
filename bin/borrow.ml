@@ -1,7 +1,6 @@
 open Sast
 open Ast
 module StringMap = Map.Make (String)
-module IntMap = Map.Make (Int)
 
 type graph_node =
   | Lifetime of {
@@ -12,7 +11,7 @@ type graph_node =
       loop : string option;
       (* rest *)
       owned_vars : string list;
-      assoc_sblock_id : int option;
+      assoc_sblock_id : string option;
     }
   | Binding of {
       parent : string option;
@@ -108,7 +107,7 @@ let borrow_ck pipes verbose =
     let rec gen_children parent_id parent_depth parent_loop child_id stmt graph
         =
       match stmt with
-      | SBlock (stmts, _owned_vars, sblock_id) ->
+      | SBlock (stmts, sblock_id) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           let _, updated_graph, children =
             List.fold_left
@@ -135,7 +134,7 @@ let borrow_ck pipes verbose =
                    children = List.rev children;
                    owned_vars = [];
                    assoc_sblock_id =
-                     (if sblock_id = -1 then None else Some sblock_id);
+                     (if sblock_id = "-1" then None else Some sblock_id);
                  })
               updated_graph )
       | SAssign (is_mut, typ, name, expr) ->
@@ -212,7 +211,7 @@ let borrow_ck pipes verbose =
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           let matched, graph', children =
             match sstmt with
-            | SWhile (sex, SBlock (stmts, [], sblock_id)) ->
+            | SWhile (sex, SBlock (stmts, sblock_id)) ->
                 let wrapper_id = node_id ^ ".0" in
                 let sex_id = wrapper_id ^ ".0" in
                 let block_id = wrapper_id ^ ".1" in
@@ -246,15 +245,13 @@ let borrow_ck pipes verbose =
 
                 let _, graph' =
                   gen_children wrapper_id (parent_depth + 2) (Some wrapper_id) 1
-                    (SBlock (stmts, [], sblock_id))
+                    (SBlock (stmts, sblock_id))
                     graph'
                 in
 
                 (true, graph', [ wrapper_id ])
-            | SIf
-                ( sex,
-                  SBlock (stmts1, [], sblock_id1),
-                  SBlock (stmts2, [], sblock_id2) ) ->
+            | SIf (sex, SBlock (stmts1, sblock_id1), SBlock (stmts2, sblock_id2))
+              ->
                 let sex_id = node_id ^ ".0" in
                 let block1_id = node_id ^ ".1" in
                 let block2_id = node_id ^ ".2" in
@@ -274,17 +271,17 @@ let borrow_ck pipes verbose =
 
                 let _, graph' =
                   gen_children node_id (parent_depth + 1) parent_loop 1
-                    (SBlock (stmts1, [], sblock_id1))
+                    (SBlock (stmts1, sblock_id1))
                     graph'
                 in
                 let _, graph' =
                   gen_children node_id (parent_depth + 1) parent_loop 2
-                    (SBlock (stmts2, [], sblock_id2))
+                    (SBlock (stmts2, sblock_id2))
                     graph'
                 in
 
                 (true, graph', [ sex_id; block1_id; block2_id ])
-            | SLoop (sex1, sex2, ident, sex3, SBlock (stmts, [], sblock_id)) ->
+            | SLoop (sex1, sex2, ident, sex3, SBlock (stmts, sblock_id)) ->
                 let wrapper_id = node_id ^ ".0" in
                 let sex1_id = wrapper_id ^ ".0" in
                 let sex2_id = wrapper_id ^ ".1" in
@@ -361,7 +358,7 @@ let borrow_ck pipes verbose =
 
                 let _, graph' =
                   gen_children wrapper_id (parent_depth + 2) (Some wrapper_id) 4
-                    (SBlock (stmts, [], sblock_id))
+                    (SBlock (stmts, sblock_id))
                     graph'
                 in
 
@@ -391,7 +388,7 @@ let borrow_ck pipes verbose =
       snd
         (gen_children pipe.sname 1 None
            (StringMap.cardinal graph_with_pipe_args)
-           (SBlock (pipe.sbody, [], -1))
+           (SBlock (pipe.sbody, pipe.sname ^ "_wrapper"))
            graph_with_pipe_args)
     in
 
@@ -413,7 +410,7 @@ let borrow_ck pipes verbose =
                          (StringMap.bindings graph_with_pipe_args)));
              node_id = pipe.sname;
              owned_vars = [];
-             assoc_sblock_id = None;
+             assoc_sblock_id = Some (pipe.sname ^ "_with_args");
            })
         graph_with_pipe_body
     in
@@ -461,7 +458,7 @@ let borrow_ck pipes verbose =
                         print_string
                           ("assoc_sblock_id: "
                           ^ (match l.assoc_sblock_id with
-                            | Some pid -> string_of_int pid
+                            | Some sbid -> sbid
                             | None -> "None")
                           ^ "\n")
                       in
@@ -1388,11 +1385,11 @@ let borrow_ck pipes verbose =
                 | None -> map'
                 | Some sbid ->
                     if List.length l.owned_vars = 0 then map'
-                    else IntMap.add sbid l.owned_vars map')
+                    else StringMap.add sbid l.owned_vars map')
             | _ -> map')
           map
           (StringMap.bindings p_graph))
-      IntMap.empty (StringMap.bindings graph)
+      StringMap.empty (StringMap.bindings graph)
   in
 
   id_owned_vars_table

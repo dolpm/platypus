@@ -1,12 +1,18 @@
 pipe test |> ['a, 'b] |> [x: &'a int, y: &'b int] |> &'b int {
+{(id: test_with_args)
+{(id: test_wrapper)
   if ((bool : (int : @(&'a int : x)) == (int : 2)))
   {(id: 5)
     |> (&'a int : x);
   }
   |> (&'b int : y);
 }
+}
+}
 
 pipe main |> [] |> [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
   int x <| (int : 4);
   while (bool : (int : x) < (int : 5))
   {(id: 1)
@@ -17,4 +23,6 @@ pipe main |> [] |> [] |> unit {
     }
   }
   |> (unit : ());
+}
+}
 }

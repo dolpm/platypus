@@ -1,14 +1,26 @@
 pipe test1 |> ['a] |> [x: &'a int] |> &'a int {
+{(id: test1_with_args)
+{(id: test1_wrapper)
   |> (&'a int : x);
+}
+}
 }
 
 pipe test |> [] |> [x: int] |> unit {
+{(id: test_with_args)
+{(id: test_wrapper)
   |> (unit : ());
+}
+}
 }
 
 pipe main |> [] |> [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
   (unit : test <| [(int : 1)]);
   int x <| (int : 1);
   (&'_ int : test1 <| [(&'_ int : &(int : x))]);
   |> (unit : ());
+}
+}
 }
