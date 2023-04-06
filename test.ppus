@@ -1,4 +1,0 @@
-pipe main |> [] |> [] |> unit {
-    test_vec_create <| [];
-    |> ();
-}

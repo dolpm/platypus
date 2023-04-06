@@ -23,10 +23,9 @@ let check (_things, pipes) verbosity =
       ("Vector_alloc", [], Vector Generic);
       ("Vector_get", [ (false, Vector Generic, "x") ], Generic);
       ( "Vector_push",
-        [ (true, Vector Generic, "x"); (false, Generic, "y") ],
+        [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
         Unit );
       ("Vector_pop", [ (true, Vector Generic, "x") ], Generic);
-      ("test_vec_create", [], Unit);
       ("option_is_none", [ (false, Option Generic, "x") ], Bool);
       ("option_is_some", [ (false, Option Generic, "x") ], Bool);
     ]
@@ -270,16 +269,17 @@ let check (_things, pipes) verbosity =
                     | _ -> accum_t)
                   Generic pd.formals args_checked
               in
+              let rec generic_sub_helper ft =
+                match ft with
+                | Generic -> generic_type
+                | Vector Generic -> Vector generic_type
+                | MutBorrow (t, l) -> MutBorrow (generic_sub_helper t, l)
+                | Borrow (t, l) -> Borrow (generic_sub_helper t, l)
+                | typ -> typ
+              in
               let generic_substitution =
                 List.map
-                  (fun (a, ft, c) ->
-                    let t =
-                      match ft with
-                      | Generic -> generic_type
-                      | Vector Generic -> Vector generic_type
-                      | typ -> typ
-                    in
-                    (a, t, c))
+                  (fun (a, ft, c) -> (a, generic_sub_helper ft, c))
                   pd.formals
               in
               List.map2 check_pipein generic_substitution args

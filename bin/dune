@@ -6,7 +6,6 @@
   platypus
   llvm
   llvm.analysis
-  llvm.linker
   llvm.irreader
   llvm.executionengine
   llvm.bitwriter
