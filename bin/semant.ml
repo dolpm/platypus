@@ -132,8 +132,9 @@ let check (_things, pipes) verbosity =
       | Box lt, Box Generic -> Box lt
       | Generic, _ -> rvaluet
       | _, Generic -> lvaluet
-      | MutBorrow (lt, _), MutBorrow (rt, _) | Borrow (lt, _), Borrow (rt, _) ->
-          check_assign lt rt err
+      | MutBorrow (lt, l1), MutBorrow (rt, _l2) ->
+          MutBorrow (check_assign lt rt err, l1)
+      | Borrow (lt, l1), Borrow (rt, _l2) -> Borrow (check_assign lt rt err, l1)
       | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
