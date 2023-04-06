@@ -11,7 +11,7 @@ let check (_things, pipes) verbosity =
   (* (name, [param(is_mut, type, name)], ret_type) *)
   let stdlib_pipe_decls =
     [
-      ("printnl", [ (false, String, "x") ], Unit);
+      ("printnl", [ (false, Generic, "x") ], Unit);
       ("panic", [ (false, String, "x") ], Unit);
       ("int_to_string", [ (false, Int, "x") ], String);
       ("float_to_string", [ (false, Float, "x") ], String);
@@ -302,6 +302,10 @@ let check (_things, pipes) verbosity =
             in
             let ret_type =
               match pname with
+              | "printnl" -> (
+                  match first_arg_type with
+                  | Int | Float | String -> first_arg_type
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Heap_alloc" -> Box first_arg_type
               | "Vector_pop" | "Vector_push" -> (
                   match first_arg_type with

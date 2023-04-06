@@ -139,8 +139,8 @@ let translate (things, pipes) the_module =
     let builder = L.builder_at_end context (L.entry_block the_pipe) in
 
     let newline_str = L.build_global_stringptr "%s\n" "fmt_nl" builder
-    and _int_format_str = L.build_global_stringptr "%d\n" "fmt" builder
-    and _float_format_str = L.build_global_stringptr "%g\n" "fmt" builder in
+    and int_format_str = L.build_global_stringptr "%d\n" "fmt" builder
+    and float_format_str = L.build_global_stringptr "%g\n" "fmt" builder in
 
     let variables =
       let add_formal m (_is_mut, t, n) p =
@@ -182,10 +182,20 @@ let translate (things, pipes) the_module =
                   ref)
           | _ -> expr builder (t, e))
       (* function call, takes in fn name and a list of inputs *)
-      | SPipeIn ("printnl", [ e ]) ->
-          L.build_call printf_func
-            [| newline_str; expr builder e |]
-            "printf" builder
+      | SPipeIn ("printnl", [ (t, sx) ]) -> (
+          match t with
+          | Int ->
+              L.build_call printf_func
+                [| int_format_str; expr builder (t, sx) |]
+                "printf" builder
+          | Float ->
+              L.build_call printf_func
+                [| float_format_str; expr builder (t, sx) |]
+                "printf" builder
+          | _ ->
+              L.build_call printf_func
+                [| newline_str; expr builder (t, sx) |]
+                "printf" builder)
       | SPipeIn ("Vector_alloc", []) ->
           L.build_call vector_alloc_func [||] "Vector_alloc" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->

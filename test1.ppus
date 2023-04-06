@@ -3,6 +3,7 @@ pipe main |> [] |> [] |> unit {
     Vector_push <| [~&v, 255];
     {
         &int x <| Vector_get <| [&v, 0];
+        printnl <| [@x];
     }
     {
         ~&int x <| Vector_get_mut <| [~&v, 0];
