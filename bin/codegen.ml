@@ -70,6 +70,15 @@ let translate (things, pipes) the_module =
     L.declare_function "Vector_pop" vector_pop_t the_module
   in
 
+  let vector_get_t =
+    L.function_type
+      (L.pointer_type (ltype_of_typ A.Generic))
+      [| L.pointer_type vector_t; i32_t |]
+  in
+  let vector_get_func =
+    L.declare_function "Vector_get" vector_get_t the_module
+  in
+
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
@@ -210,9 +219,21 @@ let translate (things, pipes) the_module =
             [| expr builder vector; elem_arg |]
             "" builder
       | SPipeIn ("Vector_pop", [ vector ]) ->
-          L.build_call vector_pop_func
-            [| expr builder vector |]
-            "" builder
+          L.build_call vector_pop_func [| expr builder vector |] "" builder
+      | SPipeIn ("Vector_get", [ (vt, v); index ]) ->
+          let fetched_item =
+            L.build_call vector_get_func
+              [| expr builder (vt, v); expr builder index |]
+              "vector_item" builder
+          in
+          let inner_type =
+            match vt with
+            | Borrow (Vector t, _) -> t
+            | _ -> raise (Failure "panic!")
+          in
+          L.build_bitcast fetched_item
+            (L.pointer_type (ltype_of_typ inner_type))
+            "vector_item_as_type" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in

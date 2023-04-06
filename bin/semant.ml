@@ -21,7 +21,10 @@ let check (_things, pipes) verbosity =
       ("Heap_alloc", [ (true, Generic, "x") ], Box Generic);
       ("Vector_length", [ (false, Vector Generic, "x") ], Int);
       ("Vector_alloc", [], Vector Generic);
-      ("Vector_get", [ (false, Vector Generic, "x") ], Generic);
+      (* TODO: add get_mut which take a mut borrow on the item in the vector *)
+      ( "Vector_get",
+        [ (false, Borrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
+        Borrow (Generic, "'_") );
       ( "Vector_push",
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
         Unit );
@@ -294,9 +297,13 @@ let check (_things, pipes) verbosity =
             let ret_type =
               match pname with
               | "Heap_alloc" -> Box first_arg_type
-              | "Vector_pop" | "Vector_get" -> (
+              | "Vector_pop" | "Vector_push" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, _) -> t
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Vector_get" -> (
+                  match first_arg_type with
+                  | Borrow (Vector t, lt) -> Borrow (t, lt)
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | _ -> pd.return_type
             in

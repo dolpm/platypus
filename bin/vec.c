@@ -66,8 +66,6 @@ void *Vector_pop(struct Vector *v) {
     Vector_shrink(v);
   }
 
-  printf("vector size: %d", v->length);
-
   return value;
 }
 
