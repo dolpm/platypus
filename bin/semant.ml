@@ -296,7 +296,7 @@ let check (_things, pipes) verbosity =
               | "Heap_alloc" -> Box first_arg_type
               | "Vector_pop" | "Vector_get" -> (
                   match first_arg_type with
-                  | Vector t -> t
+                  | MutBorrow (Vector t, _) -> t
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | _ -> pd.return_type
             in

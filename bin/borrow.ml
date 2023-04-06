@@ -668,6 +668,31 @@ let borrow_ck pipes verbose =
               names
           in
 
+          (* if ownership of another var given to pipe as arg *)
+          (* remove the original from the table *)
+          (* and validate that rhs is in same loop *)
+          let symbol_table' =
+            List.fold_left
+              (fun symbol_table arg ->
+                match arg with
+                | _ty, SIdent v_name ->
+                    let v_node =
+                      StringMap.find (StringMap.find v_name symbol_table) graph
+                    in
+                    let _v_parent, _v_node_id, _v_depth, v_loop =
+                      node_common_data v_node
+                    in
+                    if v_loop <> pc.loop then
+                      raise
+                        (Failure
+                           ("ownership of " ^ v_name
+                          ^ " could be taken in a previous loop iteration"))
+                    else StringMap.remove v_name symbol_table
+                | _ -> symbol_table)
+              symbol_table pc.args
+          in
+
+          (*
           let symbol_table' =
             List.fold_left
               (fun symbol_table' n ->
@@ -676,7 +701,7 @@ let borrow_ck pipes verbose =
                 else StringMap.remove n symbol_table')
               symbol_table names
           in
-
+          *)
           (symbol_table', graph)
       | v ->
           let e =
@@ -1312,7 +1337,9 @@ let borrow_ck pipes verbose =
           | e -> ck_expr borrow_table rb.node_id cur_depth e)
       | PipeCall pc ->
           (* validate all arguments that may borrow things *)
-          let borrow_table' =
+          (* but these shouldn't be held past this validation *)
+          (* because there is no return *)
+          let _borrow_table' =
             List.fold_left
               (fun borrow_table arg ->
                 ck_expr borrow_table pc.node_id cur_depth arg)
@@ -1336,7 +1363,7 @@ let borrow_ck pipes verbose =
           (* pipe declaration *)
           let _ = validate_p_call_args pc.pipe_name pc.args pc.node_id in
 
-          borrow_table'
+          borrow_table
       | PipeReturn pr ->
           (* make sure the returned value is an arg if it *)
           (* is a borrow *)

@@ -1,6 +1,6 @@
 pipe main |> [] |> [] |> unit {
     mut vector[int] v <| Vector_alloc <| [];
-    /* Vector_push <| [~&v, 255]; */
+    Vector_push <| [~&v, 255];
     Vector_pop <| [~&v];
     |> ();
 }
