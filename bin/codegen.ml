@@ -172,6 +172,9 @@ let translate (things, pipes) the_module =
       | SStringLiteral s -> L.build_global_stringptr s "str" builder
       | SUnop (op, (t, e)) -> (
           match op with
+          | Deref ->
+              let load_value = expr builder (t, e) in
+              L.build_load load_value "derefed_value" builder
           | Ref | MutRef -> (
               match t with
               | Vector _ | Box _ -> expr builder (t, e)
