@@ -12,11 +12,11 @@ pipe main |> [] |> [] |> unit {
   int x <| 4;
   while (x < 5) {
     if (x == 2) {
-      int z <| &x;
+      &int z <| &x;
       int y <| 4;
       mut &int w <| &y;
       loop 0 -> 5 as xyz {
-        w <| (test <| [&x, &y, &z]);
+        w <| (test <| [&x, &y, z]);
       }
     }
   }

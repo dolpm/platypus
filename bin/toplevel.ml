@@ -32,6 +32,15 @@ let () =
     usage_msg;
   let lexbuf = Lexing.from_channel !channel in
   let ast = Parser.program Scanner.token lexbuf in
+
+  (* create module from externally-imported files *)
+  (* to be passed into translate fn for linking *)
+  let m_external =
+    Llvm_irreader.parse_ir (Llvm.global_context ())
+      (Llvm.MemoryBuffer.of_string Builtins.as_llvm_ir)
+  in
+  let _ = Llvm_analysis.assert_valid_module m_external in
+
   match !action with
   | Ast -> print_string (Ast.string_of_program ast)
   | c -> (
@@ -39,10 +48,12 @@ let () =
       match c with
       | Sast -> print_string (Sast.string_of_sprogram sast)
       | LLVM_IR ->
-          print_string (Llvm.string_of_llmodule (Codegen.translate sast))
+          print_string
+            (Llvm.string_of_llmodule (Codegen.translate sast m_external))
       | c -> (
-          let m = Codegen.translate sast in
+          let m = Codegen.translate sast m_external in
           let _ = Llvm_analysis.assert_valid_module m in
+
           match c with
           | Compile ->
               let _bc = Llvm_bitwriter.write_bitcode_file m (!f_name ^ ".bc") in

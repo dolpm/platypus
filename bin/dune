@@ -2,12 +2,22 @@
  (public_name platypus)
  (name toplevel)
  (libraries
+  Str
   platypus
   llvm
   llvm.analysis
+  llvm.irreader
   llvm.executionengine
   llvm.bitwriter
   ctypes.foreign))
+
+(rule
+ (target builtins.ml)
+ (deps link.sh vec.c)
+ (action
+  (chdir
+   %{workspace_root}
+   (run %{bin:sh} ./bin/link.sh %{target}))))
 
 (rule
  (target scanner.ml)

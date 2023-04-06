@@ -3,6 +3,6 @@ pipe main |> [] |> [] |> unit {
   int z <| 4;
   mut &int y <| &x;
   y <| &z;
-  int w <| ~&x;
+  ~&int w <| ~&x;
   |> ();
 }

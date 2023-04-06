@@ -10,7 +10,7 @@ let check (_things, pipes) verbosity =
   (* (name, [param(is_mut, type, name)], ret_type) *)
   let stdlib_pipe_decls =
     [
-      ("printnl", [ (false, String, "x") ], Unit);
+      ("printnl", [ (false, Generic, "x") ], Unit);
       ("panic", [ (false, String, "x") ], Unit);
       ("int_to_string", [ (false, Int, "x") ], String);
       ("float_to_string", [ (false, Float, "x") ], String);
@@ -20,11 +20,16 @@ let check (_things, pipes) verbosity =
       ("Heap_alloc", [ (true, Generic, "x") ], Box Generic);
       ("Vector_length", [ (false, Vector Generic, "x") ], Int);
       ("Vector_alloc", [], Vector Generic);
-      ("Vector_get", [ (false, Vector Generic, "x") ], Option Generic);
+      ( "Vector_get_mut",
+        [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
+        MutBorrow (Generic, "'_") );
+      ( "Vector_get",
+        [ (false, Borrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
+        Borrow (Generic, "'_") );
       ( "Vector_push",
-        [ (true, Vector Generic, "x"); (false, Generic, "y") ],
+        [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
         Unit );
-      ("Vector_pop", [ (true, Vector Generic, "x") ], Option Generic);
+      ("Vector_pop", [ (true, MutBorrow (Vector Generic, "'_"), "x") ], Unit);
       ("option_is_none", [ (false, Option Generic, "x") ], Bool);
       ("option_is_some", [ (false, Option Generic, "x") ], Bool);
     ]
@@ -103,6 +108,7 @@ let check (_things, pipes) verbosity =
   in
 
   (* recursively fetch all assignments in a statement list *)
+  (*
   let rec find_bindings (body : stmt list) =
     List.flatten
       (List.filter_map
@@ -117,28 +123,36 @@ let check (_things, pipes) verbosity =
            | _ -> None)
          body)
   in
-
+  *)
   let check_pipe p =
     let formals' = check_bindings p.formals in
-    let locals' = find_bindings p.body in
+
+    (* let locals' = find_bindings p.body in *)
 
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
-    let check_assign lvaluet rvaluet err =
+    let rec check_assign lvaluet rvaluet err =
       match (lvaluet, rvaluet) with
       | Vector Generic, Vector rt -> Vector rt
+      | Vector lt, Vector Generic -> Vector lt
       | Box Generic, Box rt -> Box rt
+      | Box lt, Box Generic -> Box lt
       | Generic, _ -> rvaluet
+      | _, Generic -> lvaluet
+      | MutBorrow (lt, l1), MutBorrow (rt, _l2) ->
+          MutBorrow (check_assign lt rt err, l1)
+      | Borrow (lt, l1), Borrow (rt, _l2) -> Borrow (check_assign lt rt err, l1)
       | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
     let symbols =
       List.fold_left
         (fun m (is_mut, typ, name) -> StringMap.add name (is_mut, typ) m)
-        StringMap.empty (formals' @ locals')
+        StringMap.empty formals'
     in
 
     (* Return a variable from our local symbol table *)
-    let type_of_identifier (s : string) : bool * defined_type =
+    let type_of_identifier (s : string)
+        (symbols : (bool * defined_type) StringMap.t) : bool * defined_type =
       try StringMap.find s symbols
       with Not_found -> raise (Failure ("undeclared identifier " ^ s))
     in
@@ -171,7 +185,8 @@ let check (_things, pipes) verbosity =
     let _ = assert_return p.body in
 
     (* Return a semantically-checked expression, i.e. with a type *)
-    let rec expr = function
+    let rec expr e symbols =
+      match e with
       | IntLiteral l -> (Int, SIntLiteral l)
       | FloatLiteral l -> (Float, SFloatLiteral l)
       | BoolLiteral l -> (Bool, SBoolLiteral l)
@@ -179,7 +194,7 @@ let check (_things, pipes) verbosity =
       | UnitLiteral -> (Unit, SUnitLiteral)
       | StringLiteral l -> (String, SStringLiteral l)
       | Unop (op, e1) as e ->
-          let t1, e1' = expr e1 in
+          let t1, e1' = expr e1 symbols in
           let ty =
             match op with
             | Neg when t1 = Int || t1 = Float -> t1
@@ -209,7 +224,7 @@ let check (_things, pipes) verbosity =
           in
           (ty, SUnop (op, (t1, e1')))
       | Binop (e1, op, e2) as e ->
-          let t1, e1' = expr e1 and t2, e2' = expr e2 in
+          let t1, e1' = expr e1 symbols and t2, e2' = expr e2 symbols in
           let same = t1 = t2 in
           let ty =
             match op with
@@ -251,6 +266,7 @@ let check (_things, pipes) verbosity =
                  ("expecting " ^ string_of_int param_length ^ " arguments in "
                 ^ string_of_expr pipein))
           else
+            let args_checked = List.map (fun arg -> expr arg symbols) args in
             let check_pipein (_, ft, _) e =
               (* we will check lifetimes later - just make sure they are ambiguous *)
               (* for this step *)
@@ -260,28 +276,78 @@ let check (_things, pipes) verbosity =
                 | MutBorrow (ty, _lt) -> MutBorrow (ty, "'_")
                 | f -> f
               in
-              let et, e' = expr e in
+              let et, e' = expr e symbols in
               let err =
                 "illegal argument found " ^ string_of_typ et ^ " expected "
                 ^ string_of_typ ft ^ " in " ^ string_of_expr e
               in
               (check_assign ft et err, e')
             in
-            let args' = List.map2 check_pipein pd.formals args in
+            (* Make sure all generics are the same *)
+            let solve_generic =
+              let generic_type =
+                List.fold_left2
+                  (fun accum_t (_, ft, _) (et, _) ->
+                    match ft with
+                    | Generic -> (
+                        match accum_t with
+                        | Generic -> et
+                        | _ ->
+                            raise
+                              (Failure
+                                 "generic conflict-- two generics map to \
+                                  different types"))
+                    | _ -> accum_t)
+                  Generic pd.formals args_checked
+              in
+              let rec generic_sub_helper ft =
+                match ft with
+                | Generic -> generic_type
+                | Vector Generic -> Vector generic_type
+                | MutBorrow (t, l) -> MutBorrow (generic_sub_helper t, l)
+                | Borrow (t, l) -> Borrow (generic_sub_helper t, l)
+                | typ -> typ
+              in
+              let generic_substitution =
+                List.map
+                  (fun (a, ft, c) -> (a, generic_sub_helper ft, c))
+                  pd.formals
+              in
+              List.map2 check_pipein generic_substitution args
+            in
+            let args' = solve_generic in
             let first_arg_type =
               if List.length args' > 0 then fst (List.hd args') else Generic
             in
             let ret_type =
-              match pd.return_type with
-              | Generic -> first_arg_type
-              | Box Generic -> Box first_arg_type
-              | Vector Generic -> Vector first_arg_type
-              | Borrow (ty, _) -> Borrow (ty, "'_")
-              | MutBorrow (ty, _) -> MutBorrow (ty, "'_")
+              match pname with
+              | "printnl" -> (
+                  match first_arg_type with
+                  | Int | Float | String -> first_arg_type
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Heap_alloc" -> Box first_arg_type
+              | "Vector_pop" | "Vector_push" -> (
+                  match first_arg_type with
+                  | MutBorrow (Vector t, _) -> t
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Vector_get" -> (
+                  match first_arg_type with
+                  | Borrow (Vector t, lt) -> Borrow (t, lt)
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Vector_get_mut" -> (
+                  match first_arg_type with
+                  | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | _ -> pd.return_type
             in
+            let ret_type =
+              match ret_type with
+              | Borrow (ty, _) -> Borrow (ty, "'_")
+              | MutBorrow (ty, _) -> MutBorrow (ty, "'_")
+              | _ -> ret_type
+            in
             (ret_type, SPipeIn (pname, args'))
-      | Ident s -> (snd (type_of_identifier s), SIdent s)
+      | Ident s -> (snd (type_of_identifier s symbols), SIdent s)
       | _ -> (Unit, SNoexpr)
     in
 
@@ -290,60 +356,80 @@ let check (_things, pipes) verbosity =
     (* handle either syntactically or semantically *)
 
     (* Return a semantically-checked statement, i.e. containing s_exprs *)
-    let rec check_stmt = function
-      | Expr e -> SExpr (expr e)
+    let rec check_stmt s symbols =
+      match s with
+      | Expr e -> SExpr (expr e symbols)
       | Block sl ->
           SBlock
-            ( List.map check_stmt sl,
+            ( List.rev
+                (snd
+                   (List.fold_left
+                      (fun (symbols, sstmts) stmt ->
+                        let symbols' =
+                          match stmt with
+                          | Assign (is_mut, t, name, _) ->
+                              StringMap.add name (is_mut, t) symbols
+                          | _ -> symbols
+                        in
+                        (symbols', check_stmt stmt symbols' :: sstmts))
+                      (symbols, []) sl)),
               let _ = cur_sblock_id := !cur_sblock_id + 1 in
               string_of_int (!cur_sblock_id - 1) )
       | Assign (is_mut, t, name, e) as ass ->
-          let _, lt = type_of_identifier name and rt, e' = expr e in
+          let _, lt = type_of_identifier name symbols
+          and rt, e' = expr e symbols in
           let err =
             "illegal assignment " ^ string_of_typ lt ^ " = " ^ string_of_typ rt
             ^ " in " ^ string_of_stmt ass 0
           in
-          let _ = check_assign t lt err in
+          let _ = check_assign lt rt err in
           SAssign (is_mut, t, name, (rt, e'))
       | ReAssign (name, e) as ass ->
-          let _, lt = type_of_identifier name and rt, e' = expr e in
+          let _, lt = type_of_identifier name symbols
+          and rt, e' = expr e symbols in
           let err =
-            "illegal assignment " ^ string_of_typ lt ^ " = " ^ string_of_typ rt
-            ^ " in " ^ string_of_stmt ass 0
+            "illegal reassignment " ^ string_of_typ lt ^ " = "
+            ^ string_of_typ rt ^ " in " ^ string_of_stmt ass 0
           in
           let _ = check_assign rt lt err in
           SReAssign (name, (rt, e'))
       | Loop (e1, e2, n, e3, s) -> (
-          let exprs =
-            List.map
-              (fun e ->
-                let t, e' = expr e in
-                let err = "expected integer " ^ string_of_expr e in
-                let t' = check_assign t Int err in
-                (t', e'))
-              [ e1; e2; e3 ]
-          in
-          match exprs with
-          | [ (t1', e1'); (t2', e2'); (t3', e3') ] ->
-              (* todo: make sure n isn't in symbol table? *)
-              SLoop ((t1', e1'), (t2', e2'), n, (t3', e3'), check_stmt s)
-          | _ -> make_err "panic!")
+          if StringMap.mem n symbols then
+            raise (Failure ("identifier: " ^ n ^ " already defined."))
+          else
+            (* add the iterator value to symbols (mutable for now) *)
+            let symbols = StringMap.add n (true, Int) symbols in
+            let exprs =
+              List.map
+                (fun e ->
+                  let t, e' = expr e symbols in
+                  let err = "expected integer " ^ string_of_expr e in
+                  let t' = check_assign t Int err in
+                  (t', e'))
+                [ e1; e2; e3 ]
+            in
+            match exprs with
+            | [ (t1', e1'); (t2', e2'); (t3', e3') ] ->
+                (* todo: make sure n isn't in symbol table? *)
+                SLoop
+                  ((t1', e1'), (t2', e2'), n, (t3', e3'), check_stmt s symbols)
+            | _ -> make_err "panic!")
       | While (e, s) ->
-          let t, e' = expr e in
+          let t, e' = expr e symbols in
           let err = "expected boolean " ^ string_of_expr e in
           let t' = check_assign t Bool err in
-          SWhile ((t', e'), check_stmt s)
-      | PipeOut e -> SPipeOut (expr e)
+          SWhile ((t', e'), check_stmt s symbols)
+      | PipeOut e -> SPipeOut (expr e symbols)
       | If (e, stmt1, stmt2) ->
-          let t, e' = expr e in
+          let t, e' = expr e symbols in
           let err = "expected boolean " ^ string_of_expr e in
           let t' = check_assign t Bool err in
-          SIf ((t', e'), check_stmt stmt1, check_stmt stmt2)
+          SIf ((t', e'), check_stmt stmt1 symbols, check_stmt stmt2 symbols)
     in
     let sbody =
       if StringMap.mem p.name built_in_pipe_decls then []
       else
-        match check_stmt (Block p.body) with
+        match check_stmt (Block p.body) symbols with
         | SBlock (sl, _sblock_id) -> sl
         | _ ->
             let err = "internal error: block didn't become a block?" in
