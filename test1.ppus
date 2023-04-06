@@ -2,8 +2,10 @@ pipe main |> [] |> [] |> unit {
     mut vector[int] v <| Vector_alloc <| [];
     Vector_push <| [~&v, 255];
     {
-        /* this will borrow the vector! */
         &int x <| Vector_get <| [&v, 0];
+    }
+    {
+        ~&int x <| Vector_get_mut <| [~&v, 0];
     }
     Vector_pop <| [~&v];
     |> ();

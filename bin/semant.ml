@@ -21,7 +21,9 @@ let check (_things, pipes) verbosity =
       ("Heap_alloc", [ (true, Generic, "x") ], Box Generic);
       ("Vector_length", [ (false, Vector Generic, "x") ], Int);
       ("Vector_alloc", [], Vector Generic);
-      (* TODO: add get_mut which take a mut borrow on the item in the vector *)
+      ( "Vector_get_mut",
+        [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
+        MutBorrow (Generic, "'_") );
       ( "Vector_get",
         [ (false, Borrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
         Borrow (Generic, "'_") );
@@ -107,6 +109,7 @@ let check (_things, pipes) verbosity =
   in
 
   (* recursively fetch all assignments in a statement list *)
+  (*
   let rec find_bindings (body : stmt list) =
     List.flatten
       (List.filter_map
@@ -121,10 +124,11 @@ let check (_things, pipes) verbosity =
            | _ -> None)
          body)
   in
-
+  *)
   let check_pipe p =
     let formals' = check_bindings p.formals in
-    let locals' = find_bindings p.body in
+
+    (* let locals' = find_bindings p.body in *)
 
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let rec check_assign lvaluet rvaluet err =
@@ -144,11 +148,12 @@ let check (_things, pipes) verbosity =
     let symbols =
       List.fold_left
         (fun m (is_mut, typ, name) -> StringMap.add name (is_mut, typ) m)
-        StringMap.empty (formals' @ locals')
+        StringMap.empty formals'
     in
 
     (* Return a variable from our local symbol table *)
-    let type_of_identifier (s : string) : bool * defined_type =
+    let type_of_identifier (s : string)
+        (symbols : (bool * defined_type) StringMap.t) : bool * defined_type =
       try StringMap.find s symbols
       with Not_found -> raise (Failure ("undeclared identifier " ^ s))
     in
@@ -181,7 +186,8 @@ let check (_things, pipes) verbosity =
     let _ = assert_return p.body in
 
     (* Return a semantically-checked expression, i.e. with a type *)
-    let rec expr = function
+    let rec expr e symbols =
+      match e with
       | IntLiteral l -> (Int, SIntLiteral l)
       | FloatLiteral l -> (Float, SFloatLiteral l)
       | BoolLiteral l -> (Bool, SBoolLiteral l)
@@ -189,7 +195,7 @@ let check (_things, pipes) verbosity =
       | UnitLiteral -> (Unit, SUnitLiteral)
       | StringLiteral l -> (String, SStringLiteral l)
       | Unop (op, e1) as e ->
-          let t1, e1' = expr e1 in
+          let t1, e1' = expr e1 symbols in
           let ty =
             match op with
             | Neg when t1 = Int || t1 = Float -> t1
@@ -211,7 +217,7 @@ let check (_things, pipes) verbosity =
           in
           (ty, SUnop (op, (t1, e1')))
       | Binop (e1, op, e2) as e ->
-          let t1, e1' = expr e1 and t2, e2' = expr e2 in
+          let t1, e1' = expr e1 symbols and t2, e2' = expr e2 symbols in
           let same = t1 = t2 in
           let ty =
             match op with
@@ -241,7 +247,7 @@ let check (_things, pipes) verbosity =
                  ("expecting " ^ string_of_int param_length ^ " arguments in "
                 ^ string_of_expr pipein))
           else
-            let args_checked = List.map expr args in
+            let args_checked = List.map (fun arg -> expr arg symbols) args in
             let check_pipein (_, ft, _) e =
               (* we will check lifetimes later - just make sure they are ambiguous *)
               (* for this step *)
@@ -251,7 +257,7 @@ let check (_things, pipes) verbosity =
                 | MutBorrow (ty, _lt) -> MutBorrow (ty, "'_")
                 | f -> f
               in
-              let et, e' = expr e in
+              let et, e' = expr e symbols in
               let err =
                 "illegal argument found " ^ string_of_typ et ^ " expected "
                 ^ string_of_typ ft ^ " in " ^ string_of_expr e
@@ -305,6 +311,10 @@ let check (_things, pipes) verbosity =
                   match first_arg_type with
                   | Borrow (Vector t, lt) -> Borrow (t, lt)
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Vector_get_mut" -> (
+                  match first_arg_type with
+                  | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | _ -> pd.return_type
             in
             let ret_type =
@@ -314,7 +324,7 @@ let check (_things, pipes) verbosity =
               | _ -> ret_type
             in
             (ret_type, SPipeIn (pname, args'))
-      | Ident s -> (snd (type_of_identifier s), SIdent s)
+      | Ident s -> (snd (type_of_identifier s symbols), SIdent s)
       | _ -> (Unit, SNoexpr)
     in
 
@@ -323,16 +333,29 @@ let check (_things, pipes) verbosity =
     (* handle either syntactically or semantically *)
 
     (* Return a semantically-checked statement, i.e. containing s_exprs *)
-    let rec check_stmt = function
-      | Expr e -> SExpr (expr e)
+    let rec check_stmt s symbols =
+      match s with
+      | Expr e -> SExpr (expr e symbols)
       | Block sl ->
           SBlock
-            ( List.map check_stmt sl,
+            ( List.rev
+                (snd
+                   (List.fold_left
+                      (fun (symbols, sstmts) stmt ->
+                        let symbols' =
+                          match stmt with
+                          | Assign (is_mut, t, name, _) ->
+                              StringMap.add name (is_mut, t) symbols
+                          | _ -> symbols
+                        in
+                        (symbols', check_stmt stmt symbols' :: sstmts))
+                      (symbols, []) sl)),
               [],
               let _ = cur_sblock_id := !cur_sblock_id + 1 in
               !cur_sblock_id - 1 )
       | Assign (is_mut, t, name, e) as ass ->
-          let _, lt = type_of_identifier name and rt, e' = expr e in
+          let _, lt = type_of_identifier name symbols
+          and rt, e' = expr e symbols in
           let err =
             "illegal assignment " ^ string_of_typ lt ^ " = " ^ string_of_typ rt
             ^ " in " ^ string_of_stmt ass 0
@@ -340,44 +363,51 @@ let check (_things, pipes) verbosity =
           let _ = check_assign lt rt err in
           SAssign (is_mut, t, name, (rt, e'))
       | ReAssign (name, e) as ass ->
-          let _, lt = type_of_identifier name and rt, e' = expr e in
+          let _, lt = type_of_identifier name symbols
+          and rt, e' = expr e symbols in
           let err =
-            "illegal assignment " ^ string_of_typ lt ^ " = " ^ string_of_typ rt
-            ^ " in " ^ string_of_stmt ass 0
+            "illegal reassignment " ^ string_of_typ lt ^ " = "
+            ^ string_of_typ rt ^ " in " ^ string_of_stmt ass 0
           in
           let _ = check_assign rt lt err in
           SReAssign (name, (rt, e'))
       | Loop (e1, e2, n, e3, s) -> (
-          let exprs =
-            List.map
-              (fun e ->
-                let t, e' = expr e in
-                let err = "expected integer " ^ string_of_expr e in
-                let t' = check_assign t Int err in
-                (t', e'))
-              [ e1; e2; e3 ]
-          in
-          match exprs with
-          | [ (t1', e1'); (t2', e2'); (t3', e3') ] ->
-              (* todo: make sure n isn't in symbol table? *)
-              SLoop ((t1', e1'), (t2', e2'), n, (t3', e3'), check_stmt s)
-          | _ -> make_err "panic!")
+          if StringMap.mem n symbols then
+            raise (Failure ("identifier: " ^ n ^ " already defined."))
+          else
+            (* add the iterator value to symbols (mutable for now) *)
+            let symbols = StringMap.add n (true, Int) symbols in
+            let exprs =
+              List.map
+                (fun e ->
+                  let t, e' = expr e symbols in
+                  let err = "expected integer " ^ string_of_expr e in
+                  let t' = check_assign t Int err in
+                  (t', e'))
+                [ e1; e2; e3 ]
+            in
+            match exprs with
+            | [ (t1', e1'); (t2', e2'); (t3', e3') ] ->
+                (* todo: make sure n isn't in symbol table? *)
+                SLoop
+                  ((t1', e1'), (t2', e2'), n, (t3', e3'), check_stmt s symbols)
+            | _ -> make_err "panic!")
       | While (e, s) ->
-          let t, e' = expr e in
+          let t, e' = expr e symbols in
           let err = "expected boolean " ^ string_of_expr e in
           let t' = check_assign t Bool err in
-          SWhile ((t', e'), check_stmt s)
-      | PipeOut e -> SPipeOut (expr e)
+          SWhile ((t', e'), check_stmt s symbols)
+      | PipeOut e -> SPipeOut (expr e symbols)
       | If (e, stmt1, stmt2) ->
-          let t, e' = expr e in
+          let t, e' = expr e symbols in
           let err = "expected boolean " ^ string_of_expr e in
           let t' = check_assign t Bool err in
-          SIf ((t', e'), check_stmt stmt1, check_stmt stmt2)
+          SIf ((t', e'), check_stmt stmt1 symbols, check_stmt stmt2 symbols)
     in
     let sbody =
       if StringMap.mem p.name built_in_pipe_decls then []
       else
-        match check_stmt (Block p.body) with
+        match check_stmt (Block p.body) symbols with
         | SBlock (sl, _, _sblock_id) -> sl
         | _ ->
             let err = "internal error: block didn't become a block?" in

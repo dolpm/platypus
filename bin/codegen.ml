@@ -234,6 +234,20 @@ let translate (things, pipes) the_module =
           L.build_bitcast fetched_item
             (L.pointer_type (ltype_of_typ inner_type))
             "vector_item_as_type" builder
+      | SPipeIn ("Vector_get_mut", [ (vt, v); index ]) ->
+          let fetched_item =
+            L.build_call vector_get_func
+              [| expr builder (vt, v); expr builder index |]
+              "vector_item" builder
+          in
+          let inner_type =
+            match vt with
+            | MutBorrow (Vector t, _) -> t
+            | _ -> raise (Failure "panic!")
+          in
+          L.build_bitcast fetched_item
+            (L.pointer_type (ltype_of_typ inner_type))
+            "vector_item_as_type" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in
