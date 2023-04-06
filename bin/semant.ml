@@ -25,7 +25,7 @@ let check (_things, pipes) verbosity =
       ( "Vector_push",
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
         Unit );
-      ("Vector_pop", [ (true, Vector Generic, "x") ], Generic);
+      ("Vector_pop", [ (true, MutBorrow (Vector Generic, "'_"), "x") ], Unit);
       ("option_is_none", [ (false, Option Generic, "x") ], Bool);
       ("option_is_some", [ (false, Option Generic, "x") ], Bool);
     ]
@@ -124,14 +124,16 @@ let check (_things, pipes) verbosity =
     let locals' = find_bindings p.body in
 
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
-    let check_assign lvaluet rvaluet err =
+    let rec check_assign lvaluet rvaluet err =
       match (lvaluet, rvaluet) with
       | Vector Generic, Vector rt -> Vector rt
-      | Box Generic, Box rt -> Box rt
-      | Generic, _ -> rvaluet
       | Vector lt, Vector Generic -> Vector lt
+      | Box Generic, Box rt -> Box rt
       | Box lt, Box Generic -> Box lt
+      | Generic, _ -> rvaluet
       | _, Generic -> lvaluet
+      | MutBorrow (lt, _), MutBorrow (rt, _) | Borrow (lt, _), Borrow (rt, _) ->
+          check_assign lt rt err
       | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 

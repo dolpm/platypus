@@ -65,6 +65,11 @@ let translate (things, pipes) the_module =
     L.declare_function "Vector_push" vector_push_t the_module
   in
 
+  let vector_pop_t = L.function_type unit_t [| L.pointer_type vector_t |] in
+  let vector_pop_func =
+    L.declare_function "Vector_pop" vector_pop_t the_module
+  in
+
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
@@ -203,6 +208,10 @@ let translate (things, pipes) the_module =
 
           L.build_call vector_push_func
             [| expr builder vector; elem_arg |]
+            "" builder
+      | SPipeIn ("Vector_pop", [ vector ]) ->
+          L.build_call vector_pop_func
+            [| expr builder vector |]
             "" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
