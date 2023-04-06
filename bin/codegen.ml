@@ -36,7 +36,7 @@ let translate (things, pipes) the_module =
     | A.Borrow (t, _) -> L.pointer_type (ltype_of_typ t)
     | A.MutBorrow (t, _) -> L.pointer_type (ltype_of_typ t)
     | A.Generic -> L.pointer_type i8_t
-    | A.Vector _ -> vector_t
+    | A.Vector _ -> L.pointer_type vector_t
     | A.Ident _ -> string_t
     | t ->
         raise
@@ -158,11 +158,14 @@ let translate (things, pipes) the_module =
       | SStringLiteral s -> L.build_global_stringptr s "str" builder
       | SUnop (op, (t, e)) -> (
           match op with
-          | Ref | MutRef ->
-              let store_val = expr builder (t, e) in
-              let ref = L.build_alloca (ltype_of_typ t) "ref" builder in
-              let _ = L.build_store store_val ref builder in
-              ref
+          | Ref | MutRef -> (
+              match t with
+              | Vector _ | Box _ -> expr builder (t, e)
+              | _ ->
+                  let store_val = expr builder (t, e) in
+                  let ref = L.build_alloca (ltype_of_typ t) "ref" builder in
+                  let _ = L.build_store store_val ref builder in
+                  ref)
           | _ -> expr builder (t, e))
       (* function call, takes in fn name and a list of inputs *)
       | SPipeIn ("printnl", [ e ]) ->
@@ -193,7 +196,7 @@ let translate (things, pipes) the_module =
                 in
                 let _ =
                   L.build_store malloc_casted_to_void ref_of_malloc builder
-                in                
+                in
 
                 ref_of_malloc
           in

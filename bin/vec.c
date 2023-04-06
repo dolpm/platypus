@@ -14,13 +14,13 @@ struct Vector *Vector_alloc() {
   l->capacity = 10;
   l->length = 0;
   l->list = malloc(l->capacity * sizeof(void *));
+
   return l;
 }
 
 void *Vector_get(struct Vector *v, int index) {
   // TODO: throw with err message
   assert(index < v->length);
-
   return *(void **)(v->list + (index * sizeof(void *)));
 }
 
@@ -51,10 +51,7 @@ void Vector_push(struct Vector *v, void **new_value) {
   }
 
   void *addr = v->list + (v->length * sizeof(void *));
-  printf("hi\n");
   addr = memcpy(addr, new_value, (size_t)sizeof(void *));
-  printf("hi2\n");
-
   v->length++;
 }
 
@@ -63,7 +60,6 @@ void *Vector_pop(struct Vector *v) {
   assert(v->length > 0);
 
   void *value = Vector_get(v, v->length - 1);
-
   v->length--;
 
   if (v->length < v->capacity / 2) {
