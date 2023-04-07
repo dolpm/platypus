@@ -18,6 +18,8 @@ struct Vector *Vector_alloc() {
   return l;
 }
 
+/* int length(struct Vector *v) { return v->length; } */
+
 void *Vector_get(struct Vector *v, int index) {
   // TODO: throw with err message
   assert(index < v->length);

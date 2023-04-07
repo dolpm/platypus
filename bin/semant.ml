@@ -500,4 +500,4 @@ let check (_things, pipes) verbosity =
       s_pipes
   in
 
-  ([], s_pipes_w_wrappers)
+  (([], s_pipes_w_wrappers), node_ownership_map)

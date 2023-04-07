@@ -4,7 +4,7 @@ open Sast
 module StringMap = Map.Make (String)
 
 (* Translates SAST into LLVM module or throws error *)
-let translate (things, pipes) the_module =
+let translate (things, pipes) ownership_map the_module =
   let context = L.global_context () in
 
   let i32_t = L.i32_type context
@@ -57,6 +57,12 @@ let translate (things, pipes) the_module =
     L.declare_function "Vector_alloc" vector_alloc_t the_module
   in
 
+  (*
+  let vector_length_t = L.function_type i32_t [| L.pointer_type vector_t |] in
+  let _vector_length_func =
+    L.declare_function "Vector_length" vector_length_t the_module
+  in
+  *)
   let vector_push_t =
     L.function_type unit_t
       [| L.pointer_type vector_t; L.pointer_type (ltype_of_typ A.Generic) |]
@@ -282,8 +288,45 @@ let translate (things, pipes) the_module =
       | None -> ignore (instr builder)
     in
 
-    let rec stmt builder = function
-      | SBlock (sl, _) -> List.fold_left stmt builder sl
+    let free typ llvalue builder =
+      match typ with
+      | A.Vector _typ_inner ->
+          let loaded_vec = L.build_load llvalue "vec_struct" builder in
+          let v = L.build_struct_gep loaded_vec 0 "vector_length" builder in
+          let loaded_v = L.build_load v "stored_length" builder in
+          let _ =
+            L.build_call printf_func
+              [| int_format_str; loaded_v |]
+              "printf" builder
+          in
+
+          let _ = print_string "freeing vector" in
+          ()
+      | _ -> ()
+    in
+
+    let rec stmt s builder =
+      match s with
+      | SBlock (sl, sblock_id) ->
+          let block_deallocs =
+            if StringMap.mem sblock_id ownership_map then
+              StringMap.find sblock_id ownership_map
+            else []
+          in
+          let builder' =
+            List.fold_left (fun builder' s -> stmt s builder') builder sl
+          in
+          let _ =
+            List.iter
+              (fun stmt ->
+                match stmt with
+                | SAssign (_is_mut, t, name, _e) ->
+                    if List.mem name block_deallocs then
+                      free t (StringMap.find name !variables) builder
+                | _ -> ())
+              sl
+          in
+          builder'
       | SExpr e ->
           let _ = expr builder e in
           builder
@@ -301,7 +344,7 @@ let translate (things, pipes) the_module =
       | _ -> builder
     in
 
-    let _builder = stmt builder (SBlock (pdecl.sbody, "-1")) in
+    let _builder = stmt (SBlock (pdecl.sbody, "-1")) builder in
 
     ()
   in

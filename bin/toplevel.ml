@@ -44,14 +44,14 @@ let () =
   match !action with
   | Ast -> print_string (Ast.string_of_program ast)
   | c -> (
-      let sast = Semant.check ast !verbosity in
+      let (sast, ownership_map) = Semant.check ast !verbosity in
       match c with
       | Sast -> print_string (Sast.string_of_sprogram sast)
       | LLVM_IR ->
           print_string
-            (Llvm.string_of_llmodule (Codegen.translate sast m_external))
+            (Llvm.string_of_llmodule (Codegen.translate sast ownership_map m_external))
       | c -> (
-          let m = Codegen.translate sast m_external in
+          let m = Codegen.translate sast ownership_map m_external in
           let _ = Llvm_analysis.assert_valid_module m in
 
           match c with
