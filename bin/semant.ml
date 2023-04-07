@@ -107,27 +107,8 @@ let check (_things, pipes) verbosity =
     to_check
   in
 
-  (* recursively fetch all assignments in a statement list *)
-  (*
-  let rec find_bindings (body : stmt list) =
-    List.flatten
-      (List.filter_map
-         (fun s ->
-           match s with
-           | Assign (is_mut, typ, name, _) -> Some [ (is_mut, typ, name) ]
-           | Block stmts -> Some (find_bindings stmts)
-           | While (_, s) -> Some (find_bindings [ s ])
-           | Loop (_, _, id, _, s1) ->
-               Some ((false, Int, id) :: find_bindings [ s1 ])
-           | If (_, s1, s2) -> Some (find_bindings [ s1; s2 ])
-           | _ -> None)
-         body)
-  in
-  *)
   let check_pipe p =
     let formals' = check_bindings p.formals in
-
-    (* let locals' = find_bindings p.body in *)
 
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let rec check_assign lvaluet rvaluet err =
@@ -323,7 +304,7 @@ let check (_things, pipes) verbosity =
               match pname with
               | "printnl" -> (
                   match first_arg_type with
-                  | Int | Float | String -> first_arg_type
+                  | Int | Bool | Float | String -> first_arg_type
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Heap_alloc" -> Box first_arg_type
               | "Vector_pop" | "Vector_push" -> (

@@ -10,6 +10,7 @@ pipe main |> [] |> [] |> unit {
         ~&int x <| Vector_get_mut <| [~&v, 1];
         printnl <| [@x];
     }
+    printnl <| [4 + 9];
     Vector_pop <| [~&v];
     |> ();
 }
