@@ -206,6 +206,7 @@ let translate (things, pipes) the_module =
               | A.Neq -> L.build_icmp L.Icmp.Ne
               | _ -> raise (Failure "this operation is not supported"))
           | String -> (
+              (* todo implement strings *)
               match op with
               | A.Equal -> L.build_icmp L.Icmp.Eq
               | A.Neq -> L.build_icmp L.Icmp.Ne
@@ -231,7 +232,12 @@ let translate (things, pipes) the_module =
                   let ref = L.build_alloca (ltype_of_typ t) "ref" builder in
                   let _ = L.build_store store_val ref builder in
                   ref)
-          | _ -> expr builder (t, e))
+          | Neg ->
+              let load_value = expr builder (t, e) in
+              L.build_neg load_value "negated_value" builder
+          | Not ->
+              let load_value = expr builder (t, e) in
+              L.build_not load_value "boolean_negated_value" builder)
       | SPipeIn ("printnl", [ (t, sx) ]) -> (
           match t with
           | Int | Bool ->
