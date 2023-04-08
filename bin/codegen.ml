@@ -293,9 +293,31 @@ let translate (things, pipes) ownership_map the_module =
     let free typ llvalue builder =
       match typ with
       | A.Vector _typ_inner ->
-          let loaded_vec = L.build_load llvalue "vec_struct" builder in
-          let v = L.build_struct_gep loaded_vec 0 "vector_length" builder in
-          let loaded_v = L.build_load v "stored_length" builder in
+          let v_struct_llv = L.build_load llvalue "v_struct" builder in
+          let v_len_llv =
+            L.build_load
+              (L.build_struct_gep v_struct_llv 0 "v_len" builder)
+              "stored_v_len" builder
+          in
+
+          let _build_loop =
+            let pred_bb = L.append_block context "_free_while" the_pipe in
+            let _ = L.build_br pred_bb builder in
+
+            let body_bb = L.append_block context "_free_while_body" the_pipe in
+
+            (* replace this with the free call + increment *)
+            (*
+               let while_builder = stmt body (L.builder_at_end context body_bb) in
+               let () = add_terminal while_builder (L.build_br pred_bb) in
+            *)
+            let pred_builder = L.builder_at_end context pred_bb in
+            let bool_val = expr pred_builder pred in
+
+            let merge_bb = L.append_block context "_free_merge" the_pipe in
+            let _ = L.build_cond_br bool_val body_bb merge_bb pred_builder in
+            L.builder_at_end context merge_bb
+          in
 
           (* loop through vector length *)
           (*
@@ -308,7 +330,7 @@ let translate (things, pipes) ownership_map the_module =
           (* free the vector by calling the helper *)
           let _ =
             L.build_call printf_func
-              [| int_format_str; loaded_v |]
+              [| int_format_str; v_len_llv |]
               "printf" builder
           in
 
