@@ -282,11 +282,13 @@ let translate (things, pipes) ownership_map the_module =
       | _ -> L.build_add (L.const_int i32_t 0) (L.const_int i32_t 0) "" builder
     in
 
-    let _add_terminal (builder : L.llbuilder) instr : unit =
+    let add_terminal (builder : L.llbuilder) instr : unit =
       match L.block_terminator (L.insertion_block builder) with
       | Some _ -> ()
       | None -> ignore (instr builder)
     in
+
+    let ret_instr = ref None in
 
     let free typ llvalue builder =
       match typ with
@@ -294,6 +296,16 @@ let translate (things, pipes) ownership_map the_module =
           let loaded_vec = L.build_load llvalue "vec_struct" builder in
           let v = L.build_struct_gep loaded_vec 0 "vector_length" builder in
           let loaded_v = L.build_load v "stored_length" builder in
+
+          (* loop through vector length *)
+          (*
+             inside the loop body:
+             1. get the element at index i
+             2. cast it to the type we want
+             3. recursively generate instrs to free that value
+                (by calling ocaml free)
+          *)
+          (* free the vector by calling the helper *)
           let _ =
             L.build_call printf_func
               [| int_format_str; loaded_v |]
@@ -301,6 +313,9 @@ let translate (things, pipes) ownership_map the_module =
           in
 
           let _ = print_string "freeing vector" in
+          ()
+      | A.Box _typ_inner ->
+          let _ = L.build_free llvalue builder in
           ()
       | _ -> ()
     in
@@ -313,16 +328,27 @@ let translate (things, pipes) ownership_map the_module =
               StringMap.find sblock_id ownership_map
             else []
           in
+
+          (* build inner stmts *)
           let builder' =
             List.fold_left (fun builder' s -> stmt s builder') builder sl
           in
+
+          (* move builder before return value to insert free's *)
+          (* if a return instr has been built (i.e., we returned) *)
+          let builder' =
+            match !ret_instr with
+            | Some instr -> L.builder_before context instr
+            | _ -> builder'
+          in
+
           let _ =
             List.iter
               (fun stmt ->
                 match stmt with
                 | SAssign (_is_mut, t, name, _e) ->
                     if List.mem name block_deallocs then
-                      free t (StringMap.find name !variables) builder
+                      free t (StringMap.find name !variables) builder'
                 | _ -> ())
               sl
           in
@@ -332,16 +358,64 @@ let translate (things, pipes) ownership_map the_module =
           builder
       | SPipeOut e ->
           let _ =
-            match pdecl.sreturn_type with
-            | A.Unit -> L.build_ret_void builder
-            | _ -> L.build_ret (expr builder e) builder
+            ret_instr :=
+              Some
+                (match pdecl.sreturn_type with
+                | A.Unit -> L.build_ret_void builder
+                | _ -> L.build_ret (expr builder e) builder)
           in
           builder
       | SAssign (is_mut, t, name, e) ->
           let e' = expr builder e in
           let _ = add_local_variable (is_mut, t, name) e' in
           builder
-      | _ -> builder
+      | SReAssign (name, e) ->
+          let e' = expr builder e in
+          let llv = StringMap.find name !variables in
+          (* TODO: FREE OLD VALUE *)
+          let _ = L.build_store e' llv builder in
+          builder
+      | SWhile (pred, body) ->
+          let pred_bb = L.append_block context "while" the_pipe in
+          let _ = L.build_br pred_bb builder in
+
+          let body_bb = L.append_block context "while_body" the_pipe in
+          let while_builder = stmt body (L.builder_at_end context body_bb) in
+
+          let () = add_terminal while_builder (L.build_br pred_bb) in
+
+          let pred_builder = L.builder_at_end context pred_bb in
+          let bool_val = expr pred_builder pred in
+
+          let merge_bb = L.append_block context "merge" the_pipe in
+          let _ = L.build_cond_br bool_val body_bb merge_bb pred_builder in
+          L.builder_at_end context merge_bb
+      | SLoop (e1, e2, i, e3, body) ->
+          let assn = SAssign (true, A.Int, i, e1) in
+          let pred = (A.Bool, SBinop ((A.Int, SIdent i), Leq, e2)) in
+          let step =
+            SReAssign (i, (A.Int, SBinop ((A.Int, SIdent i), Add, e3)))
+          in
+
+          (* TODO: figure out the sblock_id's s.t. the loop owns i *)
+          stmt
+            (SBlock
+               ([ assn; SWhile (pred, SBlock ([ body; step ], "-1")) ], "-1"))
+            builder
+      | SIf (pred, s1, s2) ->
+          let merge_bb = L.append_block context "merge" the_pipe in
+          let branch_instr = L.build_br merge_bb in
+
+          let then_bb = L.append_block context "then" the_pipe in
+          let then_builder = stmt s1 (L.builder_at_end context then_bb) in
+          let () = add_terminal then_builder branch_instr in
+
+          let else_bb = L.append_block context "else" the_pipe in
+          let else_builder = stmt s2 (L.builder_at_end context else_bb) in
+          let () = add_terminal else_builder branch_instr in
+
+          let _ = L.build_cond_br (expr builder pred) then_bb else_bb builder in
+          L.builder_at_end context merge_bb
     in
 
     let _builder = stmt (SBlock (pdecl.sbody, "-1")) builder in
