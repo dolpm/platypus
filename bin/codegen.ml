@@ -85,6 +85,11 @@ let translate (things, pipes) ownership_map the_module =
     L.declare_function "Vector_get" vector_get_t the_module
   in
 
+  let vector_free_t = L.function_type unit_t [| L.pointer_type vector_t |] in
+  let vector_free_func =
+    L.declare_function "Vector_free" vector_free_t the_module
+  in
+
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
@@ -343,9 +348,9 @@ let translate (things, pipes) ownership_map the_module =
 
     let ret_instr = ref None in
 
-    let free typ llvalue builder =
+    let rec free typ llvalue builder =
       match typ with
-      | A.Vector _typ_inner ->
+      | A.Vector typ_inner ->
           let v_struct_llv = L.build_load llvalue "v_struct" builder in
           let v_len_llv =
             L.build_load
@@ -353,26 +358,47 @@ let translate (things, pipes) ownership_map the_module =
               "stored_v_len" builder
           in
 
+          let v_len_iter =
+            L.build_load (L.const_int i32_t 0) "v_len_iter" builder
+          in
+
           let _build_loop =
             let pred_bb = L.append_block context "_free_while" the_pipe in
             let _ = L.build_br pred_bb builder in
 
-            let _body_bb = L.append_block context "_free_while_body" the_pipe in
+            let body_bb = L.append_block context "_free_while_body" the_pipe in
+            let body_builder = L.builder_at_end context body_bb in
 
-            (* replace this with the free call + increment *)
-            (*
-               let while_builder = stmt body (L.builder_at_end context body_bb) in
-               let () = add_terminal while_builder (L.build_br pred_bb) in
-            *)
-            (*
+            (* fetch the item from the vector *)
+            let fetched_item =
+              L.build_call vector_get_func
+                [| v_struct_llv; v_len_iter |]
+                "vector_item" body_builder
+            in
+            (* cast the value to its type *)
+            let casted_value =
+              L.build_bitcast fetched_item
+                (L.pointer_type (ltype_of_typ typ_inner))
+                "vector_item_as_type" body_builder
+            in
+
+            (* call free on this casted value *)
+            let body_builder' = free typ_inner casted_value body_builder in
+            let () = add_terminal body_builder' (L.build_br pred_bb) in
+
             let pred_builder = L.builder_at_end context pred_bb in
-            let bool_val = expr pred_builder pred in
+            let cmp_as_bool =
+              L.build_icmp L.Icmp.Slt v_len_iter v_len_llv "_free_pred"
+                pred_builder
+            in
 
-            *)
             let merge_bb = L.append_block context "_free_merge" the_pipe in
-            (* let _ = L.build_cond_br bool_val body_bb merge_bb pred_builder in *)
+            let _ = L.build_cond_br cmp_as_bool body_bb merge_bb pred_builder in
             L.builder_at_end context merge_bb
           in
+
+          (* free the vector struct by calling the helper *)
+          let _ = L.build_call vector_free_func [| v_struct_llv |] "" builder in
 
           (* loop through vector length *)
           (*
@@ -390,11 +416,11 @@ let translate (things, pipes) ownership_map the_module =
           in
 
           let _ = print_string "freeing vector" in
-          ()
+          builder
       | A.Box _typ_inner ->
           let _ = L.build_free llvalue builder in
-          ()
-      | _ -> ()
+          builder
+      | _ -> builder
     in
 
     let rec stmt s builder =
@@ -419,17 +445,21 @@ let translate (things, pipes) ownership_map the_module =
             | _ -> builder'
           in
 
+          let builder' = ref builder' in
+
           let _ =
             List.iter
               (fun stmt ->
                 match stmt with
                 | SAssign (_is_mut, t, name, _e) ->
                     if List.mem name block_deallocs then
-                      free t (StringMap.find name !variables) builder'
+                      (* todo might have to update the builder but prob not *)
+                      builder' :=
+                        free t (StringMap.find name !variables) !builder'
                 | _ -> ())
               sl
           in
-          builder'
+          !builder'
       | SExpr e ->
           let _ = expr builder e in
           builder
