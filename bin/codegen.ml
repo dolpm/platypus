@@ -167,15 +167,64 @@ let translate (things, pipes) ownership_map the_module =
       variables := StringMap.add n local !variables
     in
 
-    (* lookup should be defined inside body? *)
     let rec expr (builder : L.llbuilder) ((_, e) : s_expr) : L.llvalue =
       match e with
       | SIntLiteral i -> L.const_int i32_t i
-      (* | SFloatLiteral ->
-         | SBoolLiteral ->
-         | SCharLiteral -> *)
+      | SFloatLiteral f -> L.const_float_of_string float_t f
+      | SBoolLiteral b -> L.const_int i1_t (if b then 1 else 0)
+      | SCharLiteral c -> L.const_int i8_t (int_of_char c)
       | SUnitLiteral -> L.const_null unit_t
       | SStringLiteral s -> L.build_global_stringptr s "str" builder
+      | SBinop (e1, op, e2) ->
+          let t, _ = e1 and e1' = expr builder e1 and e2' = expr builder e2 in
+          (match t with
+          | A.Int -> (
+              match op with
+              | A.Add -> L.build_add
+              | A.Sub -> L.build_sub
+              | A.Mult -> L.build_mul
+              | A.Div -> L.build_sdiv
+              | A.Lt -> L.build_icmp L.Icmp.Slt
+              | A.Leq -> L.build_icmp L.Icmp.Sle
+              | A.Gt -> L.build_icmp L.Icmp.Sgt
+              | A.Geq -> L.build_icmp L.Icmp.Sge
+              | A.Equal -> L.build_icmp L.Icmp.Eq
+              | A.Neq -> L.build_icmp L.Icmp.Ne
+              | _ -> raise (Failure "this operation is not supported"))
+          | A.Float -> (
+              match op with
+              | A.Add -> L.build_fadd
+              | A.Sub -> L.build_fsub
+              | A.Mult -> L.build_fmul
+              | A.Div -> L.build_fdiv
+              | A.Lt -> L.build_fcmp L.Fcmp.Olt
+              | A.Leq -> L.build_fcmp L.Fcmp.Ole
+              | A.Gt -> L.build_fcmp L.Fcmp.Ogt
+              | A.Geq -> L.build_fcmp L.Fcmp.Oge
+              | A.Equal -> L.build_fcmp L.Fcmp.Oeq
+              | A.Neq -> L.build_fcmp L.Fcmp.One
+              | _ -> raise (Failure "this operation is not supported"))
+          | A.Bool -> (
+              match op with
+              | A.And -> L.build_and
+              | A.Or -> L.build_or
+              | A.Equal -> L.build_icmp L.Icmp.Eq
+              | A.Neq -> L.build_icmp L.Icmp.Ne
+              | _ -> raise (Failure "this operation is not supported"))
+          | String -> (
+              (* todo implement strings *)
+              match op with
+              | A.Equal -> L.build_icmp L.Icmp.Eq
+              | A.Neq -> L.build_icmp L.Icmp.Ne
+              | A.Concat -> raise (Failure "TOOD: implement concat op LLVM IR")
+              | _ -> raise (Failure "this operation is not supported"))
+          | Char -> (
+              match op with
+              | A.Equal -> L.build_icmp L.Icmp.Eq
+              | A.Neq -> L.build_icmp L.Icmp.Ne
+              | _ -> raise (Failure "this operation is not supported"))
+          | _ -> raise (Failure "this operation is not supported"))
+            e1' e2' "tmp" builder
       | SUnop (op, (t, e)) -> (
           match op with
           | Deref ->
@@ -189,11 +238,15 @@ let translate (things, pipes) ownership_map the_module =
                   let ref = L.build_alloca (ltype_of_typ t) "ref" builder in
                   let _ = L.build_store store_val ref builder in
                   ref)
-          | _ -> expr builder (t, e))
-      (* function call, takes in fn name and a list of inputs *)
+          | Neg ->
+              let load_value = expr builder (t, e) in
+              L.build_neg load_value "negated_value" builder
+          | Not ->
+              let load_value = expr builder (t, e) in
+              L.build_not load_value "boolean_negated_value" builder)
       | SPipeIn ("printnl", [ (t, sx) ]) -> (
           match t with
-          | Int ->
+          | Int | Bool ->
               L.build_call printf_func
                 [| int_format_str; expr builder (t, sx) |]
                 "printf" builder
@@ -304,18 +357,20 @@ let translate (things, pipes) ownership_map the_module =
             let pred_bb = L.append_block context "_free_while" the_pipe in
             let _ = L.build_br pred_bb builder in
 
-            let body_bb = L.append_block context "_free_while_body" the_pipe in
+            let _body_bb = L.append_block context "_free_while_body" the_pipe in
 
             (* replace this with the free call + increment *)
             (*
                let while_builder = stmt body (L.builder_at_end context body_bb) in
                let () = add_terminal while_builder (L.build_br pred_bb) in
             *)
+            (*
             let pred_builder = L.builder_at_end context pred_bb in
             let bool_val = expr pred_builder pred in
 
+            *)
             let merge_bb = L.append_block context "_free_merge" the_pipe in
-            let _ = L.build_cond_br bool_val body_bb merge_bb pred_builder in
+            (* let _ = L.build_cond_br bool_val body_bb merge_bb pred_builder in *)
             L.builder_at_end context merge_bb
           in
 
