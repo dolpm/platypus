@@ -181,11 +181,21 @@ let check (_things, pipes) verbosity =
             | Neg when t1 = Int || t1 = Float -> t1
             | Not when t1 = Bool -> t1
             | Ref -> (
+                let _ =
+                  match e1 with
+                  | Ident _ -> ()
+                  | _ -> make_err "borrows must be taken on identifiers"
+                in
                 match t1 with
                 | MutBorrow _ | Borrow _ ->
                     make_err "can't take a borrow of a borrow"
                 | _ -> Borrow (t1, "'_"))
             | MutRef -> (
+                let _ =
+                  match e1 with
+                  | Ident _ -> ()
+                  | _ -> make_err "borrows must be taken on identifiers"
+                in
                 match t1 with
                 | MutBorrow _ | Borrow _ ->
                     make_err "can't take a borrow of a borrow"
