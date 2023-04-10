@@ -473,6 +473,8 @@ let translate (things, pipes) ownership_map m_external =
                       builder
                   in
 
+                  let _ = print_string ("hi --> " ^ A.string_of_typ typ_inner ^ "\n") in
+
                   (* load the value inside of the malloc (i.e., boxed thing) *)
                   let _ =
                     L.build_store
@@ -485,12 +487,7 @@ let translate (things, pipes) ownership_map m_external =
               | _ -> builder
             in
 
-            let box_casted_to_void =
-              L.build_bitcast box (L.pointer_type i8_t) "ptr_casted_to_void"
-                builder'
-            in
-
-            let _ = L.build_free box_casted_to_void builder' in
+            let _ = L.build_free box builder' in
 
             let _ =
               L.build_call printf_func
