@@ -259,27 +259,13 @@ let translate (things, pipes) ownership_map m_external =
       | SPipeIn ("Box_new", [ ((t, _e) as value) ]) ->
           (* Check if value is on heap or stack; if on stack, create void ptr of it before passing into alloc *)
           let e' = expr builder value in
-          let elem_arg =
-            match t with
-            | A.Box _ -> e'
-            | A.Vector _ ->
-                let ref_of_ptr =
-                  L.build_alloca
-                    (L.pointer_type (ltype_of_typ t))
-                    "ref_of_ptr" builder
-                in
-                let _ = L.build_store e' ref_of_ptr builder in
 
-                ref_of_ptr
-            | _ ->
-                let malloc_of_t =
-                  L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
-                in
-                let _ = L.build_store e' malloc_of_t builder in
-
-                malloc_of_t
+          let malloc_of_t =
+            L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
           in
-          elem_arg
+          let _ = L.build_store e' malloc_of_t builder in
+
+          malloc_of_t
       | SPipeIn ("Vector_new", []) ->
           L.build_call vector_new_func [||] "Vector_new" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->
@@ -471,15 +457,39 @@ let translate (things, pipes) ownership_map m_external =
               else ()
             in
             builder
-        | A.Box typ_inner -> (
-            match typ_inner with
-            (* recursively free box internals *)
-            | A.Vector t | A.Box t -> free_inner t llvalue builder false
-            | _ ->
-                (* free the box *)
-                let v = L.build_load llvalue "malloc_to_free" builder in
-                let _ = L.build_free v builder in
-                builder)
+        | A.Box typ_inner ->
+            (* load the malloc *)
+            let box = L.build_load llvalue "box_malloc_to_free" builder in
+            let builder' =
+              match typ_inner with
+              (* recursively free box internals *)
+              | A.Vector _ | A.Box _ ->
+                  (* store inner value in ptr on stack *)
+                  let inner_ptr =
+                    L.build_alloca (ltype_of_typ typ_inner) "box_inner_ptr"
+                      builder
+                  in
+
+                  (* load the value inside of the malloc (i.e., boxed thing) *)
+                  let _ =
+                    L.build_store
+                      (L.build_load box "box_malloc_inner" builder)
+                      inner_ptr builder
+                  in
+
+                  let builder' = free_inner typ_inner inner_ptr builder false in
+                  builder'
+              | _ -> builder
+            in
+
+            (* free the box itself, only needed at top level, otherwise we'll get a double-free *)
+            let _ =
+              if is_root then
+                let _ = L.build_free box builder' in
+                ()
+              else ()
+            in
+            builder'
         | _ -> builder
       in
       free_inner typ llvalue builder true
