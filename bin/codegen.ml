@@ -485,21 +485,20 @@ let translate (things, pipes) ownership_map m_external =
               | _ -> builder
             in
 
-            (* let _ = L.build_free box builder' in *)
-            let _ =
-              if is_root then
-                let _ = L.build_free box builder' in
+            let box_casted_to_void =
+              L.build_bitcast box (L.pointer_type i8_t) "ptr_casted_to_void"
+                builder'
+            in
 
-                let _ =
-                  L.build_call printf_func
-                    [|
-                      newline_str;
-                      expr builder' (A.String, SStringLiteral "freeing box");
-                    |]
-                    "printf" builder'
-                in
-                ()
-              else ()
+            let _ = L.build_free box_casted_to_void builder' in
+
+            let _ =
+              L.build_call printf_func
+                [|
+                  newline_str;
+                  expr builder' (A.String, SStringLiteral "freeing box");
+                |]
+                "printf" builder'
             in
 
             builder'
