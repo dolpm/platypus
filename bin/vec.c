@@ -31,8 +31,6 @@ void *Vector_get(struct Vector *v, int index)
 
 void Vector_free(struct Vector *v)
 {
-  printf("HELP MEEE! %d\n", v->length);
-
   for (int i = 0; i < v->length; i++)
   {
     void *addr = *(void **)(v->list + (i * sizeof(void *)));
@@ -40,7 +38,6 @@ void Vector_free(struct Vector *v)
   }
 
   free(v->list);
-  // free(v);
 }
 
 void Vector_grow(struct Vector *v)
