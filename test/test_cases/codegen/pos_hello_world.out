@@ -10,7 +10,7 @@ source_filename = "Platypus"
 
 declare i32 @printf(i8*, ...)
 
-declare %struct.Vector* @Vector_alloc()
+declare %struct.Vector* @Vector_new()
 
 declare void @Vector_push(%struct.Vector*, i8**)
 

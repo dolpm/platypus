@@ -17,9 +17,9 @@ let check (_things, pipes) verbosity =
       ("char_to_string", [ (false, Char, "x") ], String);
       ("bool_to_string", [ (false, Bool, "x") ], String);
       (* TODO: does x have to be mutable? *)
-      ("Heap_alloc", [ (true, Generic, "x") ], Box Generic);
+      ("Box_alloc", [ (true, Generic, "x") ], Box Generic);
       ("Vector_length", [ (false, Vector Generic, "x") ], Int);
-      ("Vector_alloc", [], Vector Generic);
+      ("Vector_new", [], Vector Generic);
       ( "Vector_get_mut",
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
         MutBorrow (Generic, "'_") );
@@ -316,7 +316,7 @@ let check (_things, pipes) verbosity =
                   match first_arg_type with
                   | Int | Bool | Float | String -> first_arg_type
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
-              | "Heap_alloc" -> Box first_arg_type
+              | "Box_new" -> Box first_arg_type
               | "Vector_pop" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, _) -> t
@@ -380,6 +380,7 @@ let check (_things, pipes) verbosity =
           let _ = check_assign lt rt err in
           SAssign (is_mut, t, name, (rt, e'))
       | ReAssign (name, e) as ass ->
+          (* iff deref of mutborrow on lhs, we want to update inner value! *)
           let _, lt = type_of_identifier name symbols
           and rt, e' = expr e symbols in
           let err =

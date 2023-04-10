@@ -10,7 +10,7 @@ struct Vector
   void *list;
 };
 
-struct Vector *Vector_alloc()
+struct Vector *Vector_new()
 {
   struct Vector *l = (struct Vector *)malloc(sizeof(struct Vector));
   l->capacity = 10;
@@ -81,7 +81,7 @@ void *Vector_pop(struct Vector *v)
 }
 
 // int test_vec_create() {
-//   struct Vector *l = Vector_alloc();
+//   struct Vector *l = Vector_new();
 
 //   for (int i = 0; i < 11; i++) {
 //     int *val = malloc(sizeof(int));

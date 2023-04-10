@@ -1,5 +1,5 @@
 pipe main |> [] |> [] |> unit {
-    mut vector[int] v <| Vector_alloc <| [];
+    mut vector[int] v <| Vector_new <| [];
     Vector_push <| [~&v, 255];
     {
         &int x <| Vector_get <| [&v, 0];

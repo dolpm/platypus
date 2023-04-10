@@ -9,7 +9,7 @@ source_filename = "Platypus"
 
 declare i32 @printf(i8*, ...)
 
-declare %struct.Vector* @Vector_alloc()
+declare %struct.Vector* @Vector_new()
 
 declare void @Vector_push(%struct.Vector*, i8**)
 
@@ -21,13 +21,13 @@ declare void @Vector_free(%struct.Vector*)
 
 define void @main() {
 entry:
-  %Vector_alloc = call %struct.Vector* @Vector_alloc()
+  %Vector_new = call %struct.Vector* @Vector_new()
   %v = alloca %struct.Vector*, align 8
-  store %struct.Vector* %Vector_alloc, %struct.Vector** %v, align 8
+  store %struct.Vector* %Vector_new, %struct.Vector** %v, align 8
   %v1 = load %struct.Vector*, %struct.Vector** %v, align 8
-  %Vector_alloc2 = call %struct.Vector* @Vector_alloc()
+  %Vector_new2 = call %struct.Vector* @Vector_new()
   %inner = alloca %struct.Vector*, align 8
-  store %struct.Vector* %Vector_alloc2, %struct.Vector** %inner, align 8
+  store %struct.Vector* %Vector_new2, %struct.Vector** %inner, align 8
   %malloccall = tail call i8* @malloc(i32 ptrtoint (i32* getelementptr (i32, i32* null, i32 1) to i32))
   %malloc_of_t = bitcast i8* %malloccall to i32*
   store i32 6, i32* %malloc_of_t, align 4

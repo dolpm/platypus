@@ -51,11 +51,11 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "printf" printf_t the_module
   in
 
-  let vector_alloc_t =
+  let vector_new_t =
     L.function_type (ltype_of_typ (A.Vector A.Generic)) [||]
   in
-  let vector_alloc_func =
-    L.declare_function "Vector_alloc" vector_alloc_t the_module
+  let vector_new_func =
+    L.declare_function "Vector_new" vector_new_t the_module
   in
 
   (*
@@ -264,8 +264,8 @@ let translate (things, pipes) ownership_map m_external =
               L.build_call printf_func
                 [| newline_str; expr builder (t, sx) |]
                 "printf" builder)
-      | SPipeIn ("Vector_alloc", []) ->
-          L.build_call vector_alloc_func [||] "Vector_alloc" builder
+      | SPipeIn ("Vector_new", []) ->
+          L.build_call vector_new_func [||] "Vector_new" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->
           (* Check if value is on heap or stack; if on stack, create void ptr of it before passing into alloc *)
           let e' = expr builder value in
