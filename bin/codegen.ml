@@ -4,7 +4,7 @@ open Sast
 module StringMap = Map.Make (String)
 
 (* Translates SAST into LLVM module or throws error *)
-let translate (things, pipes) the_module =
+let translate (things, pipes) ownership_map m_external =
   let context = L.global_context () in
 
   let i32_t = L.i32_type context
@@ -12,10 +12,11 @@ let translate (things, pipes) the_module =
   and i1_t = L.i1_type context
   and float_t = L.double_type context
   and unit_t = L.void_type context
-  and string_t = L.pointer_type (L.i8_type context) in
+  and string_t = L.pointer_type (L.i8_type context)
+  and the_module = L.create_module context "Platypus" in
 
   let vector_t =
-    match L.type_by_name the_module "struct.Vector" with
+    match L.type_by_name m_external "struct.Vector" with
     | None -> raise (Failure "Vector struct not defined")
     | Some x -> x
   in
@@ -50,11 +51,9 @@ let translate (things, pipes) the_module =
     L.declare_function "printf" printf_t the_module
   in
 
-  let vector_alloc_t =
-    L.function_type (ltype_of_typ (A.Vector A.Generic)) [||]
-  in
-  let vector_alloc_func =
-    L.declare_function "Vector_alloc" vector_alloc_t the_module
+  let vector_new_t = L.function_type (ltype_of_typ (A.Vector A.Generic)) [||] in
+  let vector_new_func =
+    L.declare_function "Vector_new" vector_new_t the_module
   in
 
   let vector_push_t =
@@ -77,6 +76,11 @@ let translate (things, pipes) the_module =
   in
   let vector_get_func =
     L.declare_function "Vector_get" vector_get_t the_module
+  in
+
+  let vector_free_t = L.function_type unit_t [| L.pointer_type vector_t |] in
+  let vector_free_func =
+    L.declare_function "Vector_free" vector_free_t the_module
   in
 
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
@@ -252,14 +256,38 @@ let translate (things, pipes) the_module =
               L.build_call printf_func
                 [| newline_str; expr builder (t, sx) |]
                 "printf" builder)
-      | SPipeIn ("Vector_alloc", []) ->
-          L.build_call vector_alloc_func [||] "Vector_alloc" builder
+      | SPipeIn ("Box_new", [ ((t, _e) as value) ]) ->
+          (* evaluate the expression*)
+          let e' = expr builder value in
+
+          (* malloc the type *)
+          let malloc_of_t =
+            L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
+          in
+
+          (* store the evaluated value in the malloc *)
+          let _ = L.build_store e' malloc_of_t builder in
+
+          malloc_of_t
+      | SPipeIn ("Vector_new", []) ->
+          L.build_call vector_new_func [||] "Vector_new" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->
           (* Check if value is on heap or stack; if on stack, create void ptr of it before passing into alloc *)
           let e' = expr builder value in
           let elem_arg =
             match t with
-            | A.Box _ | A.Vector _ -> e'
+            | A.Box _ -> e'
+            | A.Vector _ ->
+                let ptr_casted_to_void =
+                  L.build_bitcast e' (L.pointer_type i8_t) "ptr_casted_to_void"
+                    builder
+                in
+                let ref_of_ptr =
+                  L.build_alloca (L.pointer_type i8_t) "ref_of_ptr" builder
+                in
+                let _ = L.build_store ptr_casted_to_void ref_of_ptr builder in
+
+                ref_of_ptr
             | _ ->
                 let malloc_of_t =
                   L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
@@ -329,33 +357,245 @@ let translate (things, pipes) the_module =
       | _ -> L.build_add (L.const_int i32_t 0) (L.const_int i32_t 0) "" builder
     in
 
-    let _add_terminal (builder : L.llbuilder) instr : unit =
+    let add_terminal (builder : L.llbuilder) instr : unit =
       match L.block_terminator (L.insertion_block builder) with
       | Some _ -> ()
       | None -> ignore (instr builder)
     in
 
-    let rec stmt builder = function
-      | SBlock (sl, _) -> List.fold_left stmt builder sl
+    let return_value = ref None in
+
+    let free (typ : A.defined_type) (llvalue : L.llvalue)
+        (builder : L.llbuilder) =
+      let rec free_inner typ llvalue builder (is_root : bool) =
+        match typ with
+        | A.Vector typ_inner ->
+            let v_struct_llv = L.build_load llvalue "v_struct" builder in
+            (* if inner type is on the heap, free the values individually *)
+            (* before we free this value *)
+            let builder =
+              match typ_inner with
+              | A.Vector _ | A.Box _ ->
+                  let v_len_llv =
+                    L.build_load
+                      (L.build_struct_gep v_struct_llv 0 "v_len" builder)
+                      "stored_v_len" builder
+                  in
+
+                  let cur_item = L.build_alloca i32_t "cur_item" builder in
+                  let _ =
+                    L.build_store (L.const_int i32_t 0) cur_item builder
+                  in
+
+                  let pred_bb = L.append_block context "free_while" the_pipe in
+                  let _ = L.build_br pred_bb builder in
+
+                  let body_bb =
+                    L.append_block context "free_while_body" the_pipe
+                  in
+                  let body_builder = L.builder_at_end context body_bb in
+
+                  (* fetch the item from the vector *)
+                  let fetched_item =
+                    L.build_call vector_get_func
+                      [| v_struct_llv; L.build_load cur_item "x" body_builder |]
+                      "vector_item" body_builder
+                  in
+
+                  (* cast the value to its type *)
+                  let casted_value =
+                    L.build_bitcast fetched_item (ltype_of_typ typ_inner)
+                      "vector_item_as_type" body_builder
+                  in
+
+                  let ptr_to_inner =
+                    L.build_alloca (ltype_of_typ typ_inner) "ptr_to_inner"
+                      body_builder
+                  in
+
+                  let _ =
+                    L.build_store casted_value ptr_to_inner body_builder
+                  in
+
+                  (* call free on this casted value *)
+                  let body_builder' =
+                    free_inner typ_inner ptr_to_inner body_builder false
+                  in
+
+                  (* increment iterator *)
+                  let add =
+                    L.build_add
+                      (L.build_load cur_item "x" body_builder)
+                      (L.const_int i32_t 1) "add" body_builder
+                  in
+                  let _ = L.build_store add cur_item body_builder in
+
+                  let () = add_terminal body_builder' (L.build_br pred_bb) in
+
+                  let pred_builder = L.builder_at_end context pred_bb in
+                  let cmp_as_bool =
+                    L.build_icmp L.Icmp.Slt
+                      (L.build_load cur_item "x" pred_builder)
+                      v_len_llv "free_loop_cond" pred_builder
+                  in
+
+                  let merge_bb = L.append_block context "free_merge" the_pipe in
+                  let _ =
+                    L.build_cond_br cmp_as_bool body_bb merge_bb pred_builder
+                  in
+                  L.builder_at_end context merge_bb
+              | _ -> builder
+            in
+
+            (* free the vector contents by calling the helper *)
+            let _ =
+              L.build_call vector_free_func [| v_struct_llv |] "" builder
+            in
+
+            (* free the pointer itself, only needed at top level, otherwise we'll get a double-free *)
+            let _ =
+              if is_root then
+                let _ = L.build_free v_struct_llv builder in
+                ()
+              else ()
+            in
+            builder
+        | A.Box typ_inner ->
+            (* load the malloc *)
+            let box = L.build_load llvalue "box_malloc_to_free" builder in
+            let builder' =
+              match typ_inner with
+              (* recursively free box internals *)
+              | A.Vector _ | A.Box _ ->
+                  (* store inner value in ptr on stack *)
+                  let inner_ptr =
+                    L.build_alloca (ltype_of_typ typ_inner) "box_inner_ptr"
+                      builder
+                  in
+
+                  (* load the value inside of the malloc (i.e., boxed thing) *)
+                  let _ =
+                    L.build_store
+                      (L.build_load box "box_malloc_inner" builder)
+                      inner_ptr builder
+                  in
+
+                  let builder' = free_inner typ_inner inner_ptr builder true in
+                  builder'
+              | _ -> builder
+            in
+
+            let _ = L.build_free box builder' in
+
+            builder'
+        | _ -> builder
+      in
+      free_inner typ llvalue builder true
+    in
+
+    let rec stmt s builder =
+      match s with
+      | SBlock (sl, sblock_id) ->
+          let block_deallocs =
+            if StringMap.mem sblock_id ownership_map then
+              StringMap.find sblock_id ownership_map
+            else []
+          in
+
+          (* build inner stmts *)
+          let builder' =
+            List.fold_left (fun builder' s -> stmt s builder') builder sl
+          in
+
+          let builder' = ref builder' in
+
+          let _ =
+            List.iter
+              (fun stmt ->
+                match stmt with
+                | SAssign (_is_mut, t, name, _e) ->
+                    if List.mem name block_deallocs then
+                      (* todo might have to update the builder but prob not *)
+                      builder' :=
+                        free t (StringMap.find name !variables) !builder'
+                | _ -> ())
+              sl
+          in
+
+          (* If we've seen a return, build it now (after freeing*)
+          let _ =
+            match !return_value with
+            | Some e ->
+                let _ =
+                  match pdecl.sreturn_type with
+                  | A.Unit -> L.build_ret_void !builder'
+                  | _ -> L.build_ret (expr builder e) !builder'
+                in
+                return_value := None
+            | None -> ()
+          in
+
+          !builder'
       | SExpr e ->
           let _ = expr builder e in
           builder
       | SPipeOut e ->
-          let _ =
-            match pdecl.sreturn_type with
-            | A.Unit -> L.build_ret_void builder
-            | _ -> L.build_ret (expr builder e) builder
-          in
+          let _ = return_value := Some e in
           builder
       | SAssign (is_mut, t, name, e) ->
           let e' = expr builder e in
           let _ = add_local_variable (is_mut, t, name) e' in
           builder
-      | _ -> builder
+      | SReAssign (name, e) ->
+          let e' = expr builder e in
+          let llv = StringMap.find name !variables in
+          (* TODO: FREE OLD VALUE *)
+          let _ = L.build_store e' llv builder in
+          builder
+      | SWhile (pred, body) ->
+          let pred_bb = L.append_block context "while" the_pipe in
+          let _ = L.build_br pred_bb builder in
+
+          let body_bb = L.append_block context "while_body" the_pipe in
+          let while_builder = stmt body (L.builder_at_end context body_bb) in
+
+          let () = add_terminal while_builder (L.build_br pred_bb) in
+
+          let pred_builder = L.builder_at_end context pred_bb in
+          let bool_val = expr pred_builder pred in
+
+          let merge_bb = L.append_block context "merge" the_pipe in
+          let _ = L.build_cond_br bool_val body_bb merge_bb pred_builder in
+          L.builder_at_end context merge_bb
+      | SLoop (e1, e2, i, e3, body) ->
+          let assn = SAssign (true, A.Int, i, e1) in
+          let pred = (A.Bool, SBinop ((A.Int, SIdent i), Leq, e2)) in
+          let step =
+            SReAssign (i, (A.Int, SBinop ((A.Int, SIdent i), Add, e3)))
+          in
+
+          (* TODO: figure out the sblock_id's s.t. the loop owns i *)
+          stmt
+            (SBlock
+               ([ assn; SWhile (pred, SBlock ([ body; step ], "-1")) ], "-1"))
+            builder
+      | SIf (pred, s1, s2) ->
+          let merge_bb = L.append_block context "merge" the_pipe in
+          let branch_instr = L.build_br merge_bb in
+
+          let then_bb = L.append_block context "then" the_pipe in
+          let then_builder = stmt s1 (L.builder_at_end context then_bb) in
+          let () = add_terminal then_builder branch_instr in
+
+          let else_bb = L.append_block context "else" the_pipe in
+          let else_builder = stmt s2 (L.builder_at_end context else_bb) in
+          let () = add_terminal else_builder branch_instr in
+
+          let _ = L.build_cond_br (expr builder pred) then_bb else_bb builder in
+          L.builder_at_end context merge_bb
     in
 
-    let _builder = stmt builder (SBlock (pdecl.sbody, "-1")) in
-
+    let _builder = stmt (SBlock (pdecl.sbody, "-1")) builder in
     ()
   in
   let _ = List.iter build_pipe_body pipes in

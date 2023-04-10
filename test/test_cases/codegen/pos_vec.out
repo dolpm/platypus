@@ -1,0 +1,87 @@
+; ModuleID = 'Platypus'
+source_filename = "Platypus"
+
+%struct.Vector = type { i32, i32, i8* }
+
+@fmt_nl = private unnamed_addr constant [4 x i8] c"%s\0A\00", align 1
+@fmt = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@fmt.1 = private unnamed_addr constant [4 x i8] c"%g\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+declare %struct.Vector* @Vector_new()
+
+declare void @Vector_push(%struct.Vector*, i8**)
+
+declare void @Vector_pop(%struct.Vector*)
+
+declare i8** @Vector_get(%struct.Vector*, i32)
+
+declare void @Vector_free(%struct.Vector*)
+
+define void @main() {
+entry:
+  %Vector_new = call %struct.Vector* @Vector_new()
+  %v = alloca %struct.Vector*, align 8
+  store %struct.Vector* %Vector_new, %struct.Vector** %v, align 8
+  %v1 = load %struct.Vector*, %struct.Vector** %v, align 8
+  %Vector_new2 = call %struct.Vector* @Vector_new()
+  %inner = alloca %struct.Vector*, align 8
+  store %struct.Vector* %Vector_new2, %struct.Vector** %inner, align 8
+  %malloccall = tail call i8* @malloc(i32 ptrtoint (i32* getelementptr (i32, i32* null, i32 1) to i32))
+  %malloc_of_t = bitcast i8* %malloccall to i32*
+  store i32 6, i32* %malloc_of_t, align 4
+  %malloc_casted_to_void = bitcast i32* %malloc_of_t to i8*
+  %ref_of_malloc = alloca i8*, align 8
+  store i8* %malloc_casted_to_void, i8** %ref_of_malloc, align 8
+  %inner3 = load %struct.Vector*, %struct.Vector** %inner, align 8
+  call void @Vector_push(%struct.Vector* %inner3, i8** %ref_of_malloc)
+  %malloccall4 = tail call i8* @malloc(i32 ptrtoint (i32* getelementptr (i32, i32* null, i32 1) to i32))
+  %malloc_of_t5 = bitcast i8* %malloccall4 to i32*
+  store i32 7, i32* %malloc_of_t5, align 4
+  %malloc_casted_to_void6 = bitcast i32* %malloc_of_t5 to i8*
+  %ref_of_malloc7 = alloca i8*, align 8
+  store i8* %malloc_casted_to_void6, i8** %ref_of_malloc7, align 8
+  %inner8 = load %struct.Vector*, %struct.Vector** %inner, align 8
+  call void @Vector_push(%struct.Vector* %inner8, i8** %ref_of_malloc7)
+  %inner9 = load %struct.Vector*, %struct.Vector** %inner, align 8
+  %ptr_casted_to_void = bitcast %struct.Vector* %inner9 to i8*
+  %ref_of_ptr = alloca i8*, align 8
+  store i8* %ptr_casted_to_void, i8** %ref_of_ptr, align 8
+  %v10 = load %struct.Vector*, %struct.Vector** %v, align 8
+  call void @Vector_push(%struct.Vector* %v10, i8** %ref_of_ptr)
+  %v_struct = load %struct.Vector*, %struct.Vector** %v, align 8
+  %v_len = getelementptr inbounds %struct.Vector, %struct.Vector* %v_struct, i32 0, i32 0
+  %stored_v_len = load i32, i32* %v_len, align 4
+  %cur_item = alloca i32, align 4
+  store i32 0, i32* %cur_item, align 4
+  br label %free_while
+
+free_while:                                       ; preds = %free_while_body, %entry
+  %x13 = load i32, i32* %cur_item, align 4
+  %free_loop_cond = icmp slt i32 %x13, %stored_v_len
+  br i1 %free_loop_cond, label %free_while_body, label %free_merge
+
+free_while_body:                                  ; preds = %free_while
+  %x = load i32, i32* %cur_item, align 4
+  %vector_item = call i8** @Vector_get(%struct.Vector* %v_struct, i32 %x)
+  %vector_item_as_type = bitcast i8** %vector_item to %struct.Vector*
+  %ptr_to_inner = alloca %struct.Vector*, align 8
+  store %struct.Vector* %vector_item_as_type, %struct.Vector** %ptr_to_inner, align 8
+  %v_struct11 = load %struct.Vector*, %struct.Vector** %ptr_to_inner, align 8
+  call void @Vector_free(%struct.Vector* %v_struct11)
+  %x12 = load i32, i32* %cur_item, align 4
+  %add = add i32 %x12, 1
+  store i32 %add, i32* %cur_item, align 4
+  br label %free_while
+
+free_merge:                                       ; preds = %free_while
+  call void @Vector_free(%struct.Vector* %v_struct)
+  %0 = bitcast %struct.Vector* %v_struct to i8*
+  tail call void @free(i8* %0)
+  ret void
+}
+
+declare noalias i8* @malloc(i32)
+
+declare void @free(i8*)

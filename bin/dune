@@ -2,11 +2,12 @@
  (public_name platypus)
  (name toplevel)
  (libraries
-  Str
+  str
   platypus
   llvm
   llvm.analysis
   llvm.irreader
+  llvm.linker
   llvm.executionengine
   llvm.bitwriter
   ctypes.foreign))
