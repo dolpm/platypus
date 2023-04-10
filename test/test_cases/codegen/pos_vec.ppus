@@ -1,0 +1,11 @@
+pipe main |> [] |> [] |> unit {
+    mut vector[vector[int]] v <| Vector_alloc <| [];
+    v;
+    mut vector[int] inner <| Vector_alloc <| [];
+    Vector_push <| [~&inner, 6];
+    Vector_push <| [~&inner, 7];
+
+    Vector_push <| [~&v, inner];
+
+    |> ();
+}

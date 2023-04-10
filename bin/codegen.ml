@@ -4,7 +4,7 @@ open Sast
 module StringMap = Map.Make (String)
 
 (* Translates SAST into LLVM module or throws error *)
-let translate (things, pipes) ownership_map the_module =
+let translate (things, pipes) ownership_map m_external =
   let context = L.global_context () in
 
   let i32_t = L.i32_type context
@@ -12,10 +12,11 @@ let translate (things, pipes) ownership_map the_module =
   and i1_t = L.i1_type context
   and float_t = L.double_type context
   and unit_t = L.void_type context
-  and string_t = L.pointer_type (L.i8_type context) in
+  and string_t = L.pointer_type (L.i8_type context)
+  and the_module = L.create_module context "Platypus" in
 
   let vector_t =
-    match L.type_by_name the_module "struct.Vector" with
+    match L.type_by_name m_external "struct.Vector" with
     | None -> raise (Failure "Vector struct not defined")
     | Some x -> x
   in
