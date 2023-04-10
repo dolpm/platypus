@@ -307,7 +307,7 @@ let check (_things, pipes) verbosity =
                   | Int | Bool | Float | String -> first_arg_type
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Heap_alloc" -> Box first_arg_type
-              | "Vector_pop" | "Vector_push" -> (
+              | "Vector_pop" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, _) -> t
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
@@ -319,6 +319,7 @@ let check (_things, pipes) verbosity =
                   match first_arg_type with
                   | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Vector_push" -> Unit
               | _ -> pd.return_type
             in
             let ret_type =

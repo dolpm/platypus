@@ -3,13 +3,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct Vector {
+struct Vector
+{
   int length;
   int capacity;
   void *list;
 };
 
-struct Vector *Vector_alloc() {
+struct Vector *Vector_alloc()
+{
   struct Vector *l = (struct Vector *)malloc(sizeof(struct Vector));
   l->capacity = 10;
   l->length = 0;
@@ -20,35 +22,43 @@ struct Vector *Vector_alloc() {
 
 /* int length(struct Vector *v) { return v->length; } */
 
-void *Vector_get(struct Vector *v, int index) {
+void *Vector_get(struct Vector *v, int index)
+{
   // TODO: throw with err message
   assert(index < v->length);
   return *(void **)(v->list + (index * sizeof(void *)));
 }
 
-// TODO: do this in codegen OCAML
-void Vector_free(struct Vector *v) {
-  for (int i = 0; i < v->length; i++) {
+void Vector_free(struct Vector *v)
+{
+  printf("HELP MEEE! %d\n", v->length);
+
+  for (int i = 0; i < v->length; i++)
+  {
     void *addr = *(void **)(v->list + (i * sizeof(void *)));
     free(addr);
   }
 
   free(v->list);
-  free(v);
+  // free(v);
 }
 
-void Vector_grow(struct Vector *v) {
+void Vector_grow(struct Vector *v)
+{
   v->capacity = v->capacity * 2;
   v->list = realloc(v->list, v->capacity * sizeof(void *));
 }
 
-void Vector_shrink(struct Vector *v) {
+void Vector_shrink(struct Vector *v)
+{
   v->capacity = v->capacity / 2;
   v->list = realloc(v->list, v->capacity * sizeof(void *));
 }
 
-void Vector_push(struct Vector *v, void **new_value) {
-  if (v->length + 1 >= v->capacity) {
+void Vector_push(struct Vector *v, void **new_value)
+{
+  if (v->length + 1 >= v->capacity)
+  {
     Vector_grow(v);
   }
 
@@ -57,14 +67,16 @@ void Vector_push(struct Vector *v, void **new_value) {
   v->length++;
 }
 
-void *Vector_pop(struct Vector *v) {
+void *Vector_pop(struct Vector *v)
+{
   // TODO: throw err message
   assert(v->length > 0);
 
   void *value = Vector_get(v, v->length - 1);
   v->length--;
 
-  if (v->length < v->capacity / 2) {
+  if (v->length < v->capacity / 2)
+  {
     Vector_shrink(v);
   }
 

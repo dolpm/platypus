@@ -270,7 +270,18 @@ let translate (things, pipes) ownership_map the_module =
           let e' = expr builder value in
           let elem_arg =
             match t with
-            | A.Box _ | A.Vector _ -> e'
+            | A.Box _ -> e'
+            | A.Vector _ ->
+                let ptr_casted_to_void =
+                  L.build_bitcast e' (L.pointer_type i8_t) "ptr_casted_to_void"
+                    builder
+                in
+                let ref_of_ptr =
+                  L.build_alloca (L.pointer_type i8_t) "ref_of_ptr" builder
+                in
+                let _ = L.build_store ptr_casted_to_void ref_of_ptr builder in
+
+                ref_of_ptr
             | _ ->
                 let malloc_of_t =
                   L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
@@ -346,82 +357,118 @@ let translate (things, pipes) ownership_map the_module =
       | None -> ignore (instr builder)
     in
 
-    let ret_instr = ref None in
+    let return_value = ref None in
 
-    let rec free typ llvalue builder =
-      match typ with
-      | A.Vector typ_inner ->
-          let v_struct_llv = L.build_load llvalue "v_struct" builder in
-          let v_len_llv =
-            L.build_load
-              (L.build_struct_gep v_struct_llv 0 "v_len" builder)
-              "stored_v_len" builder
-          in
+    let free (typ : A.defined_type) (llvalue : L.llvalue)
+        (builder : L.llbuilder) =
+      let rec free_inner typ llvalue builder (is_root : bool) =
+        match typ with
+        | A.Vector typ_inner ->
+            let v_struct_llv = L.build_load llvalue "v_struct" builder in
+            (* if inner type is on the heap, free the values individually *)
+            (* before we free this value *)
+            let builder =
+              match typ_inner with
+              | A.Vector _ | A.Box _ ->
+                  let v_len_llv =
+                    L.build_load
+                      (L.build_struct_gep v_struct_llv 0 "v_len" builder)
+                      "stored_v_len" builder
+                  in
 
-          (* if inner type is on the heap, free the values individually *)
-          (* before we free this value *)
-          let builder =
-            match typ_inner with
-            | A.Vector _ | A.Box _ ->
-                let v_len_iter = L.const_int i32_t 0 in
+                  let cur_item = L.build_alloca i32_t "cur_item" builder in
+                  let _ =
+                    L.build_store (L.const_int i32_t 0) cur_item builder
+                  in
 
-                let pred_bb = L.append_block context "_free_while" the_pipe in
-                let _ = L.build_br pred_bb builder in
+                  let pred_bb = L.append_block context "free_while" the_pipe in
+                  let _ = L.build_br pred_bb builder in
 
-                let body_bb =
-                  L.append_block context "_free_while_body" the_pipe
-                in
-                let body_builder = L.builder_at_end context body_bb in
+                  let body_bb =
+                    L.append_block context "free_while_body" the_pipe
+                  in
+                  let body_builder = L.builder_at_end context body_bb in
 
-                (* fetch the item from the vector *)
-                let fetched_item =
-                  L.build_call vector_get_func
-                    [| v_struct_llv; v_len_iter |]
-                    "vector_item" body_builder
-                in
-                (* cast the value to its type *)
-                let casted_value =
-                  L.build_bitcast fetched_item
-                    (L.pointer_type (ltype_of_typ typ_inner))
-                    "vector_item_as_type" body_builder
-                in
+                  (* fetch the item from the vector *)
+                  let fetched_item =
+                    L.build_call vector_get_func
+                      [| v_struct_llv; L.build_load cur_item "x" body_builder |]
+                      "vector_item" body_builder
+                  in
 
-                (* call free on this casted value *)
-                let body_builder' = free typ_inner casted_value body_builder in
-                let () = add_terminal body_builder' (L.build_br pred_bb) in
+                  (* cast the value to its type *)
+                  let casted_value =
+                    L.build_bitcast fetched_item (ltype_of_typ typ_inner)
+                      "vector_item_as_type" body_builder
+                  in
 
-                let pred_builder = L.builder_at_end context pred_bb in
-                let cmp_as_bool =
-                  L.build_icmp L.Icmp.Slt v_len_iter v_len_llv "_free_pred"
-                    pred_builder
-                in
+                  let ptr_to_inner =
+                    L.build_alloca (ltype_of_typ typ_inner) "ptr_to_inner"
+                      body_builder
+                  in
 
-                let merge_bb = L.append_block context "_free_merge" the_pipe in
-                let _ =
-                  L.build_cond_br cmp_as_bool body_bb merge_bb pred_builder
-                in
-                L.builder_at_end context merge_bb
-            | _ -> builder
-          in
+                  let _ =
+                    L.build_store casted_value ptr_to_inner body_builder
+                  in
 
-          (* free the vector struct by calling the helper *)
-          let _ = L.build_call vector_free_func [| v_struct_llv |] "" builder in
+                  (* call free on this casted value *)
+                  let body_builder' =
+                    free_inner typ_inner ptr_to_inner body_builder false
+                  in
 
-          (* loop through vector length *)
-          (*
-             inside the loop body:
-             1. get the element at index i
-             2. cast it to the type we want
-             3. recursively generate instrs to free that value
-                (by calling ocaml free)
-          *)
-          (* free the vector by calling the helper *)
-          let _ = print_string "freeing vector" in
-          builder
-      | A.Box _typ_inner ->
-          let _ = L.build_free llvalue builder in
-          builder
-      | _ -> builder
+                  (* increment iterator *)
+                  let add =
+                    L.build_add
+                      (L.build_load cur_item "x" body_builder)
+                      (L.const_int i32_t 1) "add" body_builder
+                  in
+                  let _ = L.build_store add cur_item body_builder in
+
+                  let () = add_terminal body_builder' (L.build_br pred_bb) in
+
+                  let pred_builder = L.builder_at_end context pred_bb in
+                  let cmp_as_bool =
+                    L.build_icmp L.Icmp.Slt
+                      (L.build_load cur_item "x" pred_builder)
+                      v_len_llv "free_loop_cond" pred_builder
+                  in
+
+                  let merge_bb = L.append_block context "free_merge" the_pipe in
+                  let _ =
+                    L.build_cond_br cmp_as_bool body_bb merge_bb pred_builder
+                  in
+                  L.builder_at_end context merge_bb
+              | _ -> builder
+            in
+
+            (* free the vector contents by calling the helper *)
+            let _ =
+              L.build_call vector_free_func [| v_struct_llv |] "" builder
+            in
+
+            (* free the pointer itself, only needed at top level, otherwise we'll get a double-free *)
+            let _ =
+              if is_root then
+                let _ = L.build_free v_struct_llv builder in
+                ()
+              else ()
+            in
+
+            (* loop through vector length *)
+            (*
+              inside the loop body:
+              1. get the element at index i
+              2. cast it to the type we want
+              3. recursively generate instrs to free that value
+                  (by calling ocaml free)
+            *)
+            builder
+        | A.Box _typ_inner ->
+            let _ = L.build_free llvalue builder in
+            builder
+        | _ -> builder
+      in
+      free_inner typ llvalue builder true
     in
 
     let rec stmt s builder =
@@ -438,14 +485,6 @@ let translate (things, pipes) ownership_map the_module =
             List.fold_left (fun builder' s -> stmt s builder') builder sl
           in
 
-          (* move builder before return value to insert free's *)
-          (* if a return instr has been built (i.e., we returned) *)
-          let builder' =
-            match !ret_instr with
-            | Some instr -> L.builder_before context instr
-            | _ -> builder'
-          in
-
           let builder' = ref builder' in
 
           let _ =
@@ -460,18 +499,26 @@ let translate (things, pipes) ownership_map the_module =
                 | _ -> ())
               sl
           in
+
+          (* If we've seen a return, build it now (after freeing*)
+          let _ =
+            match !return_value with
+            | Some e ->
+                let _ =
+                  match pdecl.sreturn_type with
+                  | A.Unit -> L.build_ret_void !builder'
+                  | _ -> L.build_ret (expr builder e) !builder'
+                in
+                return_value := None
+            | None -> ()
+          in
+
           !builder'
       | SExpr e ->
           let _ = expr builder e in
           builder
       | SPipeOut e ->
-          let _ =
-            ret_instr :=
-              Some
-                (match pdecl.sreturn_type with
-                | A.Unit -> L.build_ret_void builder
-                | _ -> L.build_ret (expr builder e) builder)
-          in
+          let _ = return_value := Some e in
           builder
       | SAssign (is_mut, t, name, e) ->
           let e' = expr builder e in
@@ -527,7 +574,6 @@ let translate (things, pipes) ownership_map the_module =
     in
 
     let _builder = stmt (SBlock (pdecl.sbody, "-1")) builder in
-
     ()
   in
   let _ = List.iter build_pipe_body pipes in
