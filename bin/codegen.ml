@@ -367,7 +367,7 @@ let translate (things, pipes) ownership_map m_external =
 
     let free (typ : A.defined_type) (llvalue : L.llvalue)
         (builder : L.llbuilder) =
-      let rec free_inner typ llvalue builder (_is_root : bool) =
+      let rec free_inner typ llvalue builder (is_root : bool) =
         match typ with
         | A.Vector typ_inner ->
             let v_struct_llv = L.build_load llvalue "v_struct" builder in
@@ -452,7 +452,13 @@ let translate (things, pipes) ownership_map m_external =
               L.build_call vector_free_func [| v_struct_llv |] "" builder
             in
 
-
+            (* free the pointer itself, only needed at top level, otherwise we'll get a double-free *)
+            let _ =
+              if is_root then
+                let _ = L.build_free v_struct_llv builder in
+                ()
+              else ()
+            in
             builder
         | A.Box typ_inner ->
             (* load the malloc *)
@@ -481,15 +487,19 @@ let translate (things, pipes) ownership_map m_external =
 
             let _ = L.build_free box builder' in
 
-            let _ =
-              L.build_call printf_func
-                [|
-                  newline_str;
-                  expr builder' (A.String, SStringLiteral "freeing box");
-                |]
-                "printf" builder'
-            in
+            let _ = L.build_call printf_func
+            [| newline_str; expr builder' (A.String, (SStringLiteral "freeing")) |]
+            "printf" builder'
+          in
 
+            (*
+            let _ =
+              if is_root then
+                let _ = L.build_free box builder' in
+                ()
+              else ()
+            in
+            *)
             builder'
         | _ -> builder
       in
