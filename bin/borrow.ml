@@ -568,6 +568,21 @@ let borrow_ck pipes verbose =
     inner sex []
   in
 
+  let find_moves (sex : s_expr) : string list =
+    let rec inner ((_t, e) : s_expr) (names : string list) : string list =
+      match e with
+      | SIdent name -> name :: names
+      | SBinop (s1, _, s2) -> inner s2 names @ inner s1 names
+      | SUnop (Ref, _) | SUnop (MutRef, _) -> []
+      | SUnop (_, s) -> inner s names
+      | SPipeIn (_, sl) | STupleValue sl ->
+          List.fold_left (fun l s -> inner s l) names sl
+      | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) names tl
+      | _ -> names
+    in
+    inner sex []
+  in
+
   let ownership_ck pipe =
     let graph_for_pipe = StringMap.find pipe.sname graph in
 
@@ -642,7 +657,26 @@ let borrow_ck pipes verbose =
                        ("ownership of " ^ v_name
                       ^ " could be taken in a previous loop iteration"))
                 else StringMap.remove v_name symbol_table
-            | _ -> symbol_table
+            | expr ->
+                let moved_vars = find_moves expr in
+                (* if ownership of another var is given in rhs *)
+                (* remove the original from the table *)
+                (* and validate that rhs is in same loop *)
+                List.fold_left
+                  (fun symbol_table v_name ->
+                    let v_node =
+                      StringMap.find (StringMap.find v_name symbol_table) graph
+                    in
+                    let _v_parent, _v_node_id, _v_depth, v_loop =
+                      node_common_data v_node
+                    in
+                    if v_loop <> b.loop then
+                      raise
+                        (Failure
+                           ("ownership of " ^ v_name
+                          ^ " could be taken in a previous loop iteration"))
+                    else StringMap.remove v_name symbol_table)
+                  symbol_table moved_vars
           in
 
           (* add the current binding to the table *)
@@ -657,6 +691,7 @@ let borrow_ck pipes verbose =
               (fun idents sex -> find_identifiers sex @ idents)
               [] pc.args
           in
+
           let _ =
             List.iter
               (fun n ->
@@ -689,16 +724,6 @@ let borrow_ck pipes verbose =
               symbol_table pc.args
           in
 
-          (*
-          let symbol_table' =
-            List.fold_left
-              (fun symbol_table' n ->
-                if not (StringMap.mem n symbol_table') then
-                  make_err (err_gave_ownership n)
-                else StringMap.remove n symbol_table')
-              symbol_table names
-          in
-          *)
           (symbol_table', graph)
       | v ->
           let e =

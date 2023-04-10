@@ -456,6 +456,15 @@ let translate (things, pipes) ownership_map m_external =
             let _ =
               if is_root then
                 let _ = L.build_free v_struct_llv builder in
+                let _ =
+                  L.build_call printf_func
+                    [|
+                      newline_str;
+                      expr builder
+                        (A.String, SStringLiteral "freeing outer struct");
+                    |]
+                    "printf" builder
+                in
                 ()
               else ()
             in
@@ -480,21 +489,21 @@ let translate (things, pipes) ownership_map m_external =
                       inner_ptr builder
                   in
 
-                  let builder' = free_inner typ_inner inner_ptr builder false in
+                  let builder' = free_inner typ_inner inner_ptr builder true in
                   builder'
               | _ -> builder
             in
-
-            let _ = L.build_free box builder' in
 
             let _ =
               L.build_call printf_func
                 [|
                   newline_str;
-                  expr builder' (A.String, SStringLiteral "freeing box");
+                  expr builder' (A.String, SStringLiteral "trying to free box");
                 |]
                 "printf" builder'
             in
+
+            let _ = L.build_free box builder' in
 
             builder'
         | _ -> builder
