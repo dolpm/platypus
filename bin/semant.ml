@@ -360,7 +360,10 @@ let check (_things, pipes) verbosity =
                         let symbols' =
                           match stmt with
                           | Assign (is_mut, t, name, _) ->
-                              StringMap.add name (is_mut, t) symbols
+                              if StringMap.mem name symbols then
+                                make_err
+                                  ("variable " ^ name ^ " already in scope.")
+                              else StringMap.add name (is_mut, t) symbols
                           | _ -> symbols
                         in
                         (symbols', check_stmt stmt symbols' :: sstmts))
