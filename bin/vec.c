@@ -33,7 +33,6 @@ void Vector_free(struct Vector *v)
 {
   for (int i = 0; i < v->length; i++)
   {
-    printf("freeing: %d\n", i);
     void *addr = *(void **)(v->list + (i * sizeof(void *)));
     free(addr);
   }
