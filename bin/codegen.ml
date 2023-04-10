@@ -487,6 +487,15 @@ let translate (things, pipes) ownership_map m_external =
 
             let _ = L.build_free box builder' in
 
+            let _ =
+              L.build_call printf_func
+                [|
+                  newline_str;
+                  expr builder' (A.String, SStringLiteral "freeing box");
+                |]
+                "printf" builder'
+            in
+
             (*
             let _ =
               if is_root then
