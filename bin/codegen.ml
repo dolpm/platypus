@@ -473,8 +473,6 @@ let translate (things, pipes) ownership_map m_external =
                       builder
                   in
 
-                  let _ = print_string ("hi --> " ^ A.string_of_typ typ_inner ^ "\n") in
-
                   (* load the value inside of the malloc (i.e., boxed thing) *)
                   let _ =
                     L.build_store
