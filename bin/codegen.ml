@@ -257,12 +257,15 @@ let translate (things, pipes) ownership_map m_external =
                 [| newline_str; expr builder (t, sx) |]
                 "printf" builder)
       | SPipeIn ("Box_new", [ ((t, _e) as value) ]) ->
-          (* Check if value is on heap or stack; if on stack, create void ptr of it before passing into alloc *)
+          (* evaluate the expression*)
           let e' = expr builder value in
 
+          (* malloc the type *)
           let malloc_of_t =
             L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
           in
+
+          (* store the evaluated value in the malloc *)
           let _ = L.build_store e' malloc_of_t builder in
 
           malloc_of_t
@@ -482,13 +485,16 @@ let translate (things, pipes) ownership_map m_external =
               | _ -> builder
             in
 
-            (* free the box itself, only needed at top level, otherwise we'll get a double-free *)
+            let _ = L.build_free box builder' in
+
+            (*
             let _ =
               if is_root then
                 let _ = L.build_free box builder' in
                 ()
               else ()
             in
+            *)
             builder'
         | _ -> builder
       in
