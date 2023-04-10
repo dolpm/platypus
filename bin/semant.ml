@@ -16,8 +16,7 @@ let check (_things, pipes) verbosity =
       ("float_to_string", [ (false, Float, "x") ], String);
       ("char_to_string", [ (false, Char, "x") ], String);
       ("bool_to_string", [ (false, Bool, "x") ], String);
-      (* TODO: does x have to be mutable? *)
-      ("Box_alloc", [ (true, Generic, "x") ], Box Generic);
+      ("Box_new", [ (true, Generic, "x") ], Box Generic);
       ("Vector_length", [ (false, Vector Generic, "x") ], Int);
       ("Vector_new", [], Vector Generic);
       ( "Vector_get_mut",

@@ -51,19 +51,11 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "printf" printf_t the_module
   in
 
-  let vector_new_t =
-    L.function_type (ltype_of_typ (A.Vector A.Generic)) [||]
-  in
+  let vector_new_t = L.function_type (ltype_of_typ (A.Vector A.Generic)) [||] in
   let vector_new_func =
     L.declare_function "Vector_new" vector_new_t the_module
   in
 
-  (*
-  let vector_length_t = L.function_type i32_t [| L.pointer_type vector_t |] in
-  let _vector_length_func =
-    L.declare_function "Vector_length" vector_length_t the_module
-  in
-  *)
   let vector_push_t =
     L.function_type unit_t
       [| L.pointer_type vector_t; L.pointer_type (ltype_of_typ A.Generic) |]
@@ -264,6 +256,30 @@ let translate (things, pipes) ownership_map m_external =
               L.build_call printf_func
                 [| newline_str; expr builder (t, sx) |]
                 "printf" builder)
+      | SPipeIn ("Box_new", [ ((t, _e) as value) ]) ->
+          (* Check if value is on heap or stack; if on stack, create void ptr of it before passing into alloc *)
+          let e' = expr builder value in
+          let elem_arg =
+            match t with
+            | A.Box _ -> e'
+            | A.Vector _ ->
+                let ref_of_ptr =
+                  L.build_alloca
+                    (L.pointer_type (ltype_of_typ t))
+                    "ref_of_ptr" builder
+                in
+                let _ = L.build_store e' ref_of_ptr builder in
+
+                ref_of_ptr
+            | _ ->
+                let malloc_of_t =
+                  L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
+                in
+                let _ = L.build_store e' malloc_of_t builder in
+
+                malloc_of_t
+          in
+          elem_arg
       | SPipeIn ("Vector_new", []) ->
           L.build_call vector_new_func [||] "Vector_new" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->
@@ -454,19 +470,16 @@ let translate (things, pipes) ownership_map m_external =
                 ()
               else ()
             in
-
-            (* loop through vector length *)
-            (*
-              inside the loop body:
-              1. get the element at index i
-              2. cast it to the type we want
-              3. recursively generate instrs to free that value
-                  (by calling ocaml free)
-            *)
             builder
-        | A.Box _typ_inner ->
-            let _ = L.build_free llvalue builder in
-            builder
+        | A.Box typ_inner -> (
+            match typ_inner with
+            (* recursively free box internals *)
+            | A.Vector t | A.Box t -> free_inner t llvalue builder false
+            | _ ->
+                (* free the box *)
+                let v = L.build_load llvalue "malloc_to_free" builder in
+                let _ = L.build_free v builder in
+                builder)
         | _ -> builder
       in
       free_inner typ llvalue builder true

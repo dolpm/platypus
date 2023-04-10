@@ -1,4 +1,5 @@
 pipe main |> [] |> [] |> unit {
+    /*
     mut vector[vector[int]] v <| Vector_new <| [];
     v;
     mut vector[int] inner <| Vector_new <| [];
@@ -6,6 +7,9 @@ pipe main |> [] |> [] |> unit {
     Vector_push <| [~&inner, 7];
 
     Vector_push <| [~&v, inner];
+    */
+
+    box[int] b <| Box_new <| [5];
 
     |> ();
 }
