@@ -1,0 +1,1 @@
+Fatal error: exception Failure("illegal value binding for member im_an_int of MyThing -- int: float failed in expresson 5.5")

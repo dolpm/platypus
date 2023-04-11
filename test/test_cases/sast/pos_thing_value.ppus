@@ -1,0 +1,11 @@
+thing MyThing <| {
+  im_an_int: int
+}
+
+pipe main |> [] |> [] |> unit {
+  MyThing t <| MyThing {
+    im_an_int: 5
+  };
+
+  |> ();
+}
