@@ -6,7 +6,7 @@ source_filename = "Platypus"
 @fmt_nl = private unnamed_addr constant [4 x i8] c"%s\0A\00", align 1
 @fmt = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
 @fmt.1 = private unnamed_addr constant [4 x i8] c"%g\0A\00", align 1
-@str = private unnamed_addr constant [82 x i8] c"The old god is dead. The mountain trembles as the new deity ascends the throne...\00", align 1
+@strptr = private unnamed_addr constant [82 x i8] c"The old god is dead. The mountain trembles as the new deity ascends the throne...\00", align 1
 
 declare i32 @printf(i8*, ...)
 
@@ -20,8 +20,14 @@ declare i8** @Vector_get(%struct.Vector*, i32)
 
 declare void @Vector_free(%struct.Vector*)
 
+declare i8* @Str_new(i8*)
+
+declare i8* @Str_concat(i8*, i8*)
+
+declare i1 @Str_compare(i8*, i8*)
+
 define void @main() {
 entry:
-  %printf = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @fmt_nl, i32 0, i32 0), i8* getelementptr inbounds ([82 x i8], [82 x i8]* @str, i32 0, i32 0))
+  %printf = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @fmt_nl, i32 0, i32 0), i8* getelementptr inbounds ([82 x i8], [82 x i8]* @strptr, i32 0, i32 0))
   ret void
 }

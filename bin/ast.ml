@@ -107,7 +107,7 @@ let string_of_op = function
   | Geq -> ">="
   | And -> "and"
   | Or -> "or"
-  | Concat -> "||"
+  | Concat -> "^"
 
 let string_of_uop = function
   | Neg -> "-"
