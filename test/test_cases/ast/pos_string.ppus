@@ -1,8 +1,6 @@
 pipe main |> [] |> [] |> unit {
   int n <| 1;
-  str x <| "hello";
-  str y <| ", world";
-  str z <| x ^ y;
-  printnl <| [&z];
+  string x <| "hello";
+  str y <| Str_new <| [", world"];
   |> ();
 }
