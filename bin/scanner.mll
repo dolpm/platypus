@@ -32,7 +32,8 @@ rule token = parse
 
   | '&'      { BORROW }
   | '@'      { DEREF }
-  | "~&"      { MUTBORROW }
+  | "~&"     { MUTBORROW }
+  | "%"      { CLONE } 
 
   | "mut"    { MUT }
 

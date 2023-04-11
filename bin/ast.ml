@@ -36,7 +36,7 @@ type binary_operator =
   | Or
   | Concat
 
-type unary_operator = Neg | Not | Deref | Ref | MutRef
+type unary_operator = Neg | Not | Deref | Ref | MutRef | Clone
 type fn_sig = defined_type list * defined_type
 
 (* is_fluid (mutable), type, name bound *)
@@ -115,6 +115,7 @@ let string_of_uop = function
   | Deref -> "@"
   | Ref -> "&"
   | MutRef -> "~&"
+  | Clone -> "%"
 
 let rec string_of_typ = function
   | Int -> "int"
