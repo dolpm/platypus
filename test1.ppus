@@ -1,8 +1,12 @@
 pipe main |> [] |> [] |> unit {
     string hello <| String_new <| ["hello"];
     string world <| String_new <| [" world"];
-    string concatted <| String_concat <| [hello, world];
-    /* TODO - DON'T ALLOW NON-REF STRING IDENTS TO BE PASSED IN */
+    
+    Printnl <| [hello == world];
+
+    /* 
+    string concatted <| hello || world;
     Printnl <| [&concatted];
+    */
     |> ();
 }

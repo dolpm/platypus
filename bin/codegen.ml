@@ -93,6 +93,11 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "String_concat" string_concat_t the_module
   in
 
+  let string_compare_t = L.function_type i1_t [| string_t; string_t |] in
+  let string_compare_func =
+    L.declare_function "String_compare" string_compare_t the_module
+  in
+
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
@@ -169,11 +174,11 @@ let translate (things, pipes) ownership_map m_external =
       | SCharLiteral c -> L.const_int i8_t (int_of_char c)
       | SUnitLiteral -> L.const_null unit_t
       | SStringLiteral s -> L.build_global_stringptr s "str" builder
-      | SBinop (e1, op, e2) ->
+      | SBinop (e1, op, e2) -> (
           let t, _ = e1 and e1' = expr builder e1 and e2' = expr builder e2 in
-          (match t with
-          | A.Int -> (
-              match op with
+          match t with
+          | A.Int ->
+              (match op with
               | A.Add -> L.build_add
               | A.Sub -> L.build_sub
               | A.Mult -> L.build_mul
@@ -185,8 +190,9 @@ let translate (things, pipes) ownership_map m_external =
               | A.Equal -> L.build_icmp L.Icmp.Eq
               | A.Neq -> L.build_icmp L.Icmp.Ne
               | _ -> raise (Failure "this operation is not supported"))
-          | A.Float -> (
-              match op with
+                e1' e2' "tmp" builder
+          | A.Float ->
+              (match op with
               | A.Add -> L.build_fadd
               | A.Sub -> L.build_fsub
               | A.Mult -> L.build_fmul
@@ -198,27 +204,46 @@ let translate (things, pipes) ownership_map m_external =
               | A.Equal -> L.build_fcmp L.Fcmp.Oeq
               | A.Neq -> L.build_fcmp L.Fcmp.One
               | _ -> raise (Failure "this operation is not supported"))
-          | A.Bool -> (
-              match op with
+                e1' e2' "tmp" builder
+          | A.Bool ->
+              (match op with
               | A.And -> L.build_and
               | A.Or -> L.build_or
               | A.Equal -> L.build_icmp L.Icmp.Eq
               | A.Neq -> L.build_icmp L.Icmp.Ne
               | _ -> raise (Failure "this operation is not supported"))
+                e1' e2' "tmp" builder
           | String -> (
               (* todo implement strings *)
               match op with
+              | A.Equal ->
+                  let result =
+                    L.build_call string_compare_func
+                      [| expr builder e1; expr builder e2 |]
+                      "tmp" builder
+                  in
+                  L.build_icmp L.Icmp.Eq result (L.const_int i1_t 0) "tmp2"
+                    builder
+              | A.Neq ->
+                  let result =
+                    L.build_call string_compare_func
+                      [| expr builder e1; expr builder e2 |]
+                      "tmp" builder
+                  in
+                  L.build_icmp L.Icmp.Eq result (L.const_int i1_t 1) "tmp2"
+                    builder
+              | A.Concat ->
+                  L.build_call string_concat_func
+                    [| expr builder e1; expr builder e2 |]
+                    "concatted_string" builder
+              | _ -> raise (Failure "this operation is not supported"))
+          | Char ->
+              (match op with
               | A.Equal -> L.build_icmp L.Icmp.Eq
               | A.Neq -> L.build_icmp L.Icmp.Ne
-              | A.Concat -> raise (Failure "TOOD: implement concat op LLVM IR")
               | _ -> raise (Failure "this operation is not supported"))
-          | Char -> (
-              match op with
-              | A.Equal -> L.build_icmp L.Icmp.Eq
-              | A.Neq -> L.build_icmp L.Icmp.Ne
-              | _ -> raise (Failure "this operation is not supported"))
+                e1' e2' "tmp" builder
           | _ -> raise (Failure "this operation is not supported"))
-            e1' e2' "tmp" builder
       | SUnop (op, (t, e)) -> (
           match op with
           | Deref ->
@@ -363,10 +388,6 @@ let translate (things, pipes) ownership_map m_external =
           L.build_call string_new_func
             [| expr builder str |]
             "mallocd_string" builder
-      | SPipeIn ("String_concat", [ s1; s2 ]) ->
-          L.build_call string_concat_func
-            [| expr builder s1; expr builder s2 |]
-            "concatted_string" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in
