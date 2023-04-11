@@ -4,7 +4,7 @@ thing MyThing <| {
 
 pipe main |> [] |> [] |> unit {
   MyThing t <| MyThing {
-    im_an_int: 5.0
+    im_an_int: 5
   };
 
   |> ();

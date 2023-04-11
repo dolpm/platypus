@@ -101,6 +101,7 @@ let translate (things, pipes) ownership_map m_external =
 
   (* Generating code for things - A stringmap of llvalues *)
   (* where each llvalue is an initialized const_struct global variable *)
+  (*
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
       let name = tdecl.stname in
@@ -122,6 +123,22 @@ let translate (things, pipes) ownership_map m_external =
       StringMap.add name (L.define_global name init the_module) m
     in
     List.fold_left thing_decl StringMap.empty things
+  in
+  *)
+  let thing_types =
+    List.fold_left
+      (fun ttmap tdecl ->
+        let as_struct_type = L.named_struct_type context tdecl.stname in
+        let children_types =
+          List.map
+            (fun (_is_mut, typ, _name) -> ltype_of_typ typ)
+            tdecl.selements
+        in
+        let _ =
+          L.struct_set_body as_struct_type (Array.of_list children_types) false
+        in
+        StringMap.add tdecl.stname as_struct_type ttmap)
+      StringMap.empty things
   in
 
   (* thing name, [access name array], thing llv, builder *)
@@ -194,6 +211,10 @@ let translate (things, pipes) ownership_map m_external =
       | SCharLiteral c -> L.const_int i8_t (int_of_char c)
       | SUnitLiteral -> L.const_null unit_t
       | SStringLiteral s -> L.build_global_stringptr s "strptr" builder
+      | SThingValue (t_name, _children) ->
+          L.build_alloca
+            (L.pointer_type (StringMap.find t_name thing_types))
+            "fuk" builder
       | SBinop (e1, op, e2) -> (
           let t, _ = e1 and e1' = expr builder e1 and e2' = expr builder e2 in
           match t with
