@@ -11,7 +11,7 @@ and sx =
   | SStringLiteral of string
   (* assignable thing value *)
   | SThingValue of string * (string * s_expr) list
-  | SThingAccess of string * string list
+  | SThingAccess of string * string * string list
   | STupleValue of s_expr list
   | STupleIndex of string * int
   | SIdent of string
@@ -75,7 +75,7 @@ let rec string_of_s_expr (t, e) =
                (fun (c_name, e) -> "    " ^ c_name ^ ": " ^ string_of_s_expr e)
                children)
         ^ "\n  }"
-    | SThingAccess (v_name, access_list) ->
+    | SThingAccess (_t_name, v_name, access_list) ->
         v_name ^ "." ^ String.concat "." access_list
     | STupleValue es ->
         "tuple("

@@ -390,7 +390,7 @@ let check (things, pipes) verbosity =
           in
           (Ident t_name, SThingValue (t_name, List.rev children'))
       | ThingAccess (v_name, access_list) ->
-          let _is_mut, typ = StringMap.find v_name symbols in
+          let is_mut, typ = StringMap.find v_name symbols in
           let typ_of_access =
             List.fold_left
               (fun (cur_typ : defined_type) c_name ->
@@ -412,7 +412,16 @@ let check (things, pipes) verbosity =
                 typ')
               typ access_list
           in
-          (typ_of_access, SThingAccess (v_name, access_list))
+
+          let t_to_be_accessed =
+            match typ with
+            | Ident t_name -> t_name
+            | _ -> raise (Failure "thing access must be done on a thing type.")
+          in
+
+          ( (if is_mut then MutBorrow (typ_of_access, "'_")
+            else Borrow (typ_of_access, "'_")),
+            SThingAccess (t_to_be_accessed, v_name, access_list) )
       | _ -> (Unit, SNoexpr)
     in
 
