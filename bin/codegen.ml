@@ -249,19 +249,34 @@ let translate (things, pipes) ownership_map m_external =
               let load_value = expr builder (t, e) in
               L.build_not load_value "boolean_negated_value" builder)
       | SPipeIn ("Printnl", [ (t, sx) ]) -> (
+          let arg = expr builder (t, sx) in
           match t with
+          | Borrow (t, _) | MutBorrow (t, _) -> (
+              let loaded_arg = L.build_load arg "printnl arg" builder in
+              match t with
+              | Int | Bool ->
+                  L.build_call printf_func
+                    [| int_format_str; loaded_arg |]
+                    "printf" builder
+              | Float ->
+                  L.build_call printf_func
+                    [| float_format_str; loaded_arg |]
+                    "printf" builder
+              | String ->
+                  L.build_call printf_func
+                    [| newline_str; loaded_arg |]
+                    "printf" builder
+              | _ -> raise (Failure "panic! invalid arg type!"))
           | Int | Bool ->
-              L.build_call printf_func
-                [| int_format_str; expr builder (t, sx) |]
-                "printf" builder
+              L.build_call printf_func [| int_format_str; arg |] "printf"
+                builder
           | Float ->
               L.build_call printf_func
-                [| float_format_str; expr builder (t, sx) |]
+                [| float_format_str; arg |]
                 "printf" builder
-          | _ ->
-              L.build_call printf_func
-                [| newline_str; expr builder (t, sx) |]
-                "printf" builder)
+          | String ->
+              L.build_call printf_func [| newline_str; arg |] "printf" builder
+          | _ -> raise (Failure "panic! invalid printnl arg type!"))
       | SPipeIn ("Box_new", [ ((t, _e) as value) ]) ->
           (* evaluate the expression*)
           let e' = expr builder value in

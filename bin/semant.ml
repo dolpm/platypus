@@ -313,7 +313,12 @@ let check (_things, pipes) verbosity =
               match pname with
               | "Printnl" -> (
                   match first_arg_type with
-                  | Int | Bool | Float | String -> first_arg_type
+                  | Borrow (t, _) | MutBorrow (t, _) -> (
+                      match t with
+                      | Int | Bool | Float | String -> Unit
+                      | _ -> raise (Failure ("unexpected arg type in " ^ pname))
+                      )
+                  | Int | Bool | Float | String -> Unit
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Box_new" -> Box first_arg_type
               | "Vector_pop" -> (
