@@ -370,6 +370,13 @@ let check (_things, pipes) verbosity =
               let _ = cur_sblock_id := !cur_sblock_id + 1 in
               string_of_int (!cur_sblock_id - 1) )
       | Assign (is_mut, t, name, e) as ass ->
+          (* make sure we aren't assigning a deref to a variable (illegal ) *)
+          let _ =
+            match e with
+            | Unop (Deref, _) ->
+                make_err "Can't bind the result of a de-reference."
+            | _ -> ()
+          in
           let _, lt = type_of_identifier name symbols
           and rt, e' = expr e symbols in
           let err =
@@ -379,6 +386,13 @@ let check (_things, pipes) verbosity =
           let _ = check_assign lt rt err in
           SAssign (is_mut, t, name, (rt, e'))
       | ReAssign (name, e) as ass ->
+          (* make sure we aren't assigning a deref to a variable (illegal ) *)
+          let _ =
+            match e with
+            | Unop (Deref, _) ->
+                make_err "Can't bind the result of a de-reference."
+            | _ -> ()
+          in
           (* iff deref of mutborrow on lhs, we want to update inner value! *)
           let _, lt = type_of_identifier name symbols
           and rt, e' = expr e symbols in
