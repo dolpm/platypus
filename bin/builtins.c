@@ -80,29 +80,25 @@ void *Vector_pop(struct Vector *v)
 
 /* STRINGS */
 
-void *Str_new(void *s1)
+void *Str_new(char *s)
 {
-  char *s1_as_carr = (char *)s1;
-  char *result = (char *)malloc(strlen(s1_as_carr) + 1);
-  strcpy(result, s1_as_carr);
-  return (void *)result;
-}
-
-void *Str_concat(void *s1, void *s2)
-{
-  char *s1_as_carr = (char *)s1;
-  char *s2_as_carr = (char *)s2;
-  char *result = (char *)malloc(strlen(s1_as_carr) + strlen(s2_as_carr) + 1);
-  strcpy(result, s1_as_carr);
-  strcat(result, s2_as_carr);
-
-  free(s1_as_carr);
-  free(s2_as_carr);
+  char *result = (char *)malloc(strlen(s) + 1);
+  strcpy(result, s);
 
   return (void *)result;
 }
 
-int Str_compare(void *s1, void *s2)
+char *Str_concat(char *s1, char *s2)
 {
-  return strcmp((char *)s1, (char *)s2);
+  char *result = (char *)malloc(strlen(s1) + strlen(s2) + 1);
+
+  strcpy(result, s1);
+  strcat(result, s2);
+
+  return result;
+}
+
+int Str_compare(char *s1, char *s2)
+{
+  return strcmp(s1, s2);
 }
