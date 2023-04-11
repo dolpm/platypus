@@ -1,6 +1,7 @@
 open Sast
 open Ast
 module StringMap = Map.Make (String)
+module StringSet = Set.Make (String)
 
 type graph_node =
   | Lifetime of {
@@ -591,16 +592,22 @@ let borrow_ck pipes verbose =
       ^ " gave ownership to another binding and can't be accessed."
     and make_err er = raise (Failure er) in
 
-    let rec check_children current_node symbol_table graph =
+    let rec check_children current_node symbol_table active_refs graph =
       let current_node = StringMap.find current_node graph in
       match current_node with
       | Lifetime l ->
           (* process ownership of child nodes -- this will remove all variables who are owned in lower lifetimes *)
-          let symbol_table', graph' =
+          let symbol_table', _active_refs', graph' =
             List.fold_left
-              (fun (st, graph) child -> check_children child st graph)
-              (symbol_table, graph) l.children
+              (fun (st, active_refs, graph) child ->
+                check_children child st active_refs graph)
+              (symbol_table, active_refs, graph)
+              l.children
           in
+
+          (* active refs will be reset past this point *)
+          (* as all of those that were added down in the tree *)
+          (* will have expired *)
 
           (* anything left in the symbol table are variables that this lifetime must deallocate *)
           let symbol_table', children_responsible_for_dealloc =
@@ -616,6 +623,7 @@ let borrow_ck pipes verbose =
           in
 
           ( symbol_table',
+            active_refs,
             StringMap.add l.node_id
               (Lifetime
                  {
@@ -634,54 +642,69 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringMap.mem n symbol_table) then
-                  make_err (err_gave_ownership n))
+                if
+                  (not (StringMap.mem n symbol_table))
+                  && not (StringSet.mem n active_refs)
+                then make_err (err_gave_ownership n))
               names
           in
 
           (* if ownership of another var given to new binding *)
           (* remove the original from the table *)
           (* and validate that rhs is in same loop *)
-          let symbol_table' =
+          let symbol_table', active_refs' =
             match b.expr with
             | _ty, SIdent v_name ->
-                let v_node =
-                  StringMap.find (StringMap.find v_name symbol_table) graph
-                in
-                let _v_parent, _v_node_id, _v_depth, v_loop =
-                  node_common_data v_node
-                in
-                if v_loop <> b.loop then
-                  raise
-                    (Failure
-                       ("ownership of " ^ v_name
-                      ^ " could be taken in a previous loop iteration"))
-                else StringMap.remove v_name symbol_table
+                if StringSet.mem v_name active_refs then
+                  (symbol_table, active_refs)
+                else
+                  let v_node =
+                    StringMap.find (StringMap.find v_name symbol_table) graph
+                  in
+                  let _v_parent, _v_node_id, _v_depth, v_loop =
+                    node_common_data v_node
+                  in
+                  if v_loop <> b.loop then
+                    raise
+                      (Failure
+                         ("ownership of " ^ v_name
+                        ^ " could be taken in a previous loop iteration"))
+                  else
+                    let st = StringMap.remove v_name symbol_table in
+                    (StringMap.add b.name b.node_id st, active_refs)
+            | _ty, SUnop (Ref, (_, SIdent _))
+            | _ty, SUnop (MutRef, (_, SIdent _)) ->
+                (symbol_table, StringSet.add b.name active_refs)
             | expr ->
                 let moved_vars = find_moves expr in
                 (* if ownership of another var is given in rhs *)
                 (* remove the original from the table *)
                 (* and validate that rhs is in same loop *)
-                List.fold_left
-                  (fun symbol_table v_name ->
-                    let v_node =
-                      StringMap.find (StringMap.find v_name symbol_table) graph
-                    in
-                    let _v_parent, _v_node_id, _v_depth, v_loop =
-                      node_common_data v_node
-                    in
-                    if v_loop <> b.loop then
-                      raise
-                        (Failure
-                           ("ownership of " ^ v_name
-                          ^ " could be taken in a previous loop iteration"))
-                    else StringMap.remove v_name symbol_table)
-                  symbol_table moved_vars
+                let st =
+                  List.fold_left
+                    (fun symbol_table v_name ->
+                      if StringSet.mem v_name active_refs then symbol_table
+                      else
+                        let v_node =
+                          StringMap.find
+                            (StringMap.find v_name symbol_table)
+                            graph
+                        in
+                        let _v_parent, _v_node_id, _v_depth, v_loop =
+                          node_common_data v_node
+                        in
+                        if v_loop <> b.loop then
+                          raise
+                            (Failure
+                               ("ownership of " ^ v_name
+                              ^ " could be taken in a previous loop iteration"))
+                        else StringMap.remove v_name symbol_table)
+                    symbol_table moved_vars
+                in
+                (StringMap.add b.name b.node_id st, active_refs)
           in
 
-          (* add the current binding to the table *)
-          let symbol_table' = StringMap.add b.name b.node_id symbol_table' in
-          (symbol_table', graph)
+          (symbol_table', active_refs', graph)
       (* in ExprCatchAll, we only need to check that all found identifiers are in the symbol_table table *)
       (* we don't have to remove anything from the symbol table *)
       | PipeCall pc ->
@@ -695,8 +718,10 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringMap.mem n symbol_table) then
-                  make_err (err_gave_ownership n))
+                if
+                  (not (StringMap.mem n symbol_table))
+                  && not (StringSet.mem n active_refs)
+                then make_err (err_gave_ownership n))
               names
           in
 
@@ -708,23 +733,27 @@ let borrow_ck pipes verbose =
               (fun symbol_table arg ->
                 match arg with
                 | _ty, SIdent v_name ->
-                    let v_node =
-                      StringMap.find (StringMap.find v_name symbol_table) graph
-                    in
-                    let _v_parent, _v_node_id, _v_depth, v_loop =
-                      node_common_data v_node
-                    in
-                    if v_loop <> pc.loop then
-                      raise
-                        (Failure
-                           ("ownership of " ^ v_name
-                          ^ " could be taken in a previous loop iteration"))
-                    else StringMap.remove v_name symbol_table
+                    if StringSet.mem v_name active_refs then symbol_table
+                    else
+                      let v_node =
+                        StringMap.find
+                          (StringMap.find v_name symbol_table)
+                          graph
+                      in
+                      let _v_parent, _v_node_id, _v_depth, v_loop =
+                        node_common_data v_node
+                      in
+                      if v_loop <> pc.loop then
+                        raise
+                          (Failure
+                             ("ownership of " ^ v_name
+                            ^ " could be taken in a previous loop iteration"))
+                      else StringMap.remove v_name symbol_table
                 | _ -> symbol_table)
               symbol_table pc.args
           in
 
-          (symbol_table', graph)
+          (symbol_table', active_refs, graph)
       | v ->
           let e =
             match v with
@@ -738,14 +767,16 @@ let borrow_ck pipes verbose =
           let _ =
             List.iter
               (fun n ->
-                if not (StringMap.mem n symbol_table) then
-                  make_err (err_gave_ownership n))
+                if
+                  (not (StringMap.mem n symbol_table))
+                  && not (StringSet.mem n active_refs)
+                then make_err (err_gave_ownership n))
               names
           in
-          (symbol_table, graph)
+          (symbol_table, active_refs, graph)
     in
 
-    check_children pipe.sname StringMap.empty graph_for_pipe
+    check_children pipe.sname StringMap.empty StringSet.empty graph_for_pipe
   in
   let _graph = print_graph graph in
 
@@ -753,7 +784,7 @@ let borrow_ck pipes verbose =
   let graph =
     List.fold_left
       (fun graph p ->
-        let _, graph' = ownership_ck p in
+        let _, _, graph' = ownership_ck p in
         let _ =
           if verbose then
             print_string ("ownership check for " ^ p.sname ^ " passed!\n")

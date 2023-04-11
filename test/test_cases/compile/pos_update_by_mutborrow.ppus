@@ -1,8 +1,12 @@
 pipe main |> [] |> [] |> unit {
     mut int x <| 4;
-    ~&int y <| ~&x;
-    y <| 5;
-    Printnl <| [x];
-    Printnl <| [@y];
+    {
+        Printnl <| [&x];
+        ~&int y <| ~&x;
+        Printnl <| [y];
+        y <| 5;
+        Printnl <| [y];
+    }
+    Printnl <| [&x];
     |> ();
 }
