@@ -2,9 +2,9 @@ pipe main |> [] |> [] |> unit {
     str hello <| Str_new <| ["hello"];
     str world <| Str_new <| [" world"];
     
-    Printnl <| [hello != world];
-    Printnl <| [hello == world];
 
+
+    /* hello and world forfeit ownership to concatted */
     str concatted <| hello || world;
     Printnl <| [&concatted];
     |> ();

@@ -532,7 +532,7 @@ let translate (things, pipes) ownership_map m_external =
             let _ = L.build_free box builder' in
 
             builder'
-        | A.String ->
+        | A.Str ->
             (* load the malloc *)
             let str = L.build_load llvalue "str_malloc_to_free" builder in
             let _ = L.build_free str builder in
