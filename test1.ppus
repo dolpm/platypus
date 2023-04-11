@@ -1,5 +1,5 @@
 pipe main |> [] |> [] |> unit {
     string s <| String_new <| ["hello"];
-    Printnl <| [s];
+    Printnl <| [&s];
     |> ();
 }
