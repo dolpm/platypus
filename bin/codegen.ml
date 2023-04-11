@@ -354,9 +354,10 @@ let translate (things, pipes) ownership_map m_external =
           L.build_bitcast fetched_item
             (L.pointer_type (ltype_of_typ inner_type))
             "vector_item_as_type" builder
-      | SPipeIn ("String_new", [ str ]) -> (
-        L.build_call string_new_func [| expr builder str |] "mallocd_string" builder
-      )
+      | SPipeIn ("String_new", [ str ]) ->
+          L.build_call string_new_func
+            [| expr builder str |]
+            "mallocd_string" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in
@@ -503,6 +504,11 @@ let translate (things, pipes) ownership_map m_external =
             let _ = L.build_free box builder' in
 
             builder'
+        | A.String ->
+            (* load the malloc *)
+            let str = L.build_load llvalue "str_malloc_to_free" builder in
+            let _ = L.build_free str builder in
+            builder
         | _ -> builder
       in
       free_inner typ llvalue builder true

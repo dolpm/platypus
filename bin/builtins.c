@@ -95,6 +95,8 @@ void *String_concat(void *s1, void *s2)
   char *result = (char *)malloc(strlen(s1_as_carr) + strlen(s2_as_carr) + 1);
   strcpy(result, s1_as_carr);
   strcat(result, s2_as_carr);
+  free(s1_as_carr);
+  free(s2_as_carr);
   return (void *)result;
 }
 
