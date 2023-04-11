@@ -83,6 +83,11 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "Vector_free" vector_free_t the_module
   in
 
+  let string_new_t = L.function_type string_t [| string_t |] in
+  let string_new_func =
+    L.declare_function "String_new" string_new_t the_module
+  in
+
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
@@ -106,21 +111,7 @@ let translate (things, pipes) ownership_map m_external =
     in
     List.fold_left thing_decl StringMap.empty things
   in
-  (* let init_and_add ele =
-     let rec init_ele = match (snd ele) with
-       A.Float -> L.const_float (ltype_of_typ t) 0.0
-       | _ -> raise (Failure ("TODO"))
-     in
-     StringMap.add ele_n init_ele *)
-  (* in
-     List.fold_left init_ele StringMap.empty ((ele_n, ele_t)::eles) *)
-  (* and eles_map : L.lltype StringMap.t =
-       let map_ele mem_m ele =
-         StringMap.add (fst ele) (snd ele) mem_m
-       in
-       List.fold_left map_ele StringMap.empty (snd tdecl)
-     in
-     StringMap.add name eles_map m *)
+
   (* Define all pipes declarations *)
   let pipe_decls : (L.llvalue * s_pipe_declaration) StringMap.t =
     let pipe_decl m pdecl =
@@ -363,6 +354,9 @@ let translate (things, pipes) ownership_map m_external =
           L.build_bitcast fetched_item
             (L.pointer_type (ltype_of_typ inner_type))
             "vector_item_as_type" builder
+      | SPipeIn ("String_new", [ str ]) -> (
+        L.build_call string_new_func [| expr builder str |] "mallocd_string" builder
+      )
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in

@@ -47,6 +47,7 @@ rule token = parse
   | ">="     { GEQ }
   | "and"     { AND }
   | "or"     { OR }
+  | "||"     { CONCAT } 
 
   | '!'      { NOT }
 

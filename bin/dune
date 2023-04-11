@@ -14,7 +14,7 @@
 
 (rule
  (target builtins.ml)
- (deps link.sh vec.c)
+ (deps link.sh builtins.c)
  (action
   (chdir
    %{workspace_root}
