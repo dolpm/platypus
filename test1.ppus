@@ -7,7 +7,7 @@ pipe main |> [] |> [] |> unit {
     im_an_int: 5
   };
 
-  t.im_an_int;
+  int x <| t.im_an_int;
 
   |> ();
 }

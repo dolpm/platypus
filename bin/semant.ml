@@ -389,6 +389,30 @@ let check (things, pipes) verbosity =
               [] children
           in
           (Ident t_name, SThingValue (t_name, List.rev children'))
+      | ThingAccess (v_name, access_list) ->
+          let _is_mut, typ = StringMap.find v_name symbols in
+          let typ_of_access =
+            List.fold_left
+              (fun (cur_typ : defined_type) c_name ->
+                let t_name =
+                  match cur_typ with
+                  | Ident t_name -> t_name
+                  | _ ->
+                      raise
+                        (Failure "thing access must be done on a thing type.")
+                in
+                (* get the actual thing to recurse on inner type *)
+                let assoc_t = List.find (fun t -> t.tname = t_name) things in
+                (* make sure inner element exists *)
+                let _, typ', _ =
+                  List.find
+                    (fun (_is_mut, _typ, n) -> n = c_name)
+                    assoc_t.elements
+                in
+                typ')
+              typ access_list
+          in
+          (typ_of_access, SThingAccess (v_name, access_list))
       | _ -> (Unit, SNoexpr)
     in
 
