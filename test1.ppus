@@ -1,12 +1,11 @@
 pipe main |> [] |> [] |> unit {
-    string hello <| String_new <| ["hello"];
-    string world <| String_new <| [" world"];
+    str hello <| Str_new <| ["hello"];
+    str world <| Str_new <| [" world"];
     
+    Printnl <| [hello != world];
     Printnl <| [hello == world];
 
-    /* 
-    string concatted <| hello || world;
+    str concatted <| hello || world;
     Printnl <| [&concatted];
-    */
     |> ();
 }

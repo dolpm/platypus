@@ -29,7 +29,7 @@ let check (_things, pipes) verbosity =
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
         Unit );
       ("Vector_pop", [ (true, MutBorrow (Vector Generic, "'_"), "x") ], Unit);
-      ("String_new", [ (false, String, "x") ], String);
+      ("Str_new", [ (false, String, "x") ], Str);
       ("option_is_none", [ (false, Option Generic, "x") ], Bool);
       ("option_is_some", [ (false, Option Generic, "x") ], Bool);
     ]
@@ -224,8 +224,8 @@ let check (_things, pipes) verbosity =
                 Bool
             | (Equal | Neq)
               when same
-                   && (t1 = Int || t1 = Float || t1 = String || t1 = Char
-                     || t1 = Bool) ->
+                   && (t1 = Int || t1 = Float || t1 = String || t1 = Str
+                     || t1 = Char || t1 = Bool) ->
                 Bool
             | (Add | Sub | Mult | Div) when same && (t1 = Int || t1 = Float)
               -> (
@@ -239,7 +239,7 @@ let check (_things, pipes) verbosity =
                       (Failure
                          ("invalid operands for arithmetic operation "
                         ^ string_of_op op)))
-            | Concat when same && t1 = String && t2 = String -> String
+            | Concat when same && t1 = Str && t2 = Str -> Str
             | _ ->
                 raise
                   (Failure
@@ -316,7 +316,7 @@ let check (_things, pipes) verbosity =
                   match first_arg_type with
                   | Borrow (t, _) | MutBorrow (t, _) -> (
                       match t with
-                      | Int | Bool | Float | String -> Unit
+                      | Int | Bool | Float | String | Str -> Unit
                       | _ -> raise (Failure ("unexpected arg type in " ^ pname))
                       )
                   | Int | Bool | Float | String -> Unit

@@ -67,6 +67,7 @@ rule token = parse
   | "unit"   { UNIT }
   | "tuple"  { TUPLE }
   | "string" { STRING }
+  | "str"    { STR }
   | "thing"  { THING }
 
   | "box"    { BOX }

@@ -80,7 +80,7 @@ void *Vector_pop(struct Vector *v)
 
 /* STRINGS */
 
-void *String_new(void *s1)
+void *Str_new(void *s1)
 {
   char *s1_as_carr = (char *)s1;
   char *result = (char *)malloc(strlen(s1_as_carr) + 1);
@@ -88,7 +88,7 @@ void *String_new(void *s1)
   return (void *)result;
 }
 
-void *String_concat(void *s1, void *s2)
+void *Str_concat(void *s1, void *s2)
 {
   char *s1_as_carr = (char *)s1;
   char *s2_as_carr = (char *)s2;
@@ -102,7 +102,7 @@ void *String_concat(void *s1, void *s2)
   return (void *)result;
 }
 
-int String_compare(void *s1, void *s2)
+int Str_compare(void *s1, void *s2)
 {
   return strcmp((char *)s1, (char *)s2);
 }
