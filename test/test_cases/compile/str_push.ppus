@@ -1,0 +1,13 @@
+pipe main |> [] |> [] |> unit {
+    str h <| Str_new <| ["hello"];
+    str w <| Str_new <| [" world"];
+
+    /* hello and world forfeit ownership to concatted */
+    mut str concatted <| h ^ w;
+    ~&str c_ref <| ~&concatted;
+    
+    Printnl <| [c_ref];
+    Str_push <| [c_ref, '!'];
+    Printnl <| [c_ref];
+    |> ();
+}

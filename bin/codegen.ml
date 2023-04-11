@@ -91,6 +91,9 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "Str_concat" str_concat_t the_module
   in
 
+  let str_push_t = L.function_type unit_t [| string_t; i8_t |] in
+  let str_push_func = L.declare_function "Str_push" str_push_t the_module in
+
   let str_compare_t = L.function_type i1_t [| string_t; string_t |] in
   let str_compare_func =
     L.declare_function "Str_compare" str_compare_t the_module
@@ -386,6 +389,13 @@ let translate (things, pipes) ownership_map m_external =
           L.build_call str_new_func
             [| expr builder str |]
             "mallocd_string" builder
+      | SPipeIn ("Str_push", [ str; c ]) ->
+          L.build_call str_push_func
+            [|
+              L.build_load (expr builder str) "loaded_str" builder;
+              expr builder c;
+            |]
+            "" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in

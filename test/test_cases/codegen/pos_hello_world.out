@@ -24,6 +24,8 @@ declare i8* @Str_new(i8*)
 
 declare i8* @Str_concat(i8*, i8*)
 
+declare void @Str_push(i8*, i8)
+
 declare i1 @Str_compare(i8*, i8*)
 
 define void @main() {

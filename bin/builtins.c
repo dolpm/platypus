@@ -101,6 +101,12 @@ char *Str_concat(char *s1, char *s2)
   return result;
 }
 
+void Str_push(char *s, char c)
+{
+  strncat(s, &c, 1);
+  return;
+}
+
 int Str_compare(char *s1, char *s2)
 {
   return strcmp(s1, s2);
