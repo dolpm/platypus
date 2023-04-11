@@ -6,6 +6,7 @@ type defined_type =
   | Unit
   | Char
   | String
+  | Str
   | Vector of defined_type
   (* thing names are user-defined *)
   (* | Thing of string *)
@@ -73,10 +74,7 @@ type stmt =
   | Assign of bool * defined_type * string * expr
   | ReAssign of string * expr
 
-type thing_declaration = {
-  tname : string;
-  elements : type_binding list;
-}
+type thing_declaration = { tname : string; elements : type_binding list }
 
 type pipe_declaration = {
   name : string;
@@ -109,7 +107,7 @@ let string_of_op = function
   | Geq -> ">="
   | And -> "and"
   | Or -> "or"
-  | Concat -> "||"
+  | Concat -> "^"
 
 let string_of_uop = function
   | Neg -> "-"
@@ -123,6 +121,7 @@ let rec string_of_typ = function
   | Float -> "float"
   | Bool -> "bool"
   | Tuple tl -> "[" ^ String.concat " * " (List.map string_of_typ tl) ^ "]"
+  | Str -> "str"
   | Unit -> "unit"
   | Char -> "char"
   | String -> "string"
@@ -205,16 +204,17 @@ let string_of_tdecl tdecl =
   "thing " ^ tdecl.tname ^ " <| {\n"
   ^ String.concat ",\n"
       (List.map
-         (fun v -> match v with _, t, n -> indent 1 ^ n ^ ": " ^ string_of_typ t)
+         (fun v ->
+           match v with _, t, n -> indent 1 ^ n ^ ": " ^ string_of_typ t)
          tdecl.elements)
   ^ "\n}"
-  (* match t with
-  | Thing (s, l) ->
-      "thing " ^ s ^ " <| {\n"
-      ^ String.concat ",\n"
-          (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
-      ^ "\n}"
-  | _ -> "" *)
+(* match t with
+   | Thing (s, l) ->
+       "thing " ^ s ^ " <| {\n"
+       ^ String.concat ",\n"
+           (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
+       ^ "\n}"
+   | _ -> "" *)
 
 let string_of_pdecl pdecl =
   "pipe " ^ pdecl.name ^ " |> ["

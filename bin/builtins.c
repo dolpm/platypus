@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* VECTORS */
+
 struct Vector
 {
   int length;
@@ -74,4 +76,38 @@ void *Vector_pop(struct Vector *v)
   }
 
   return value;
+}
+
+/* STRINGS */
+
+void *Str_new(char *s)
+{
+  char *result = (char *)malloc(strlen(s) + 1);
+  strcpy(result, s);
+
+  return (void *)result;
+}
+
+char *Str_concat(char *s1, char *s2)
+{
+  char *result = (char *)malloc(strlen(s1) + strlen(s2) + 1);
+
+  strcpy(result, s1);
+  strcat(result, s2);
+
+  free(s1);
+  free(s2);
+
+  return result;
+}
+
+void Str_push(char *s, char c)
+{
+  strncat(s, &c, 1);
+  return;
+}
+
+int Str_compare(char *s1, char *s2)
+{
+  return strcmp(s1, s2);
 }

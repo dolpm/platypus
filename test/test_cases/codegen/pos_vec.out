@@ -19,6 +19,14 @@ declare i8** @Vector_get(%struct.Vector*, i32)
 
 declare void @Vector_free(%struct.Vector*)
 
+declare i8* @Str_new(i8*)
+
+declare i8* @Str_concat(i8*, i8*)
+
+declare void @Str_push(i8*, i8)
+
+declare i1 @Str_compare(i8*, i8*)
+
 define void @main() {
 entry:
   %Vector_new = call %struct.Vector* @Vector_new()

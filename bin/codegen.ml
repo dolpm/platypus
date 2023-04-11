@@ -32,7 +32,7 @@ let translate (things, pipes) ownership_map m_external =
           (L.struct_type context (Array.of_list (List.map ltype_of_typ ts)))
     | A.Unit -> unit_t
     | A.Char -> i8_t
-    | A.String -> string_t
+    | A.String | A.Str -> string_t
     | A.Box t -> L.pointer_type (ltype_of_typ t)
     | A.Borrow (t, _) -> L.pointer_type (ltype_of_typ t)
     | A.MutBorrow (t, _) -> L.pointer_type (ltype_of_typ t)
@@ -83,6 +83,22 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "Vector_free" vector_free_t the_module
   in
 
+  let str_new_t = L.function_type string_t [| string_t |] in
+  let str_new_func = L.declare_function "Str_new" str_new_t the_module in
+
+  let str_concat_t = L.function_type string_t [| string_t; string_t |] in
+  let str_concat_func =
+    L.declare_function "Str_concat" str_concat_t the_module
+  in
+
+  let str_push_t = L.function_type unit_t [| string_t; i8_t |] in
+  let str_push_func = L.declare_function "Str_push" str_push_t the_module in
+
+  let str_compare_t = L.function_type i1_t [| string_t; string_t |] in
+  let str_compare_func =
+    L.declare_function "Str_compare" str_compare_t the_module
+  in
+
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
@@ -106,21 +122,7 @@ let translate (things, pipes) ownership_map m_external =
     in
     List.fold_left thing_decl StringMap.empty things
   in
-  (* let init_and_add ele =
-     let rec init_ele = match (snd ele) with
-       A.Float -> L.const_float (ltype_of_typ t) 0.0
-       | _ -> raise (Failure ("TODO"))
-     in
-     StringMap.add ele_n init_ele *)
-  (* in
-     List.fold_left init_ele StringMap.empty ((ele_n, ele_t)::eles) *)
-  (* and eles_map : L.lltype StringMap.t =
-       let map_ele mem_m ele =
-         StringMap.add (fst ele) (snd ele) mem_m
-       in
-       List.fold_left map_ele StringMap.empty (snd tdecl)
-     in
-     StringMap.add name eles_map m *)
+
   (* Define all pipes declarations *)
   let pipe_decls : (L.llvalue * s_pipe_declaration) StringMap.t =
     let pipe_decl m pdecl =
@@ -172,12 +174,12 @@ let translate (things, pipes) ownership_map m_external =
       | SBoolLiteral b -> L.const_int i1_t (if b then 1 else 0)
       | SCharLiteral c -> L.const_int i8_t (int_of_char c)
       | SUnitLiteral -> L.const_null unit_t
-      | SStringLiteral s -> L.build_global_stringptr s "str" builder
-      | SBinop (e1, op, e2) ->
+      | SStringLiteral s -> L.build_global_stringptr s "strptr" builder
+      | SBinop (e1, op, e2) -> (
           let t, _ = e1 and e1' = expr builder e1 and e2' = expr builder e2 in
-          (match t with
-          | A.Int -> (
-              match op with
+          match t with
+          | A.Int ->
+              (match op with
               | A.Add -> L.build_add
               | A.Sub -> L.build_sub
               | A.Mult -> L.build_mul
@@ -189,8 +191,9 @@ let translate (things, pipes) ownership_map m_external =
               | A.Equal -> L.build_icmp L.Icmp.Eq
               | A.Neq -> L.build_icmp L.Icmp.Ne
               | _ -> raise (Failure "this operation is not supported"))
-          | A.Float -> (
-              match op with
+                e1' e2' "tmp" builder
+          | A.Float ->
+              (match op with
               | A.Add -> L.build_fadd
               | A.Sub -> L.build_fsub
               | A.Mult -> L.build_fmul
@@ -202,27 +205,46 @@ let translate (things, pipes) ownership_map m_external =
               | A.Equal -> L.build_fcmp L.Fcmp.Oeq
               | A.Neq -> L.build_fcmp L.Fcmp.One
               | _ -> raise (Failure "this operation is not supported"))
-          | A.Bool -> (
-              match op with
+                e1' e2' "tmp" builder
+          | A.Bool ->
+              (match op with
               | A.And -> L.build_and
               | A.Or -> L.build_or
               | A.Equal -> L.build_icmp L.Icmp.Eq
               | A.Neq -> L.build_icmp L.Icmp.Ne
               | _ -> raise (Failure "this operation is not supported"))
-          | String -> (
+                e1' e2' "tmp" builder
+          | String | Str -> (
               (* todo implement strings *)
               match op with
+              | A.Equal ->
+                  let result =
+                    L.build_call str_compare_func
+                      [| expr builder e1; expr builder e2 |]
+                      "tmp" builder
+                  in
+                  L.build_icmp L.Icmp.Eq result (L.const_int i1_t 0) "tmp2"
+                    builder
+              | A.Neq ->
+                  let result =
+                    L.build_call str_compare_func
+                      [| expr builder e1; expr builder e2 |]
+                      "tmp" builder
+                  in
+                  L.build_icmp L.Icmp.Eq result (L.const_int i1_t 1) "tmp2"
+                    builder
+              | A.Concat ->
+                  L.build_call str_concat_func
+                    [| expr builder e1; expr builder e2 |]
+                    "concatted_string" builder
+              | _ -> raise (Failure "this operation is not supported"))
+          | Char ->
+              (match op with
               | A.Equal -> L.build_icmp L.Icmp.Eq
               | A.Neq -> L.build_icmp L.Icmp.Ne
-              | A.Concat -> raise (Failure "TOOD: implement concat op LLVM IR")
               | _ -> raise (Failure "this operation is not supported"))
-          | Char -> (
-              match op with
-              | A.Equal -> L.build_icmp L.Icmp.Eq
-              | A.Neq -> L.build_icmp L.Icmp.Ne
-              | _ -> raise (Failure "this operation is not supported"))
+                e1' e2' "tmp" builder
           | _ -> raise (Failure "this operation is not supported"))
-            e1' e2' "tmp" builder
       | SUnop (op, (t, e)) -> (
           match op with
           | Deref ->
@@ -262,7 +284,7 @@ let translate (things, pipes) ownership_map m_external =
                   L.build_call printf_func
                     [| float_format_str; loaded_arg |]
                     "printf" builder
-              | String ->
+              | String | Str ->
                   L.build_call printf_func
                     [| newline_str; loaded_arg |]
                     "printf" builder
@@ -363,6 +385,17 @@ let translate (things, pipes) ownership_map m_external =
           L.build_bitcast fetched_item
             (L.pointer_type (ltype_of_typ inner_type))
             "vector_item_as_type" builder
+      | SPipeIn ("Str_new", [ str ]) ->
+          L.build_call str_new_func
+            [| expr builder str |]
+            "mallocd_string" builder
+      | SPipeIn ("Str_push", [ str; c ]) ->
+          L.build_call str_push_func
+            [|
+              L.build_load (expr builder str) "loaded_str" builder;
+              expr builder c;
+            |]
+            "" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in
@@ -509,6 +542,11 @@ let translate (things, pipes) ownership_map m_external =
             let _ = L.build_free box builder' in
 
             builder'
+        | A.Str ->
+            (* load the malloc *)
+            let str = L.build_load llvalue "str_malloc_to_free" builder in
+            let _ = L.build_free str builder in
+            builder
         | _ -> builder
       in
       free_inner typ llvalue builder true

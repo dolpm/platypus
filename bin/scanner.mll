@@ -47,6 +47,7 @@ rule token = parse
   | ">="     { GEQ }
   | "and"     { AND }
   | "or"     { OR }
+  | "||"     { CONCAT } 
 
   | '!'      { NOT }
 
@@ -66,6 +67,7 @@ rule token = parse
   | "unit"   { UNIT }
   | "tuple"  { TUPLE }
   | "string" { STRING }
+  | "str"    { STR }
   | "thing"  { THING }
 
   | "box"    { BOX }
