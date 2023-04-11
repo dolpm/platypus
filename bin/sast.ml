@@ -35,7 +35,8 @@ type s_stmt =
   | SWhile of s_expr * s_stmt
   (* is_mut ... *)
   | SAssign of bool * defined_type * string * s_expr
-  | SReAssign of string * s_expr
+  (* is_mutborrow *)
+  | SReAssign of bool * string * s_expr
 
 type s_thing_declaration = { stname : string; selements : type_binding list }
 
@@ -123,7 +124,7 @@ let rec string_of_s_stmt s_stmt pad =
       indent pad
       ^ (if is_mut then "mut " else "")
       ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
-  | SReAssign (v, e) -> indent pad ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
+  | SReAssign (_is_mutborrow, v, e) -> indent pad ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
 
 (* let string_of_tdecl t =
    match t with

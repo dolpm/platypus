@@ -20,11 +20,8 @@ struct Vector *Vector_new()
   return l;
 }
 
-/* int length(struct Vector *v) { return v->length; } */
-
 void *Vector_get(struct Vector *v, int index)
 {
-  // TODO: throw with err message
   assert(index < v->length);
   return *(void **)(v->list + (index * sizeof(void *)));
 }
@@ -66,7 +63,6 @@ void Vector_push(struct Vector *v, void **new_value)
 
 void *Vector_pop(struct Vector *v)
 {
-  // TODO: throw err message
   assert(v->length > 0);
 
   void *value = Vector_get(v, v->length - 1);
@@ -79,30 +75,3 @@ void *Vector_pop(struct Vector *v)
 
   return value;
 }
-
-// int test_vec_create() {
-//   struct Vector *l = Vector_new();
-
-//   for (int i = 0; i < 11; i++) {
-//     int *val = malloc(sizeof(int));
-//     *val = i;
-//     Vector_push(l, (void *)val);
-//   }
-
-//   printf("vector capacity: %d\n", l->capacity);
-
-//   for (int i = 0; i < 6; i++) {
-//     void *out = Vector_pop(l);
-//     free(out);
-//   }
-
-//   printf("vector capacity: %d\n", l->capacity);
-
-//   for (int i = 0; i < l->length; i++) {
-//     printf("value at index %d %d\n", i, *(int *)Vector_get(l, i));
-//   }
-
-//   Vector_free(l);
-
-//   return 0;
-// }

@@ -3,7 +3,7 @@ pipe main |> [] |> [] |> unit {
 {(id: main_wrapper)
   mut int x <| (int : 4);
 {(id: 1)
-  ~&'_ int z <| (~&'_ int : ~&(int : x));
+  mut ~&'_ int z <| (~&'_ int : ~&(int : x));
 }
   &'_ int y <| (&'_ int : &(int : x));
 }

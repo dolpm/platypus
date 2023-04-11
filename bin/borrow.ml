@@ -153,7 +153,7 @@ let borrow_ck pipes verbose =
                    expr;
                  })
               graph )
-      | SReAssign (name, expr) ->
+      | SReAssign (_is_mutborrow, name, expr) ->
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           ( true,
             StringMap.add node_id

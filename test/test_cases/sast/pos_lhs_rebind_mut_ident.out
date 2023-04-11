@@ -2,8 +2,8 @@ pipe main |> [] |> [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
   mut int x <| (int : 4);
-  int z <| (int : 4);
-  mut ~&'_ int w <| (~&'_ int : ~&(int : x));
+  x <| (int : 5);
+  (int : Printnl <| [(int : x)]);
   |> (unit : ());
 }
 }

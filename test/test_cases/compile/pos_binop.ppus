@@ -1,63 +1,63 @@
 pipe main |> [] |> [] |> unit {
     /* integers */
-    printnl <| [4 + 9];
-    printnl <| [1024 - 1000];
-    printnl <| [5 * 8];
-    printnl <| [20 / 4];
-    printnl <| [20 > 4];
-    printnl <| [20 < 4];
-    printnl <| [20 >= 20];
-    printnl <| [19 >= 20];
-    printnl <| [20 <= 20];
-    printnl <| [21 <= 20];
-    printnl <| [21 == 20];
-    printnl <| [20 == 20];
-    printnl <| [21 != 20];
-    printnl <| [20 != 20];
+    Printnl <| [4 + 9];
+    Printnl <| [1024 - 1000];
+    Printnl <| [5 * 8];
+    Printnl <| [20 / 4];
+    Printnl <| [20 > 4];
+    Printnl <| [20 < 4];
+    Printnl <| [20 >= 20];
+    Printnl <| [19 >= 20];
+    Printnl <| [20 <= 20];
+    Printnl <| [21 <= 20];
+    Printnl <| [21 == 20];
+    Printnl <| [20 == 20];
+    Printnl <| [21 != 20];
+    Printnl <| [20 != 20];
 
     /* floats */
-    printnl <| [4.2 + 9.2];
-    printnl <| [1024.4 - 1000.3];
-    printnl <| [5.1 * 8.4];
-    printnl <| [20.8 / 4.1];
-    printnl <| [20.8 > 4.1];
-    printnl <| [20.8 < 4.1];
-    printnl <| [20.1 >= 20.1];
-    printnl <| [20.0 >= 20.1];
-    printnl <| [20.1 <= 20.1];
-    printnl <| [20.1 <= 20.0];
-    printnl <| [21.1 == 20.1];
-    printnl <| [20.1 == 20.1];
-    printnl <| [21.1 != 20.1];
-    printnl <| [20.1 != 20.1];
+    Printnl <| [4.2 + 9.2];
+    Printnl <| [1024.4 - 1000.3];
+    Printnl <| [5.1 * 8.4];
+    Printnl <| [20.8 / 4.1];
+    Printnl <| [20.8 > 4.1];
+    Printnl <| [20.8 < 4.1];
+    Printnl <| [20.1 >= 20.1];
+    Printnl <| [20.0 >= 20.1];
+    Printnl <| [20.1 <= 20.1];
+    Printnl <| [20.1 <= 20.0];
+    Printnl <| [21.1 == 20.1];
+    Printnl <| [20.1 == 20.1];
+    Printnl <| [21.1 != 20.1];
+    Printnl <| [20.1 != 20.1];
 
     /* bools */
-    printnl <| [false and false];
-    printnl <| [true and true];
-    printnl <| [false and true];
-    printnl <| [true and false];
-    printnl <| [false or false];
-    printnl <| [true or true];
-    printnl <| [false or true];
-    printnl <| [true or false];
-    printnl <| [true == true];
-    printnl <| [false == false];
-    printnl <| [true == false];
-    printnl <| [false == true];
-    printnl <| [true != true];
-    printnl <| [false != false];
-    printnl <| [true != false];
-    printnl <| [false != true];
+    Printnl <| [false and false];
+    Printnl <| [true and true];
+    Printnl <| [false and true];
+    Printnl <| [true and false];
+    Printnl <| [false or false];
+    Printnl <| [true or true];
+    Printnl <| [false or true];
+    Printnl <| [true or false];
+    Printnl <| [true == true];
+    Printnl <| [false == false];
+    Printnl <| [true == false];
+    Printnl <| [false == true];
+    Printnl <| [true != true];
+    Printnl <| [false != false];
+    Printnl <| [true != false];
+    Printnl <| [false != true];
 
     /* strings TODO */
-    /* printnl <| ["hi" == "hi"]; */
+    /* Printnl <| ["hi" == "hi"]; */
 
     /* chars */
-    printnl <| ['a' == 'a'];
-    printnl <| ['a' != 'a'];
-    printnl <| ['a' == 'b'];
-    printnl <| ['a' != 'b'];
+    Printnl <| ['a' == 'a'];
+    Printnl <| ['a' != 'a'];
+    Printnl <| ['a' == 'b'];
+    Printnl <| ['a' != 'b'];
 
-    printnl <| [10.0 / 2.3];
+    Printnl <| [10.0 / 2.3];
     |> ();
 }

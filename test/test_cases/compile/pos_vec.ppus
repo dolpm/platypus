@@ -3,12 +3,12 @@ pipe main |> [] |> [] |> unit {
     Vector_push <| [~&v, 255];
     {
         &int x <| Vector_get <| [&v, 0];
-        printnl <| [@x];
+        Printnl <| [@x];
     }
     Vector_push <| [~&v, 1024];
     {
         ~&int x <| Vector_get_mut <| [~&v, 1];
-        printnl <| [@x];
+        Printnl <| [@x];
     }
     Vector_pop <| [~&v];
     |> ();

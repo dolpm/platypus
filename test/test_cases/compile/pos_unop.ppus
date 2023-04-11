@@ -1,21 +1,21 @@
 pipe main |> [] |> [] |> unit {
     /* neg */
     int x <| 3;
-    printnl <| [-x];
+    Printnl <| [-x];
 
     /* not */
     bool y <| true;
-    printnl <| [!y];
+    Printnl <| [!y];
 
     /* ref, deref */
     mut int z <| 5;
     {
       &int a <| &z;
-      printnl <| [@a];
+      Printnl <| [@a];
     }
     {
       ~&int a <| ~&z;
-      printnl <| [@a];
+      Printnl <| [@a];
     }
 
     |> ();

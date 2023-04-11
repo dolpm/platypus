@@ -232,17 +232,23 @@ let translate (things, pipes) ownership_map m_external =
               match t with
               | Vector _ | Box _ -> expr builder (t, e)
               | _ ->
-                  let store_val = expr builder (t, e) in
-                  let ref = L.build_alloca (ltype_of_typ t) "ref" builder in
-                  let _ = L.build_store store_val ref builder in
-                  ref)
+                  (* get a reference to the existing value *)
+                  let v_name =
+                    match e with
+                    | SIdent n -> n
+                    | _ -> raise (Failure "can't reference a non-ident!")
+                  in
+
+                  let reffed_value = StringMap.find v_name !variables in
+
+                  reffed_value)
           | Neg ->
               let load_value = expr builder (t, e) in
               L.build_neg load_value "negated_value" builder
           | Not ->
               let load_value = expr builder (t, e) in
               L.build_not load_value "boolean_negated_value" builder)
-      | SPipeIn ("printnl", [ (t, sx) ]) -> (
+      | SPipeIn ("Printnl", [ (t, sx) ]) -> (
           match t with
           | Int | Bool ->
               L.build_call printf_func
@@ -546,11 +552,22 @@ let translate (things, pipes) ownership_map m_external =
           let e' = expr builder e in
           let _ = add_local_variable (is_mut, t, name) e' in
           builder
-      | SReAssign (name, e) ->
+      | SReAssign (is_mutborrow, name, e) ->
           let e' = expr builder e in
           let llv = StringMap.find name !variables in
+
           (* TODO: FREE OLD VALUE *)
-          let _ = L.build_store e' llv builder in
+
+          (* if mutborrow, deref the ptr to update *)
+          let _ =
+            if is_mutborrow then
+              let derefed = L.build_load llv "derefed_mutborrow" builder in
+              let _ = L.build_store e' derefed builder in
+              ()
+            else
+              let _ = L.build_store e' llv builder in
+              ()
+          in
           builder
       | SWhile (pred, body) ->
           let pred_bb = L.append_block context "while" the_pipe in
@@ -571,7 +588,7 @@ let translate (things, pipes) ownership_map m_external =
           let assn = SAssign (true, A.Int, i, e1) in
           let pred = (A.Bool, SBinop ((A.Int, SIdent i), Leq, e2)) in
           let step =
-            SReAssign (i, (A.Int, SBinop ((A.Int, SIdent i), Add, e3)))
+            SReAssign (false, i, (A.Int, SBinop ((A.Int, SIdent i), Add, e3)))
           in
 
           (* TODO: figure out the sblock_id's s.t. the loop owns i *)
