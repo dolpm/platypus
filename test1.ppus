@@ -1,4 +1,11 @@
+thing MyThing <| {
+  im_an_int: int
+}
+
 pipe main |> [] |> [] |> unit {
-  Printnl <| ["The old god is dead. The mountain trembles as the new deity ascends the throne..."];
+  MyThing t <| MyThing {
+    im_an_int: 5.0
+  };
+
   |> ();
 }

@@ -136,7 +136,7 @@ expr:
   | IDENT               { Ident($1)                 }
   
   // we probably don't need to store the ident anywhere
-  | IDENT LBRACE thing_child_assn_list RBRACE { ThingValue(List.rev $3) }
+  | IDENT LBRACE thing_child_assn_list RBRACE { ThingValue($1, List.rev $3) }
   | TUPLE LPAREN tpl_child_list RPAREN { TupleValue(List.rev $3) }  
 
   // tuple indexing

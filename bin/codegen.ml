@@ -99,7 +99,8 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "Str_compare" str_compare_t the_module
   in
 
-  (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
+  (* Generating code for things - A stringmap of llvalues *)
+  (* where each llvalue is an initialized const_struct global variable *)
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
       let name = tdecl.stname in
@@ -121,6 +122,24 @@ let translate (things, pipes) ownership_map m_external =
       StringMap.add name (L.define_global name init the_module) m
     in
     List.fold_left thing_decl StringMap.empty things
+  in
+
+  (* thing name, [access name array], thing llv, builder *)
+  let _get_thing_value t_name ns t_llv builder =
+    let rec find_elem_index n lst =
+      match lst with
+      | [] -> raise (Failure "Not Found")
+      | (_, _, h) :: t -> if n = h then 0 else 1 + find_elem_index n t
+    in
+    let thing_defn = List.find (fun t -> t.stname = t_name) things in
+    (* let global_defn = StringMap.find t.stname thing_decls in *)
+    let idxs = List.map (fun n -> find_elem_index n thing_defn.selements) ns in
+    let elem =
+      List.fold_left
+        (fun cur_v idx -> L.build_struct_gep cur_v idx "elem" builder)
+        t_llv idxs
+    in
+    elem
   in
 
   (* Define all pipes declarations *)

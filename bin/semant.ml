@@ -358,6 +358,37 @@ let check (things, pipes) verbosity =
             in
             (ret_type, SPipeIn (pname, args'))
       | Ident s -> (snd (type_of_identifier s symbols), SIdent s)
+      | ThingValue (t_name, children) ->
+          let thing_defn =
+            List.find (fun t_defn -> t_defn.tname = t_name) things
+          in
+
+          let children' =
+            List.fold_left
+              (fun accum (n, e) ->
+                (* get thing item with name *)
+                let _, b_typ, _ =
+                  List.find
+                    (fun (_, _, b_name) -> b_name = n)
+                    thing_defn.elements
+                in
+
+                (* evalute expr *)
+                let et, e' = expr e symbols in
+
+                let err_msg =
+                  "illegal value binding for member " ^ n ^ " of " ^ t_name
+                  ^ " -- " ^ string_of_typ b_typ ^ ": " ^ string_of_typ et
+                  ^ " failed in expresson " ^ string_of_expr e
+                in
+
+                (* make sure types match *)
+                let _ = check_assign et b_typ err_msg in
+
+                (n, (et, e')) :: accum)
+              [] children
+          in
+          (Ident t_name, SThingValue (t_name, List.rev children'))
       | _ -> (Unit, SNoexpr)
     in
 

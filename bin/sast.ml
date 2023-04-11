@@ -10,7 +10,7 @@ and sx =
   | SUnitLiteral
   | SStringLiteral of string
   (* assignable thing value *)
-  | SThingValue of (string * s_expr) list
+  | SThingValue of string * (string * s_expr) list
   | STupleValue of s_expr list
   | STupleIndex of string * int
   | SIdent of string
@@ -67,8 +67,8 @@ let rec string_of_s_expr (t, e) =
     | SCharLiteral c -> "\x27" ^ String.make 1 c ^ "\x27"
     | SUnitLiteral -> "()"
     | SStringLiteral s -> "\x22" ^ s ^ "\x22"
-    | SThingValue children ->
-        "{\n"
+    | SThingValue (name, children) ->
+        name ^ " {\n"
         ^ String.concat ",\n"
             (List.map
                (fun (c_name, e) -> "    " ^ c_name ^ ": " ^ string_of_s_expr e)
@@ -124,7 +124,8 @@ let rec string_of_s_stmt s_stmt pad =
       indent pad
       ^ (if is_mut then "mut " else "")
       ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
-  | SReAssign (_is_mutborrow, v, e) -> indent pad ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
+  | SReAssign (_is_mutborrow, v, e) ->
+      indent pad ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
 
 (* let string_of_tdecl t =
    match t with
