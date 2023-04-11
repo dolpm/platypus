@@ -3,7 +3,7 @@ open Sast
 open Borrow
 module StringMap = Map.Make (String)
 
-let check (_things, pipes) verbosity =
+let check (things, pipes) verbosity =
   let cur_sblock_id = ref 0 in
 
   (* built in pipe definitions *)
@@ -108,6 +108,16 @@ let check (_things, pipes) verbosity =
 
     let _ = List.fold_left check_it [] (List.sort name_compare to_check) in
     to_check
+  in
+
+  let check_things ts =
+    let dup_err t_name = "duplicate thing: " ^ t_name in
+    let check_thing t =
+      if List.length (List.filter (fun t' -> t'.tname = t.tname) ts) > 1 then
+        raise (Failure (dup_err t.tname))
+      else { stname = t.tname; selements = check_bindings t.elements }
+    in
+    List.map check_thing ts
   in
 
   let check_pipe p =
@@ -537,4 +547,4 @@ let check (_things, pipes) verbosity =
       s_pipes
   in
 
-  (([], s_pipes_w_wrappers), node_ownership_map)
+  ((check_things things, s_pipes_w_wrappers), node_ownership_map)
