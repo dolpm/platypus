@@ -211,10 +211,18 @@ let translate (things, pipes) ownership_map m_external =
       | SCharLiteral c -> L.const_int i8_t (int_of_char c)
       | SUnitLiteral -> L.const_null unit_t
       | SStringLiteral s -> L.build_global_stringptr s "strptr" builder
-      | SThingValue (t_name, _children) ->
-          L.build_alloca
-            (L.pointer_type (StringMap.find t_name thing_types))
-            "fuk" builder
+      | SThingValue (t_name, children) ->
+          let ttyp = StringMap.find t_name thing_types in
+          let ptr_to_thing =
+            L.build_alloca (L.pointer_type ttyp) (t_name ^ "_ptr") builder
+          in
+          (* get llv's of elems *)
+          let elems = List.map (fun (_c_name, e) -> expr builder e) children in
+          (* create struct with elems *)
+          let struct_v = L.const_named_struct ttyp (Array.of_list elems) in
+          (* store struct in ptr *)
+          let _ = L.build_store struct_v ptr_to_thing builder in
+          ptr_to_thing
       | SBinop (e1, op, e2) -> (
           let t, _ = e1 and e1' = expr builder e1 and e2' = expr builder e2 in
           match t with
