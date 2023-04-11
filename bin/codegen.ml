@@ -88,6 +88,11 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "String_new" string_new_t the_module
   in
 
+  let string_concat_t = L.function_type string_t [| string_t; string_t |] in
+  let string_concat_func =
+    L.declare_function "String_concat" string_concat_t the_module
+  in
+
   (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
   let _thing_decls : L.llvalue StringMap.t =
     let thing_decl m tdecl =
@@ -358,6 +363,10 @@ let translate (things, pipes) ownership_map m_external =
           L.build_call string_new_func
             [| expr builder str |]
             "mallocd_string" builder
+      | SPipeIn ("String_concat", [ s1; s2 ]) ->
+          L.build_call string_concat_func
+            [| expr builder s1; expr builder s2 |]
+            "concatted_string" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in

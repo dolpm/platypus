@@ -30,6 +30,7 @@ let check (_things, pipes) verbosity =
         Unit );
       ("Vector_pop", [ (true, MutBorrow (Vector Generic, "'_"), "x") ], Unit);
       ("String_new", [ (false, String, "x") ], String);
+      ("String_concat", [ (false, String, "x"); (false, String, "y") ], String);
       ("option_is_none", [ (false, Option Generic, "x") ], Bool);
       ("option_is_some", [ (false, Option Generic, "x") ], Bool);
     ]
