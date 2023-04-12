@@ -1,5 +1,5 @@
 pipe main |> [] |> [] |> unit {
-  bool x <| true;
-  bool y <| !x;
+  int x <| 1;
+  int y <| %x;
   |> ();
 }

@@ -167,6 +167,13 @@ let translate (things, pipes) ownership_map m_external =
       variables := StringMap.add n local !variables
     in
 
+    let clone (typ: A.defined_type) (llvalue : L.llvalue) (builder : L.llbuilder) =
+      let clone_inner _typ _llvalue _builder (_is_root : bool) =
+        llvalue
+      in
+      clone_inner typ llvalue builder true
+    in
+
     let rec expr (builder : L.llbuilder) ((_, e) : s_expr) : L.llvalue =
       match e with
       | SIntLiteral i -> L.const_int i32_t i
@@ -269,7 +276,11 @@ let translate (things, pipes) ownership_map m_external =
               L.build_neg load_value "negated_value" builder
           | Not ->
               let load_value = expr builder (t, e) in
-              L.build_not load_value "boolean_negated_value" builder)
+              L.build_not load_value "boolean_negated_value" builder
+          | Clone ->
+            let load_value = expr builder (t,e) in
+            clone t load_value builder 
+          )
       | SPipeIn ("Printnl", [ (t, sx) ]) -> (
           let arg = expr builder (t, sx) in
           match t with
