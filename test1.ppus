@@ -1,21 +1,13 @@
-thing MyInnerThing <| {
-  im_a_float: box[float]
-}
-
-thing MyThing <| {
-  inner: MyInnerThing,
-  im_an_int: int
-}
-
 pipe main |> [] |> [] |> unit {
-  mut box[float] b <| Box_new <| [5.1];
+  box[int] x <| Box_new <| [1];
 
   {
-    ~&float x <| Box_unbox_mut <| [~&b];
-    x <| 5.2;
+      box[int] y <| Box_new <| [1];
+      |> ();
   }
+  
 
-  Printnl <| [Box_unbox <| [&b]];
-
-  |> ();
+  Printnl <| [4];
+  
+	|> ();
 }
