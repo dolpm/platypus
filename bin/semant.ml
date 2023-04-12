@@ -187,6 +187,45 @@ let check (things, pipes) verbosity =
       | CharLiteral l -> (Char, SCharLiteral l)
       | UnitLiteral -> (Unit, SUnitLiteral)
       | StringLiteral l -> (String, SStringLiteral l)
+      | Unop ((Ref as op), ThingAccess (v_name, access_list))
+      | Unop ((MutRef as op), ThingAccess (v_name, access_list)) ->
+          let mut, typ = StringMap.find v_name symbols in
+          let typ_of_access =
+            List.fold_left
+              (fun (cur_typ : defined_type) c_name ->
+                let t_name =
+                  match cur_typ with
+                  | Ident t_name -> t_name
+                  | _ ->
+                      raise
+                        (Failure "thing access must be done on a thing type.")
+                in
+                (* get the actual thing to recurse on inner type *)
+                let assoc_t = List.find (fun t -> t.tname = t_name) things in
+                (* make sure inner element exists *)
+                let _, typ', _ =
+                  List.find
+                    (fun (_is_mut, _typ, n) -> n = c_name)
+                    assoc_t.elements
+                in
+                typ')
+              typ access_list
+          in
+
+          let t_to_be_accessed =
+            match typ with
+            | Ident t_name -> t_name
+            | _ -> raise (Failure "thing access must be done on a thing type.")
+          in
+
+          let brw =
+            match op with
+            | MutRef ->
+              if mut then MutBorrow (typ_of_access, "'_") else make_err "can't take a mut borrow access out on an immutable thing"
+            | Ref -> Borrow (typ_of_access, "'_")
+            | _ -> make_err "how the fuck did we get here?"
+          in
+          (brw, SThingAccess (t_to_be_accessed, v_name, access_list))
       | Unop (op, e1) as e ->
           let t1, e1' = expr e1 symbols in
           let ty =
@@ -358,6 +397,38 @@ let check (things, pipes) verbosity =
             in
             (ret_type, SPipeIn (pname, args'))
       | Ident s -> (snd (type_of_identifier s symbols), SIdent s)
+      | ThingValue (t_name, children) ->
+          let thing_defn =
+            List.find (fun t_defn -> t_defn.tname = t_name) things
+          in
+
+          let children' =
+            List.fold_left
+              (fun accum (n, e) ->
+                (* get thing item with name *)
+                let _, b_typ, _ =
+                  List.find
+                    (fun (_, _, b_name) -> b_name = n)
+                    thing_defn.elements
+                in
+
+                (* evalute expr *)
+                let et, e' = expr e symbols in
+
+                let err_msg =
+                  "illegal value binding for member " ^ n ^ " of " ^ t_name
+                  ^ " -- " ^ string_of_typ b_typ ^ ": " ^ string_of_typ et
+                  ^ " failed in expresson " ^ string_of_expr e
+                in
+
+                (* make sure types match *)
+                let _ = check_assign et b_typ err_msg in
+
+                (n, (et, e')) :: accum)
+              [] children
+          in
+          (Ident t_name, SThingValue (t_name, List.rev children'))
+      | ThingAccess _ -> make_err "thing access must be borrowed for use"
       | _ -> (Unit, SNoexpr)
     in
 

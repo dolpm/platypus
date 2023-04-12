@@ -21,9 +21,12 @@ let translate (things, pipes) ownership_map m_external =
     | Some x -> x
   in
 
+  let thing_types = ref StringMap.empty in
+
   (* Convert Platypus types to LLVM types *)
   (* val ltype_of_typ : defined_type -> lltype *)
-  let rec ltype_of_typ = function
+  let rec ltype_of_typ t =
+    match t with
     | A.Int -> i32_t
     | A.Float -> float_t
     | A.Bool -> i1_t
@@ -38,10 +41,29 @@ let translate (things, pipes) ownership_map m_external =
     | A.MutBorrow (t, _) -> L.pointer_type (ltype_of_typ t)
     | A.Generic -> L.pointer_type i8_t
     | A.Vector _ -> L.pointer_type vector_t
-    | A.Ident _ -> string_t
+    | A.Ident s ->
+        if StringMap.mem s !thing_types then
+          L.pointer_type (StringMap.find s !thing_types)
+        else raise (Failure ("unrecognized thing type " ^ s))
     | t ->
         raise
           (Failure ("Cannot convert type" ^ A.string_of_typ t ^ "to LLVM IR"))
+  in
+
+  let _ =
+    List.iter
+      (fun tdecl ->
+        let as_struct_type = L.named_struct_type context tdecl.stname in
+        let children_types =
+          List.map
+            (fun (_is_mut, typ, _name) -> ltype_of_typ typ)
+            tdecl.selements
+        in
+        let _ =
+          L.struct_set_body as_struct_type (Array.of_list children_types) false
+        in
+        thing_types := StringMap.add tdecl.stname as_struct_type !thing_types)
+      (List.rev things)
   in
 
   let printf_t : L.lltype =
@@ -99,30 +121,6 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "Str_compare" str_compare_t the_module
   in
 
-  (* Generating code for things. A stringmap of llvalues, where each llvalue is an initialized const_struct global variablle*)
-  let _thing_decls : L.llvalue StringMap.t =
-    let thing_decl m tdecl =
-      let name = tdecl.stname in
-      let init =
-        let init_ele t =
-          match t with
-          | A.Int | A.Float | A.Bool | A.Char | A.Unit ->
-              L.const_null (ltype_of_typ t)
-          | A.Generic | A.Option _ ->
-              raise
-                (Failure
-                   ("Cannot convert type" ^ A.string_of_typ t ^ "to LLVM IR"))
-          | _ -> L.const_pointer_null (ltype_of_typ t)
-        in
-        L.const_struct context
-          (Array.of_list
-             (List.map (fun (_, t, _) -> init_ele t) tdecl.selements))
-      in
-      StringMap.add name (L.define_global name init the_module) m
-    in
-    List.fold_left thing_decl StringMap.empty things
-  in
-
   (* Define all pipes declarations *)
   let pipe_decls : (L.llvalue * s_pipe_declaration) StringMap.t =
     let pipe_decl m pdecl =
@@ -175,6 +173,75 @@ let translate (things, pipes) ownership_map m_external =
       | SCharLiteral c -> L.const_int i8_t (int_of_char c)
       | SUnitLiteral -> L.const_null unit_t
       | SStringLiteral s -> L.build_global_stringptr s "strptr" builder
+      | SThingValue (t_name, children) ->
+          let ttyp = StringMap.find t_name !thing_types in
+
+          let ptr = L.build_alloca ttyp (t_name ^ "_ptr") builder in
+
+          (* get llv's of elems *)
+          let elems = List.map (fun (_c_name, e) -> expr builder e) children in
+
+          (* create struct with elems *)
+          (* let struct_v = L.const_named_struct ttyp (Array.of_list elems) in *)
+          let _ =
+            List.fold_left
+              (fun idx elem ->
+                let ep =
+                  L.build_struct_gep ptr idx
+                    (t_name ^ "." ^ string_of_int idx)
+                    builder
+                in
+                let _ = L.build_store elem ep builder in
+                idx + 1)
+              0 elems
+          in
+
+          ptr
+      | SThingAccess (t, instance_of_t, access_list) ->
+          let rec find_elem_index n lst =
+            match lst with
+            | [] -> raise (Failure "Not Found")
+            | (_, _, h) :: t -> if n = h then 0 else 1 + find_elem_index n t
+          in
+
+          let _typ_of_elem, casted_gep =
+            List.fold_left
+              (fun ((thing_typ : A.defined_type), instance) elem_to_match ->
+                let thing_name =
+                  match thing_typ with
+                  | Ident t -> t
+                  | _ -> raise (Failure "panic! not possible")
+                in
+
+                let loaded_instance =
+                  L.build_load instance "instance_of_struct" builder
+                in
+
+                let elem_types =
+                  (List.find (fun t -> t.stname = thing_name) things).selements
+                in
+                let idx = find_elem_index elem_to_match elem_types in
+                let _, elem_typ, _ =
+                  List.find (fun (_, _, n) -> n = elem_to_match) elem_types
+                in
+
+                let gepped =
+                  L.build_struct_gep loaded_instance idx "gep_on_instance"
+                    builder
+                in
+
+                let casted_gep =
+                  L.build_bitcast gepped
+                    (L.pointer_type (ltype_of_typ elem_typ))
+                    "casted_gep" builder
+                in
+
+                (elem_typ, casted_gep))
+              (Ident t, StringMap.find instance_of_t !variables)
+              access_list
+          in
+
+          casted_gep
       | SBinop (e1, op, e2) -> (
           let t, _ = e1 and e1' = expr builder e1 and e2' = expr builder e2 in
           match t with
@@ -406,7 +473,9 @@ let translate (things, pipes) ownership_map m_external =
           in
           L.build_call pdef (Array.of_list llargs) result builder
       | SIdent name ->
-          L.build_load (StringMap.find name !variables) name builder
+          L.build_load
+            (StringMap.find name !variables)
+            (name ^ "_loaded") builder
       (* Dummy add instruction *)
       | _ -> L.build_add (L.const_int i32_t 0) (L.const_int i32_t 0) "" builder
     in

@@ -563,7 +563,8 @@ let borrow_ck pipes verbose =
       | SUnop (_, s) -> inner s names
       | SPipeIn (_, sl) | STupleValue sl ->
           List.fold_left (fun l s -> inner s l) names sl
-      | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) names tl
+      | SThingValue (_, tl) ->
+          List.fold_left (fun l (_n, s) -> inner s l) names tl
       | _ -> names
     in
     inner sex []
@@ -578,7 +579,8 @@ let borrow_ck pipes verbose =
       | SUnop (_, s) -> inner s names
       | SPipeIn (_, sl) | STupleValue sl ->
           List.fold_left (fun l s -> inner s l) names sl
-      | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) names tl
+      | SThingValue (_, tl) ->
+          List.fold_left (fun l (_n, s) -> inner s l) names tl
       | _ -> names
     in
     inner sex []
@@ -807,7 +809,9 @@ let borrow_ck pipes verbose =
       | SUnop (_, s) -> inner s borrows
       | SPipeIn (_, sl) | STupleValue sl ->
           List.fold_left (fun l s -> inner s l) borrows sl
-      | SThingValue tl -> List.fold_left (fun l (_n, s) -> inner s l) borrows tl
+      (* probably redundant because things can't store borrows but idk *)
+      | SThingValue (_, tl) ->
+          List.fold_left (fun l (_n, s) -> inner s l) borrows tl
       | _ -> borrows
     in
     inner sex []

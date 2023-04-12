@@ -1,4 +1,25 @@
+thing MyInnerThing <| {
+  im_a_float: float
+}
+
+thing MyThing <| {
+  inner: MyInnerThing,
+  im_an_int: int
+}
+
 pipe main |> [] |> [] |> unit {
-  Printnl <| ["The old god is dead. The mountain trembles as the new deity ascends the throne..."];
+  MyInnerThing t_inner <| MyInnerThing {
+      im_a_float: 17.38
+  };
+
+  mut MyThing t <| MyThing {
+    inner: t_inner,
+    im_an_int: 10
+  };
+
+  ~&float z <| ~&t.inner.im_a_float;
+
+  Printnl <| [z];
+
   |> ();
 }

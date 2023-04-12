@@ -50,7 +50,9 @@ type expr =
   | UnitLiteral
   | StringLiteral of string
   (* assignable thing value *)
-  | ThingValue of (string * expr) list
+  | ThingValue of (string * (string * expr) list)
+  (* thing var name, list of names in order of access *)
+  | ThingAccess of (string * string list)
   | TupleValue of expr list
   | TupleIndex of string * int
   | Ident of string
@@ -143,13 +145,15 @@ let rec string_of_expr = function
   | CharLiteral c -> "\x27" ^ String.make 1 c ^ "\x27"
   | UnitLiteral -> "()"
   | StringLiteral s -> "\x22" ^ s ^ "\x22"
-  | ThingValue children ->
-      "{\n"
+  | ThingValue (name, children) ->
+      name ^ " {\n"
       ^ String.concat ",\n"
           (List.map
              (fun (c_name, e) -> "    " ^ c_name ^ ": " ^ string_of_expr e)
              children)
       ^ "\n  }"
+  | ThingAccess (v_name, access_list) ->
+      v_name ^ "." ^ String.concat "." access_list
   | TupleValue es ->
       "tuple("
       ^ String.concat ", " (List.map (fun e -> "" ^ string_of_expr e) es)
