@@ -616,6 +616,28 @@ let translate (things, pipes) ownership_map m_external =
             let str = L.build_load llvalue "str_malloc_to_free" builder in
             let _ = L.build_free str builder in
             builder
+        | Ident thing_name ->
+            let loaded_instance =
+              L.build_load llvalue "instance_of_struct" builder
+            in
+            let _, builder' =
+              List.fold_left
+                (fun (idx, builder) (_, elem_typ, _) ->
+                  let gepped =
+                    L.build_struct_gep loaded_instance idx "gep_on_instance"
+                      builder
+                  in
+                  let casted_gep =
+                    L.build_bitcast gepped
+                      (L.pointer_type (ltype_of_typ elem_typ))
+                      "casted_gep" builder
+                  in
+                  let builder' = free_inner elem_typ casted_gep builder true in
+                  (idx + 1, builder'))
+                (0, builder)
+                (List.find (fun t -> t.stname = thing_name) things).selements
+            in
+            builder'
         | _ -> builder
       in
       free_inner typ llvalue builder true
