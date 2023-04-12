@@ -17,6 +17,12 @@ let check (things, pipes) verbosity =
       ("char_to_string", [ (false, Char, "x") ], String);
       ("bool_to_string", [ (false, Bool, "x") ], String);
       ("Box_new", [ (true, Generic, "x") ], Box Generic);
+      ( "Box_unbox",
+        [ (true, Borrow (Box Generic, "'_"), "x") ],
+        Borrow (Generic, "'_") );
+      ( "Box_unbox_mut",
+        [ (true, MutBorrow (Box Generic, "'_"), "x") ],
+        MutBorrow (Generic, "'_") );
       ("Vector_length", [ (false, Vector Generic, "x") ], Int);
       ("Vector_new", [], Vector Generic);
       ( "Vector_get_mut",
@@ -221,7 +227,10 @@ let check (things, pipes) verbosity =
           let brw =
             match op with
             | MutRef ->
-              if mut then MutBorrow (typ_of_access, "'_") else make_err "can't take a mut borrow access out on an immutable thing"
+                if mut then MutBorrow (typ_of_access, "'_")
+                else
+                  make_err
+                    "can't take a mut borrow access out on an immutable thing"
             | Ref -> Borrow (typ_of_access, "'_")
             | _ -> make_err "how the fuck did we get here?"
           in
@@ -374,6 +383,14 @@ let check (things, pipes) verbosity =
                   | Int | Bool | Float | String -> Unit
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Box_new" -> Box first_arg_type
+              | "Box_unbox" -> (
+                  match first_arg_type with
+                  | Borrow (Box t, lt) -> Borrow (t, lt)
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Box_unbox_mut" -> (
+                  match first_arg_type with
+                  | MutBorrow (Box t, lt) -> MutBorrow (t, lt)
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Vector_pop" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, _) -> t

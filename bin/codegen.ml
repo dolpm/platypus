@@ -379,6 +379,8 @@ let translate (things, pipes) ownership_map m_external =
           let _ = L.build_store e' malloc_of_t builder in
 
           malloc_of_t
+      | SPipeIn ("Box_unbox", [ box ]) | SPipeIn ("Box_unbox_mut", [ box ]) ->
+          expr builder box
       | SPipeIn ("Vector_new", []) ->
           L.build_call vector_new_func [||] "Vector_new" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->

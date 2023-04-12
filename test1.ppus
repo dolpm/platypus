@@ -8,14 +8,14 @@ thing MyThing <| {
 }
 
 pipe main |> [] |> [] |> unit {
-  MyInnerThing t_inner <| MyInnerThing {
-      im_a_float: Box_new <| [5.1]
-  };
+  mut box[float] b <| Box_new <| [5.1];
 
-  mut MyThing t <| MyThing {
-    inner: t_inner,
-    im_an_int: 10
-  };
+  {
+    ~&float x <| Box_unbox_mut <| [~&b];
+    x <| 5.2;
+  }
+
+  Printnl <| [Box_unbox <| [&b]];
 
   |> ();
 }
