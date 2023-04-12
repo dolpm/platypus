@@ -1,5 +1,6 @@
 thing MyInnerThing <| {
-  im_a_float: float
+  im_a_float: float,
+  
 }
 
 thing MyThing <| {
@@ -8,18 +9,18 @@ thing MyThing <| {
 }
 
 pipe main |> [] |> [] |> unit {
-
-
-  mut MyThing t <| MyThing {
-    inner: MyInnerThing {
-      im_a_float: 5.1
-    },
-    im_an_int: 5
+  mut MyInnerThing t_inner <| MyInnerThing {
+      im_a_float: 5112
   };
 
-  ~&float x <| t.inner.im_a_float;
+  mut MyThing t <| MyThing {
+    inner: t_inner,
+    im_an_int: 10
+  };
 
-  Printnl <| [x];
+  ~int z <| t.inner.im_a_float;
+
+  Printnl <| [z];
 
   |> ();
 }
