@@ -688,20 +688,6 @@ let translate (things, pipes) ownership_map m_external =
                         (StringSet.inter v_names dangling_owns')
                     in
                     true
-                | SAssign (_is_mut, t, name, _e) ->
-                    let block_contains_return =
-                      match !return_value with Some _ -> true | None -> false
-                    in
-                    let _ =
-                      if (not is_done) && not block_contains_return then
-                        if List.mem name block_deallocs then
-                          (* todo might have to update the builder but prob not *)
-                          builder' :=
-                            free t
-                              (fst (StringMap.find name !variables))
-                              !builder'
-                    in
-                    is_done
                 | _ -> is_done)
               false sl
           in
@@ -716,7 +702,12 @@ let translate (things, pipes) ownership_map m_external =
                   | _ -> L.build_ret (expr builder e) !builder'
                 in
                 return_value := None
-            | None -> ()
+            | None ->
+                List.iter
+                  (fun n ->
+                    let v, t = StringMap.find n !variables in
+                    builder' := free t v !builder')
+                  block_deallocs
           in
 
           !builder'
@@ -747,7 +738,7 @@ let translate (things, pipes) ownership_map m_external =
               ()
           in
           builder
-      | SWhile (pred, body) ->
+      | SWhile (pred, body, s_returns) ->
           let pred_bb = L.append_block context "while" the_pipe in
           let _ = L.build_br pred_bb builder in
 
@@ -756,15 +747,24 @@ let translate (things, pipes) ownership_map m_external =
             stmt body dangling_owns (L.builder_at_end context body_bb)
           in
 
-          let () = add_terminal while_builder (L.build_br pred_bb) in
+          let _ =
+            if not s_returns then
+              add_terminal while_builder (L.build_br pred_bb)
+            else ()
+          in
 
           let pred_builder = L.builder_at_end context pred_bb in
           let bool_val = expr pred_builder pred in
 
-          let merge_bb = L.append_block context "merge" the_pipe in
-          let _ = L.build_cond_br bool_val body_bb merge_bb pred_builder in
-          L.builder_at_end context merge_bb
-      | SLoop (e1, e2, i, e3, body) ->
+          if not s_returns then
+            let merge_bb = L.append_block context "merge" the_pipe in
+            let _ = L.build_cond_br bool_val body_bb merge_bb pred_builder in
+            L.builder_at_end context merge_bb
+          else
+            let builder = L.builder_at_end context pred_bb in
+            let _ = L.build_br body_bb builder in
+            L.builder_at_end context body_bb
+      | SLoop (e1, e2, i, e3, body, s_returns) ->
           let assn = SAssign (true, A.Int, i, e1) in
           let pred = (A.Bool, SBinop ((A.Int, SIdent i), Leq, e2)) in
           let step =
@@ -774,7 +774,15 @@ let translate (things, pipes) ownership_map m_external =
           (* TODO: figure out the sblock_id's s.t. the loop owns i *)
           stmt
             (SBlock
-               ([ assn; SWhile (pred, SBlock ([ body; step ], "-1")) ], "-1"))
+               ( [
+                   assn;
+                   SWhile
+                     ( pred,
+                       SBlock
+                         ((if s_returns then [ body ] else [ body; step ]), "-1"),
+                       s_returns );
+                 ],
+                 "-1" ))
             dangling_owns builder
       | SIf (pred, s1, s2, s1_returns, s2_returns) ->
           let then_bb = L.append_block context "then" the_pipe in

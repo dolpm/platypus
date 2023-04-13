@@ -31,9 +31,9 @@ type s_stmt =
   | SPipeOut of s_expr
   (* s_expression resolving to boolean, if true, if false, if stmt1 ends in return, if stmt2 ends in return *)
   | SIf of s_expr * s_stmt * s_stmt * bool * bool
-  (* range start, range end, var name, range step if provided, statement *)
-  | SLoop of s_expr * s_expr * string * s_expr * s_stmt
-  | SWhile of s_expr * s_stmt
+  (* range start, range end, var name, range step if provided, statement, if statement ends in return *)
+  | SLoop of s_expr * s_expr * string * s_expr * s_stmt * bool
+  | SWhile of s_expr * s_stmt * bool
   (* is_mut ... *)
   | SAssign of bool * defined_type * string * s_expr
   (* is_mutborrow *)
@@ -116,11 +116,11 @@ let rec string_of_s_stmt s_stmt pad =
       match s2 with
       | SIf (_, _, _, _, _) -> string_of_s_stmt s2 pad
       | _ -> string_of_s_stmt s2 (pad + 1))
-  | SLoop (e1, e2, e3, e4, s) ->
+  | SLoop (e1, e2, e3, e4, s, _) ->
       indent pad ^ "loop " ^ string_of_s_expr e1 ^ " -> " ^ string_of_s_expr e2
       ^ " as (" ^ e3 ^ "," ^ string_of_s_expr e4 ^ ")"
       ^ string_of_s_stmt s (pad + 1)
-  | SWhile (e, s) ->
+  | SWhile (e, s, _) ->
       indent pad ^ "while " ^ string_of_s_expr e ^ "\n"
       ^ string_of_s_stmt s (pad + 1)
   | SAssign (is_mut, t, v, e) ->

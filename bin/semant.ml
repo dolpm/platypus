@@ -570,8 +570,7 @@ let check (things, pipes) verbosity =
           if StringMap.mem n symbols then
             raise (Failure ("identifier: " ^ n ^ " already defined."))
           else
-            (* add the iterator value to symbols (mutable for now) *)
-            let symbols = StringMap.add n (true, Int) symbols in
+            let symbols = StringMap.add n (false, Int) symbols in
             let exprs =
               List.map
                 (fun e ->
@@ -581,17 +580,24 @@ let check (things, pipes) verbosity =
                   (t', e'))
                 [ e1; e2; e3 ]
             in
+            let stmt_returns = detect_unreachable_code [ s ] in
             match exprs with
             | [ (t1', e1'); (t2', e2'); (t3', e3') ] ->
                 (* todo: make sure n isn't in symbol table? *)
                 SLoop
-                  ((t1', e1'), (t2', e2'), n, (t3', e3'), check_stmt s symbols)
+                  ( (t1', e1'),
+                    (t2', e2'),
+                    n,
+                    (t3', e3'),
+                    check_stmt s symbols,
+                    stmt_returns )
             | _ -> make_err "panic!")
       | While (e, s) ->
           let t, e' = expr e symbols in
           let err = "expected boolean " ^ string_of_expr e in
           let t' = check_assign t Bool err in
-          SWhile ((t', e'), check_stmt s symbols)
+          let stmt_returns = detect_unreachable_code [ s ] in
+          SWhile ((t', e'), check_stmt s symbols, stmt_returns)
       | PipeOut e -> SPipeOut (expr e symbols)
       | If (e, stmt1, stmt2) ->
           let t, e' = expr e symbols in

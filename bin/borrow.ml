@@ -212,7 +212,7 @@ let borrow_ck pipes verbose =
           let node_id = parent_id ^ "." ^ string_of_int child_id in
           let matched, graph', children =
             match sstmt with
-            | SWhile (sex, SBlock (stmts, sblock_id)) ->
+            | SWhile (sex, SBlock (stmts, sblock_id), _) ->
                 let wrapper_id = node_id ^ ".0" in
                 let sex_id = wrapper_id ^ ".0" in
                 let block_id = wrapper_id ^ ".1" in
@@ -282,7 +282,7 @@ let borrow_ck pipes verbose =
                 in
 
                 (true, graph', [ sex_id; block1_id; block2_id ])
-            | SLoop (sex1, sex2, ident, sex3, SBlock (stmts, sblock_id)) ->
+            | SLoop (sex1, sex2, ident, sex3, SBlock (stmts, sblock_id), _) ->
                 let wrapper_id = node_id ^ ".0" in
                 let sex1_id = wrapper_id ^ ".0" in
                 let sex2_id = wrapper_id ^ ".1" in
