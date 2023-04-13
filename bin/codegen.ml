@@ -33,7 +33,8 @@ let translate (things, pipes) ownership_map m_external =
     | A.Bool -> i1_t
     | A.Tuple ts ->
         L.pointer_type
-          (L.struct_type context (Array.of_list (List.map ltype_of_typ ts)))
+          (L.packed_struct_type context
+             (Array.of_list (List.map ltype_of_typ ts)))
     | A.Unit -> unit_t
     | A.Char -> i8_t
     | A.String | A.Str -> string_t
@@ -177,16 +178,59 @@ let translate (things, pipes) ownership_map m_external =
       | SCharLiteral c -> L.const_int i8_t (int_of_char c)
       | SUnitLiteral -> L.const_null i1_t
       | SStringLiteral s -> L.build_global_stringptr s "strptr" builder
+      | STupleValue exprs ->
+          (* build exprs, get thier types *)
+          let built_exprs = List.map (fun e -> expr builder e) exprs in
+          let built_types =
+            List.map (fun e_llv -> L.type_of e_llv) built_exprs
+          in
+          (* create the packed struct type and allocate space for it *)
+          let types_as_packed =
+            L.packed_struct_type context (Array.of_list built_types)
+          in
+          let ptr = L.build_alloca types_as_packed "tuple_ptr" builder in
+          (* access and store the values in the struct *)
+          let _ =
+            List.fold_left
+              (fun idx e_llv ->
+                let ep =
+                  L.build_struct_gep ptr idx
+                    ("tuple-gep." ^ string_of_int idx)
+                    builder
+                in
+                let _ = L.build_store e_llv ep builder in
+                idx + 1)
+              0 built_exprs
+          in
+          ptr
+      | STupleIndex (t_name, idx) ->
+          let instance, typ = StringMap.find t_name !variables in
+
+          let item_typ =
+            match typ with
+            | A.Tuple inner_types -> List.nth inner_types idx
+            | _ -> raise (Failure "panic! not possible!")
+          in
+
+          let loaded_instance =
+            L.build_load instance "instance_of_struct" builder
+          in
+          let gepped =
+            L.build_struct_gep loaded_instance idx "gep_on_instance" builder
+          in
+
+          let casted_gep =
+            L.build_bitcast gepped
+              (L.pointer_type (ltype_of_typ item_typ))
+              "casted_gep" builder
+          in
+          casted_gep
       | SThingValue (t_name, children) ->
           let ttyp = StringMap.find t_name !thing_types in
-
           let ptr = L.build_alloca ttyp (t_name ^ "_ptr") builder in
-
           (* get llv's of elems *)
           let elems = List.map (fun (_c_name, e) -> expr builder e) children in
-
           (* create struct with elems *)
-          (* let struct_v = L.const_named_struct ttyp (Array.of_list elems) in *)
           let _ =
             List.fold_left
               (fun idx elem ->
@@ -199,7 +243,6 @@ let translate (things, pipes) ownership_map m_external =
                 idx + 1)
               0 elems
           in
-
           ptr
       | SThingAccess (t, instance_of_t, access_list) ->
           let rec find_elem_index n lst =
@@ -642,6 +685,27 @@ let translate (things, pipes) ownership_map m_external =
                   (idx + 1, builder'))
                 (0, builder)
                 (List.find (fun t -> t.stname = thing_name) things).selements
+            in
+            builder'
+        | Tuple inner_types ->
+            let loaded_instance =
+              L.build_load llvalue "instance_of_tuple" builder
+            in
+            let _, builder' =
+              List.fold_left
+                (fun (idx, builder) elem_typ ->
+                  let gepped =
+                    L.build_struct_gep loaded_instance idx "gep_on_instance"
+                      builder
+                  in
+                  let casted_gep =
+                    L.build_bitcast gepped
+                      (L.pointer_type (ltype_of_typ elem_typ))
+                      "casted_gep" builder
+                  in
+                  let builder' = free_inner elem_typ casted_gep builder true in
+                  (idx + 1, builder'))
+                (0, builder) inner_types
             in
             builder'
         | _ -> builder

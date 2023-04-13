@@ -1,4 +1,13 @@
 pipe main |> [] |> [] |> unit {
-  [int * string] t <| tuple(1024, "hi");
+  [int * string * box[int]] t <| tuple(1024, "hi", Box_new <| [4]);
+  &int i <| &t.0;
+  &string s <| &t.1;
+  Printnl <| [i];
+  Printnl <| [s];
+
+  &box[int] b <| &t.2;
+
+  &int ub <| Box_unbox <| [b];
+
   |> ();
 }
