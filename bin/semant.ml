@@ -452,6 +452,9 @@ let check (things, pipes) verbosity =
             in
             (ret_type, SPipeIn (pname, args'))
       | Ident s -> (snd (type_of_identifier s symbols), SIdent s)
+      | TupleValue exprs ->
+          let values = List.map (fun e -> expr e symbols) exprs in
+          (Tuple (List.map fst values), STupleValue values)
       | ThingValue (t_name, children) ->
           let thing_defn =
             List.find (fun t_defn -> t_defn.tname = t_name) things
