@@ -67,6 +67,9 @@ let translate (things, pipes) ownership_map m_external =
       (List.rev things)
   in
 
+  let noop_t = Llvm.function_type unit_t [||] in
+  let noop_func = L.declare_function "llvm.donothing" noop_t the_module in
+
   let printf_t : L.lltype =
     L.var_arg_function_type i32_t [| L.pointer_type i8_t |]
   in
@@ -172,7 +175,7 @@ let translate (things, pipes) ownership_map m_external =
       | SFloatLiteral f -> L.const_float_of_string float_t f
       | SBoolLiteral b -> L.const_int i1_t (if b then 1 else 0)
       | SCharLiteral c -> L.const_int i8_t (int_of_char c)
-      | SUnitLiteral -> L.const_null unit_t
+      | SUnitLiteral -> L.const_null i1_t
       | SStringLiteral s -> L.build_global_stringptr s "strptr" builder
       | SThingValue (t_name, children) ->
           let ttyp = StringMap.find t_name !thing_types in
@@ -480,7 +483,7 @@ let translate (things, pipes) ownership_map m_external =
             (fst (StringMap.find name !variables))
             (name ^ "_loaded") builder
       (* Dummy add instruction *)
-      | _ -> L.build_add (L.const_int i32_t 0) (L.const_int i32_t 0) "" builder
+      | _ -> Llvm.build_call noop_func [||] "" builder
     in
 
     let add_terminal (builder : L.llbuilder) instr : unit =
@@ -697,9 +700,12 @@ let translate (things, pipes) ownership_map m_external =
             match !return_value with
             | Some e ->
                 let _ =
-                  match pdecl.sreturn_type with
-                  | A.Unit -> L.build_ret_void !builder'
-                  | _ -> L.build_ret (expr builder e) !builder'
+                  match e with
+                  | A.Unit, SUnitLiteral -> L.build_ret_void !builder'
+                  | A.Unit, _ ->
+                      let _ = expr !builder' e in
+                      L.build_ret_void !builder'
+                  | _ -> L.build_ret (expr !builder' e) !builder'
                 in
                 return_value := None
             | None ->
@@ -797,22 +803,24 @@ let translate (things, pipes) ownership_map m_external =
 
           let _ = L.build_cond_br (expr builder pred) then_bb else_bb builder in
 
-          if (not s1_returns) || not s2_returns then
-            let merge_bb = L.append_block context "merge" the_pipe in
-            let branch_instr = L.build_br merge_bb in
+          let _ =
+            if (not s1_returns) || not s2_returns then
+              let merge_bb = L.append_block context "merge" the_pipe in
+              let branch_instr = L.build_br merge_bb in
 
-            let () =
-              if not s1_returns then add_terminal then_builder branch_instr
-              else ()
-            in
+              let () =
+                if not s1_returns then add_terminal then_builder branch_instr
+                else ()
+              in
 
-            let () =
-              if not s2_returns then add_terminal else_builder branch_instr
-              else ()
-            in
+              let () =
+                if not s2_returns then add_terminal else_builder branch_instr
+                else ()
+              in
 
-            L.builder_at_end context merge_bb
-          else builder
+              L.position_at_end merge_bb builder
+          in
+          builder
     in
 
     let _builder = stmt (SBlock (pdecl.sbody, "-1")) StringSet.empty builder in

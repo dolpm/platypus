@@ -523,6 +523,11 @@ let check (things, pipes) verbosity =
             | _ -> ()
           in
 
+          (* make sure we aren't assigning a unit value *)
+          let _ =
+            match t with Unit -> make_err "Can't bind a unit value." | _ -> ()
+          in
+
           let is_mutborrow = match t with MutBorrow _ -> true | _ -> false in
 
           let _, lt = type_of_identifier name symbols

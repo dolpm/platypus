@@ -8,6 +8,9 @@ source_filename = "Platypus"
 @fmt.1 = private unnamed_addr constant [4 x i8] c"%g\0A\00", align 1
 @strptr = private unnamed_addr constant [82 x i8] c"The old god is dead. The mountain trembles as the new deity ascends the throne...\00", align 1
 
+; Function Attrs: nofree nosync nounwind readnone willreturn
+declare void @llvm.donothing() #0
+
 declare i32 @printf(i8*, ...)
 
 declare %struct.Vector* @Vector_new()
@@ -33,3 +36,5 @@ entry:
   %printf = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @fmt_nl, i32 0, i32 0), i8* getelementptr inbounds ([82 x i8], [82 x i8]* @strptr, i32 0, i32 0))
   ret void
 }
+
+attributes #0 = { nofree nosync nounwind readnone willreturn }
