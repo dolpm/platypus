@@ -251,7 +251,7 @@ let borrow_ck pipes verbose =
                 in
 
                 (true, graph', [ wrapper_id ])
-            | SIf (sex, SBlock (stmts1, sblock_id1), SBlock (stmts2, sblock_id2))
+            | SIf (sex, SBlock (stmts1, sblock_id1), SBlock (stmts2, sblock_id2), _, _)
               ->
                 let sex_id = node_id ^ ".0" in
                 let block1_id = node_id ^ ".1" in

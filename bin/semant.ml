@@ -596,7 +596,11 @@ let check (things, pipes) verbosity =
           let t, e' = expr e symbols in
           let err = "expected boolean " ^ string_of_expr e in
           let t' = check_assign t Bool err in
-          SIf ((t', e'), check_stmt stmt1 symbols, check_stmt stmt2 symbols)
+
+          let stmt1_returns = detect_unreachable_code [ stmt1 ]
+          and stmt2_returns = detect_unreachable_code [ stmt2 ] in
+
+          SIf ((t', e'), check_stmt stmt1 symbols, check_stmt stmt2 symbols, stmt1_returns, stmt2_returns)
     in
     let sbody =
       if StringMap.mem p.name built_in_pipe_decls then []

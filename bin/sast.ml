@@ -29,8 +29,8 @@ type s_stmt =
   | SExpr of s_expr
   (* return equivalent *)
   | SPipeOut of s_expr
-  (* s_expression resolving to boolean, if true, if false *)
-  | SIf of s_expr * s_stmt * s_stmt
+  (* s_expression resolving to boolean, if true, if false, if stmt1 ends in return, if stmt2 ends in return *)
+  | SIf of s_expr * s_stmt * s_stmt * bool * bool
   (* range start, range end, var name, range step if provided, statement *)
   | SLoop of s_expr * s_expr * string * s_expr * s_stmt
   | SWhile of s_expr * s_stmt
@@ -105,16 +105,16 @@ let rec string_of_s_stmt s_stmt pad =
       ^ "}\n"
   | SExpr s_expr -> indent pad ^ string_of_s_expr s_expr ^ ";\n"
   | SPipeOut s_expr -> indent pad ^ "|> " ^ string_of_s_expr s_expr ^ ";\n"
-  | SIf (e, s, SBlock ([], _sblock_id)) ->
+  | SIf (e, s, SBlock ([], _sblock_id), _, _) ->
       indent pad ^ "if (" ^ string_of_s_expr e ^ ")\n"
       ^ string_of_s_stmt s (pad + 1)
-  | SIf (e, s1, s2) -> (
+  | SIf (e, s1, s2, _, _) -> (
       indent pad ^ "if (" ^ string_of_s_expr e ^ ")\n"
       ^ string_of_s_stmt s1 (pad + 1)
       ^ indent pad ^ "else\n"
       ^
       match s2 with
-      | SIf (_, _, _) -> string_of_s_stmt s2 pad
+      | SIf (_, _, _, _, _) -> string_of_s_stmt s2 pad
       | _ -> string_of_s_stmt s2 (pad + 1))
   | SLoop (e1, e2, e3, e4, s) ->
       indent pad ^ "loop " ^ string_of_s_expr e1 ^ " -> " ^ string_of_s_expr e2

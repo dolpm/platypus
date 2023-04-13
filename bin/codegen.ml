@@ -776,24 +776,35 @@ let translate (things, pipes) ownership_map m_external =
             (SBlock
                ([ assn; SWhile (pred, SBlock ([ body; step ], "-1")) ], "-1"))
             dangling_owns builder
-      | SIf (pred, s1, s2) ->
-          let merge_bb = L.append_block context "merge" the_pipe in
-          let branch_instr = L.build_br merge_bb in
-
+      | SIf (pred, s1, s2, s1_returns, s2_returns) ->
           let then_bb = L.append_block context "then" the_pipe in
           let then_builder =
             stmt s1 dangling_owns (L.builder_at_end context then_bb)
           in
-          let () = add_terminal then_builder branch_instr in
 
           let else_bb = L.append_block context "else" the_pipe in
           let else_builder =
             stmt s2 dangling_owns (L.builder_at_end context else_bb)
           in
-          let () = add_terminal else_builder branch_instr in
 
           let _ = L.build_cond_br (expr builder pred) then_bb else_bb builder in
-          L.builder_at_end context merge_bb
+
+          if (not s1_returns) || not s2_returns then
+            let merge_bb = L.append_block context "merge" the_pipe in
+            let branch_instr = L.build_br merge_bb in
+
+            let () =
+              if not s1_returns then add_terminal then_builder branch_instr
+              else ()
+            in
+
+            let () =
+              if not s2_returns then add_terminal else_builder branch_instr
+              else ()
+            in
+
+            L.builder_at_end context merge_bb
+          else builder
     in
 
     let _builder = stmt (SBlock (pdecl.sbody, "-1")) StringSet.empty builder in
