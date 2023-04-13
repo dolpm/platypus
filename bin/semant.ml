@@ -159,17 +159,16 @@ let check (things, pipes) verbosity =
 
     (* Assure return statement exists *)
     let assert_return (slist : stmt list) =
-      let is_end_stmt = ref true in
       let rec check_stmt (have_seen_return : bool) (in_if_branch : bool)
           (s : stmt) =
         let ret_val =
           match s with
-          | PipeOut _ ->
-              if !is_end_stmt || in_if_branch then true
-              else make_err "unreachable code!"
+          | PipeOut _ -> true
           | If (_, stmt1, stmt2) -> (
               match stmt2 with
-              | Block [] -> have_seen_return
+              | Block [] ->
+                  let _ = check_stmt have_seen_return true stmt1 in
+                  have_seen_return
               | _ ->
                   if
                     have_seen_return
@@ -187,7 +186,6 @@ let check (things, pipes) verbosity =
               check_stmt have_seen_return in_if_branch stmt
           | _ -> have_seen_return
         in
-        let _ = is_end_stmt := false in
         ret_val
       in
       let _ =
@@ -202,7 +200,26 @@ let check (things, pipes) verbosity =
       ()
     in
 
+    let detect_unreachable_code (sl : stmt list) =
+      let rec is_guaranteed_return (s : stmt) =
+        match s with
+        | PipeOut _ -> true
+        | If (_e, stmt1, stmt2) ->
+            is_guaranteed_return stmt1 && is_guaranteed_return stmt2
+        | Block sl ->
+            List.fold_left
+              (fun found stmt ->
+                if found then make_err "unreachable code! oh no :("
+                else is_guaranteed_return stmt)
+              false sl
+        | _ -> false
+      in
+
+      is_guaranteed_return (Block sl)
+    in
+
     let _ = assert_return p.body in
+    let _ = detect_unreachable_code p.body in
 
     (* Return a semantically-checked expression, i.e. with a type *)
     let rec expr e symbols =

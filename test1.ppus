@@ -2,25 +2,15 @@ pipe main |> [] |> [] |> unit {
   box[int] x <| Box_new <| [2];
 
 
-
-
-  if (@(Box_unbox <| [&x]) == 1) {
-    box[int] y <| Box_new <| [1];
+  box[int] y <| Box_new <| [1];
+  if (true) {
     |> ();
   } else {
-    {
-      if (true) {
-    |> ();
-
-      } else {
-            |> ();
-      }
+    if (true) {
+      |> ();
+    } else {
+      |> ();
     }
-  } 
-  
-  
-
-  Printnl <| [4];
-
+  }
   
 }
