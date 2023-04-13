@@ -6,6 +6,7 @@ pipe main |> [] |> [] |> unit {
   &'_ int y <| (&'_ int : &(int : x));
   &'_ int z <| (&'_ int : &(int : x));
 }
+  |> (unit : ());
 }
 }
 }

@@ -3,4 +3,5 @@ pipe main |> [] |> [] |> unit {
   {
     int y <| x;
   }
+  |> ();
 }

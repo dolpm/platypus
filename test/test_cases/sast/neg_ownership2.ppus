@@ -3,4 +3,5 @@ pipe main |> [] |> [] |> unit {
   while (x <= 4) {
     int y <| x;
   }
+  |> ();
 }

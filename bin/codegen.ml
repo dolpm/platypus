@@ -2,6 +2,7 @@ module L = Llvm
 module A = Ast
 open Sast
 module StringMap = Map.Make (String)
+module StringSet = Set.Make (String)
 
 (* Translates SAST into LLVM module or throws error *)
 let translate (things, pipes) ownership_map m_external =
@@ -151,7 +152,7 @@ let translate (things, pipes) ownership_map m_external =
         let () = L.set_value_name n p in
         let local = L.build_alloca (ltype_of_typ t) n builder in
         let _ = L.build_store p local builder in
-        StringMap.add n local m
+        StringMap.add n (local, t) m
       in
       (* Create appropriate llvalues for each function formal, i.e. create a value and alloc call *)
       ref
@@ -162,7 +163,7 @@ let translate (things, pipes) ownership_map m_external =
     let add_local_variable (_is_mut, t, n) e' =
       let local = L.build_alloca (ltype_of_typ t) n builder in
       let _ = L.build_store e' local builder in
-      variables := StringMap.add n local !variables
+      variables := StringMap.add n (local, t) !variables
     in
 
     let rec expr (builder : L.llbuilder) ((_, e) : s_expr) : L.llvalue =
@@ -237,7 +238,7 @@ let translate (things, pipes) ownership_map m_external =
                 in
 
                 (elem_typ, casted_gep))
-              (Ident t, StringMap.find instance_of_t !variables)
+              (Ident t, fst (StringMap.find instance_of_t !variables))
               access_list
           in
 
@@ -328,7 +329,7 @@ let translate (things, pipes) ownership_map m_external =
                     | _ -> raise (Failure "can't reference a non-ident!")
                   in
 
-                  let reffed_value = StringMap.find v_name !variables in
+                  let reffed_value = fst (StringMap.find v_name !variables) in
 
                   reffed_value)
           | Neg ->
@@ -476,7 +477,7 @@ let translate (things, pipes) ownership_map m_external =
           L.build_call pdef (Array.of_list llargs) result builder
       | SIdent name ->
           L.build_load
-            (StringMap.find name !variables)
+            (fst (StringMap.find name !variables))
             (name ^ "_loaded") builder
       (* Dummy add instruction *)
       | _ -> L.build_add (L.const_int i32_t 0) (L.const_int i32_t 0) "" builder
@@ -645,7 +646,7 @@ let translate (things, pipes) ownership_map m_external =
       free_inner typ llvalue builder true
     in
 
-    let rec stmt s builder =
+    let rec stmt s dangling_owns builder =
       match s with
       | SBlock (sl, sblock_id) ->
           let block_deallocs =
@@ -654,24 +655,55 @@ let translate (things, pipes) ownership_map m_external =
             else []
           in
 
+          let dangling_owns' =
+            StringSet.union dangling_owns (StringSet.of_list block_deallocs)
+          in
+
           (* build inner stmts *)
           let builder' =
-            List.fold_left (fun builder' s -> stmt s builder') builder sl
+            List.fold_left
+              (fun builder' s ->
+                match !return_value with
+                | None -> stmt s dangling_owns' builder'
+                | Some _ -> builder')
+              builder sl
           in
 
           let builder' = ref builder' in
 
           let _ =
-            List.iter
-              (fun stmt ->
+            List.fold_left
+              (fun is_done stmt ->
+                let v_names =
+                  StringSet.of_list
+                    (List.map fst (StringMap.bindings !variables))
+                in
                 match stmt with
+                | SPipeOut _ ->
+                    let _ =
+                      StringSet.iter
+                        (fun n ->
+                          let v, t = StringMap.find n !variables in
+                          builder' := free t v !builder')
+                        (StringSet.inter v_names dangling_owns')
+                    in
+                    true
                 | SAssign (_is_mut, t, name, _e) ->
-                    if List.mem name block_deallocs then
-                      (* todo might have to update the builder but prob not *)
-                      builder' :=
-                        free t (StringMap.find name !variables) !builder'
-                | _ -> ())
-              sl
+                    let block_contains_return =
+                      match !return_value with Some _ -> true | None -> false
+                    in
+                    let _ =
+                      if (not is_done) && not block_contains_return then
+                        if List.mem name block_deallocs then
+                          (* todo might have to update the builder but prob not *)
+                          builder' :=
+                            free t
+                              (fst (StringMap.find name !variables))
+                              !builder'
+                    in
+                    is_done
+                | _ -> is_done)
+              false sl
           in
 
           (* If we've seen a return, build it now (after freeing*)
@@ -700,7 +732,7 @@ let translate (things, pipes) ownership_map m_external =
           builder
       | SReAssign (is_mutborrow, name, e) ->
           let e' = expr builder e in
-          let llv = StringMap.find name !variables in
+          let llv = fst (StringMap.find name !variables) in
 
           (* TODO: FREE OLD VALUE *)
 
@@ -720,7 +752,9 @@ let translate (things, pipes) ownership_map m_external =
           let _ = L.build_br pred_bb builder in
 
           let body_bb = L.append_block context "while_body" the_pipe in
-          let while_builder = stmt body (L.builder_at_end context body_bb) in
+          let while_builder =
+            stmt body dangling_owns (L.builder_at_end context body_bb)
+          in
 
           let () = add_terminal while_builder (L.build_br pred_bb) in
 
@@ -741,24 +775,39 @@ let translate (things, pipes) ownership_map m_external =
           stmt
             (SBlock
                ([ assn; SWhile (pred, SBlock ([ body; step ], "-1")) ], "-1"))
-            builder
-      | SIf (pred, s1, s2) ->
-          let merge_bb = L.append_block context "merge" the_pipe in
-          let branch_instr = L.build_br merge_bb in
-
+            dangling_owns builder
+      | SIf (pred, s1, s2, s1_returns, s2_returns) ->
           let then_bb = L.append_block context "then" the_pipe in
-          let then_builder = stmt s1 (L.builder_at_end context then_bb) in
-          let () = add_terminal then_builder branch_instr in
+          let then_builder =
+            stmt s1 dangling_owns (L.builder_at_end context then_bb)
+          in
 
           let else_bb = L.append_block context "else" the_pipe in
-          let else_builder = stmt s2 (L.builder_at_end context else_bb) in
-          let () = add_terminal else_builder branch_instr in
+          let else_builder =
+            stmt s2 dangling_owns (L.builder_at_end context else_bb)
+          in
 
           let _ = L.build_cond_br (expr builder pred) then_bb else_bb builder in
-          L.builder_at_end context merge_bb
+
+          if (not s1_returns) || not s2_returns then
+            let merge_bb = L.append_block context "merge" the_pipe in
+            let branch_instr = L.build_br merge_bb in
+
+            let () =
+              if not s1_returns then add_terminal then_builder branch_instr
+              else ()
+            in
+
+            let () =
+              if not s2_returns then add_terminal else_builder branch_instr
+              else ()
+            in
+
+            L.builder_at_end context merge_bb
+          else builder
     in
 
-    let _builder = stmt (SBlock (pdecl.sbody, "-1")) builder in
+    let _builder = stmt (SBlock (pdecl.sbody, "-1")) StringSet.empty builder in
     ()
   in
   let _ = List.iter build_pipe_body pipes in

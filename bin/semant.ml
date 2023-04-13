@@ -53,7 +53,7 @@ let check (things, pipes) verbosity =
           name;
           lifetimes = [];
           formals = args;
-          body = [];
+          body = [ PipeOut NoExpr ];
         }
         map
     in
@@ -159,30 +159,67 @@ let check (things, pipes) verbosity =
 
     (* Assure return statement exists *)
     let assert_return (slist : stmt list) =
-      let rec check_stmt (have_seen_return : bool) (s : stmt) =
+      let rec check_stmt (have_seen_return : bool) (in_if_branch : bool)
+          (s : stmt) =
+        let ret_val =
+          match s with
+          | PipeOut _ -> true
+          | If (_, stmt1, stmt2) -> (
+              match stmt2 with
+              | Block [] ->
+                  let _ = check_stmt have_seen_return true stmt1 in
+                  have_seen_return
+              | _ ->
+                  if
+                    have_seen_return
+                    || check_stmt have_seen_return true stmt1
+                       && check_stmt have_seen_return true stmt2
+                  then true
+                  else make_err ("return value not provided in " ^ p.name))
+          | Block sl ->
+              List.fold_left
+                (fun have_seen_return stmt ->
+                  check_stmt have_seen_return in_if_branch stmt)
+                have_seen_return (List.rev sl)
+              || have_seen_return
+          | While (_, stmt) | Loop (_, _, _, _, stmt) ->
+              check_stmt have_seen_return in_if_branch stmt
+          | _ -> have_seen_return
+        in
+        ret_val
+      in
+      let _ =
+        if
+          not
+            (List.fold_left
+               (fun have_seen_return stmt ->
+                 check_stmt have_seen_return false stmt)
+               false (List.rev slist))
+        then make_err ("return value not provided in " ^ p.name)
+      in
+      ()
+    in
+
+    let detect_unreachable_code (sl : stmt list) =
+      let rec is_guaranteed_return (s : stmt) =
         match s with
         | PipeOut _ -> true
-        | If (_, stmt1, stmt2) -> (
-            match stmt2 with
-            | Expr NoExpr -> have_seen_return
-            | _ ->
-                if
-                  have_seen_return
-                  || check_stmt have_seen_return stmt1
-                     && check_stmt have_seen_return stmt2
-                then true
-                else make_err ("return value not provided in " ^ p.name))
+        | If (_e, stmt1, stmt2) ->
+            is_guaranteed_return stmt1 && is_guaranteed_return stmt2
         | Block sl ->
-            List.fold_left check_stmt have_seen_return (List.rev sl)
-            || have_seen_return
-        | While (_, stmt) | Loop (_, _, _, _, stmt) ->
-            check_stmt have_seen_return stmt
+            List.fold_left
+              (fun found stmt ->
+                if found then make_err "unreachable code! oh no :("
+                else is_guaranteed_return stmt)
+              false sl
         | _ -> false
       in
-      List.fold_left check_stmt false (List.rev slist)
+
+      is_guaranteed_return (Block sl)
     in
 
     let _ = assert_return p.body in
+    let _ = detect_unreachable_code p.body in
 
     (* Return a semantically-checked expression, i.e. with a type *)
     let rec expr e symbols =
@@ -559,7 +596,11 @@ let check (things, pipes) verbosity =
           let t, e' = expr e symbols in
           let err = "expected boolean " ^ string_of_expr e in
           let t' = check_assign t Bool err in
-          SIf ((t', e'), check_stmt stmt1 symbols, check_stmt stmt2 symbols)
+
+          let stmt1_returns = detect_unreachable_code [ stmt1 ]
+          and stmt2_returns = detect_unreachable_code [ stmt2 ] in
+
+          SIf ((t', e'), check_stmt stmt1 symbols, check_stmt stmt2 symbols, stmt1_returns, stmt2_returns)
     in
     let sbody =
       if StringMap.mem p.name built_in_pipe_decls then []
