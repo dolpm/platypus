@@ -603,7 +603,13 @@ let check (things, pipes) verbosity =
           let t' = check_assign t Bool err in
           let stmt_returns = detect_unreachable_code [ s ] in
           SWhile ((t', e'), check_stmt s symbols, stmt_returns)
-      | PipeOut e -> SPipeOut (expr e symbols)
+      | PipeOut e ->
+          let t, e' = expr e symbols in
+          let err =
+            "expected return type of " ^ string_of_typ t ^ " for pipe " ^ p.name
+          in
+          let _ = check_assign t p.return_type err in
+          SPipeOut (t, e')
       | If (e, stmt1, stmt2) ->
           let t, e' = expr e symbols in
           let err = "expected boolean " ^ string_of_expr e in
