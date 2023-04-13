@@ -53,7 +53,7 @@ let check (things, pipes) verbosity =
           name;
           lifetimes = [];
           formals = args;
-          body = [];
+          body = [ PipeOut NoExpr ];
         }
         map
     in
@@ -159,27 +159,47 @@ let check (things, pipes) verbosity =
 
     (* Assure return statement exists *)
     let assert_return (slist : stmt list) =
-      let rec check_stmt (have_seen_return : bool) (s : stmt) =
-        match s with
-        | PipeOut _ -> true
-        | If (_, stmt1, stmt2) -> (
-            match stmt2 with
-            | Expr NoExpr -> have_seen_return
-            | _ ->
-                if
-                  have_seen_return
-                  || check_stmt have_seen_return stmt1
-                     && check_stmt have_seen_return stmt2
-                then true
-                else make_err ("return value not provided in " ^ p.name))
-        | Block sl ->
-            List.fold_left check_stmt have_seen_return (List.rev sl)
-            || have_seen_return
-        | While (_, stmt) | Loop (_, _, _, _, stmt) ->
-            check_stmt have_seen_return stmt
-        | _ -> false
+      let is_end_stmt = ref true in
+      let rec check_stmt (have_seen_return : bool) (in_if_branch : bool)
+          (s : stmt) =
+        let ret_val =
+          match s with
+          | PipeOut _ ->
+              if !is_end_stmt || in_if_branch then true
+              else make_err "unreachable code!"
+          | If (_, stmt1, stmt2) -> (
+              match stmt2 with
+              | Block [] -> have_seen_return
+              | _ ->
+                  if
+                    have_seen_return
+                    || check_stmt have_seen_return true stmt1
+                       && check_stmt have_seen_return true stmt2
+                  then true
+                  else make_err ("return value not provided in " ^ p.name))
+          | Block sl ->
+              List.fold_left
+                (fun have_seen_return stmt ->
+                  check_stmt have_seen_return in_if_branch stmt)
+                have_seen_return (List.rev sl)
+              || have_seen_return
+          | While (_, stmt) | Loop (_, _, _, _, stmt) ->
+              check_stmt have_seen_return in_if_branch stmt
+          | _ -> have_seen_return
+        in
+        let _ = is_end_stmt := false in
+        ret_val
       in
-      List.fold_left check_stmt false (List.rev slist)
+      let _ =
+        if
+          not
+            (List.fold_left
+               (fun have_seen_return stmt ->
+                 check_stmt have_seen_return false stmt)
+               false (List.rev slist))
+        then make_err ("return value not provided in " ^ p.name)
+      in
+      ()
     in
 
     let _ = assert_return p.body in
