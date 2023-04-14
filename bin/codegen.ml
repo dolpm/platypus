@@ -38,9 +38,8 @@ let translate (things, pipes) ownership_map m_external =
     | A.Unit -> unit_t
     | A.Char -> i8_t
     | A.String | A.Str -> string_t
-    | A.Box t -> L.pointer_type (ltype_of_typ t)
-    | A.Borrow (t, _) -> L.pointer_type (ltype_of_typ t)
-    | A.MutBorrow (t, _) -> L.pointer_type (ltype_of_typ t)
+    | A.Box t | A.Borrow (t, _) | A.MutBorrow (t, _) ->
+        L.pointer_type (ltype_of_typ t)
     | A.Generic -> L.pointer_type i8_t
     | A.Vector _ -> L.pointer_type vector_t
     | A.Ident s ->
@@ -366,7 +365,9 @@ let translate (things, pipes) ownership_map m_external =
               L.build_load load_value "derefed_value" builder
           | Ref | MutRef -> (
               match t with
+              (*
               | Vector _ | Box _ -> expr builder (t, e)
+              *)
               | _ ->
                   (* get a reference to the existing value *)
                   let v_name =
@@ -427,12 +428,13 @@ let translate (things, pipes) ownership_map m_external =
 
           malloc_of_t
       | SPipeIn ("Box_unbox", [ box ]) | SPipeIn ("Box_unbox_mut", [ box ]) ->
-          expr builder box
+          L.build_load (expr builder box) "unboxed_box" builder
       | SPipeIn ("Vector_new", []) ->
           L.build_call vector_new_func [||] "Vector_new" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->
           (* Check if value is on heap or stack; if on stack, create void ptr of it before passing into alloc *)
           let e' = expr builder value in
+
           let elem_arg =
             match t with
             | A.Box _ -> e'
@@ -468,15 +470,24 @@ let translate (things, pipes) ownership_map m_external =
                 ref_of_malloc
           in
 
-          L.build_call vector_push_func
-            [| expr builder vector; elem_arg |]
-            "" builder
+          let loaded_vec =
+            L.build_load (expr builder vector) "loaded_vec" builder
+          in
+
+          L.build_call vector_push_func [| loaded_vec; elem_arg |] "" builder
       | SPipeIn ("Vector_pop", [ vector ]) ->
-          L.build_call vector_pop_func [| expr builder vector |] "" builder
-      | SPipeIn ("Vector_get", [ (vt, v); index ]) ->
+          let loaded_vec =
+            L.build_load (expr builder vector) "loaded_vec" builder
+          in
+          L.build_call vector_pop_func [| loaded_vec |] "" builder
+      | SPipeIn ("Vector_get", [ ((vt, _v) as vector); index ]) ->
+          let loaded_vec =
+            L.build_load (expr builder vector) "loaded_vec" builder
+          in
+
           let fetched_item =
             L.build_call vector_get_func
-              [| expr builder (vt, v); expr builder index |]
+              [| loaded_vec; expr builder index |]
               "vector_item" builder
           in
           let inner_type =
@@ -487,10 +498,13 @@ let translate (things, pipes) ownership_map m_external =
           L.build_bitcast fetched_item
             (L.pointer_type (ltype_of_typ inner_type))
             "vector_item_as_type" builder
-      | SPipeIn ("Vector_get_mut", [ (vt, v); index ]) ->
+      | SPipeIn ("Vector_get_mut", [ ((vt, _v) as vector); index ]) ->
+          let loaded_vec =
+            L.build_load (expr builder vector) "loaded_vec" builder
+          in
           let fetched_item =
             L.build_call vector_get_func
-              [| expr builder (vt, v); expr builder index |]
+              [| loaded_vec; expr builder index |]
               "vector_item" builder
           in
           let inner_type =

@@ -18,7 +18,7 @@ let check (things, pipes) verbosity =
       ("bool_to_string", [ (false, Bool, "x") ], String);
       ("Box_new", [ (true, Generic, "x") ], Box Generic);
       ( "Box_unbox",
-        [ (true, Borrow (Box Generic, "'_"), "x") ],
+        [ (false, Borrow (Box Generic, "'_"), "x") ],
         Borrow (Generic, "'_") );
       ( "Box_unbox_mut",
         [ (true, MutBorrow (Box Generic, "'_"), "x") ],
