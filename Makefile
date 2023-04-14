@@ -22,7 +22,7 @@ platypus.native : clean
 # Export env vars to be used by test shell scripty
 test : export ttype = ${type}
 test : export tname = ${name}
-test : export tcheck_mem = ${check_mem}
+test : export tmemcheck = ${memcheck}
 test : platypus.native
 	opam exec -- dune test
 
