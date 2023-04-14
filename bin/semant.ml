@@ -18,7 +18,7 @@ let check (things, pipes) verbosity =
       ("bool_to_string", [ (false, Bool, "x") ], String);
       ("Box_new", [ (true, Generic, "x") ], Box Generic);
       ( "Box_unbox",
-        [ (true, Borrow (Box Generic, "'_"), "x") ],
+        [ (false, Borrow (Box Generic, "'_"), "x") ],
         Borrow (Generic, "'_") );
       ( "Box_unbox_mut",
         [ (true, MutBorrow (Box Generic, "'_"), "x") ],
@@ -231,6 +231,27 @@ let check (things, pipes) verbosity =
       | CharLiteral l -> (Char, SCharLiteral l)
       | UnitLiteral -> (Unit, SUnitLiteral)
       | StringLiteral l -> (String, SStringLiteral l)
+      | Unop ((Ref as op), TupleIndex (t_name, idx))
+      | Unop ((MutRef as op), TupleIndex (t_name, idx)) ->
+          let mut, tuple_type = type_of_identifier t_name symbols in
+          let inner_typ =
+            match tuple_type with
+            | Tuple inner_types -> List.nth inner_types idx
+            | _ -> make_err "Tuple access must be done on a tuple."
+          in
+
+          let brw =
+            match op with
+            | MutRef ->
+                if mut then MutBorrow (inner_typ, "'_")
+                else
+                  make_err
+                    "can't take a mut borrow access out on an immutable tuple"
+            | Ref -> Borrow (inner_typ, "'_")
+            | _ -> make_err "how the fuck did we get here?"
+          in
+
+          (brw, STupleIndex (t_name, idx))
       | Unop ((Ref as op), ThingAccess (v_name, access_list))
       | Unop ((MutRef as op), ThingAccess (v_name, access_list)) ->
           let mut, typ = StringMap.find v_name symbols in
@@ -452,6 +473,9 @@ let check (things, pipes) verbosity =
             in
             (ret_type, SPipeIn (pname, args'))
       | Ident s -> (snd (type_of_identifier s symbols), SIdent s)
+      | TupleValue exprs ->
+          let values = List.map (fun e -> expr e symbols) exprs in
+          (Tuple (List.map fst values), STupleValue values)
       | ThingValue (t_name, children) ->
           let thing_defn =
             List.find (fun t_defn -> t_defn.tname = t_name) things

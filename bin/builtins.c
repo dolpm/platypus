@@ -63,19 +63,19 @@ void Vector_push(struct Vector *v, void **new_value)
   v->length++;
 }
 
-void *Vector_pop(struct Vector *v)
+void Vector_pop(struct Vector *v)
 {
   assert(v->length > 0);
 
-  void *value = Vector_get(v, v->length - 1);
-  v->length--;
+  free((void *)Vector_get(v, v->length - 1));
 
+  v->length--;
   if (v->length < v->capacity / 2)
   {
     Vector_shrink(v);
   }
 
-  return value;
+  return;
 }
 
 /* STRINGS */
