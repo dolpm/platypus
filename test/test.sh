@@ -36,7 +36,14 @@ run_test () {
             # get executable name
             exec_name=$(echo $(basename $in_file) | sed "s/\..*//")
             # run on valgrind
-            $(valgrind ./${exec_name})
+            if valgrind --log-fd=1 ./${exec_name} | grep -q "All heap blocks were freed";
+            then
+            	echo -e "${in_file} ${BGreen}passed mem check!${Color_Off}"
+            else
+            	echo -e "${in_file} ${BRed}failed mem check...${Color_Off}"
+            fi
+            # clean up exec
+            $(rm -rf ${exec_name})
         fi  
     fi
 }
