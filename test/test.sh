@@ -29,6 +29,15 @@ run_test () {
         echo -e "${in_file} ${BRed}failed...${Color_Off}"
     else
         echo -e "${in_file} ${BGreen}passed!${Color_Off}"
+        if [ ! -z $tcheck_mem ] && [ "$tflag" = "-e" ]
+        then
+            # compile program
+            $(../platypus -c ${in_file} 2>&1)
+            # get executable name
+            exec_name=$(echo $(basename $in_file) | sed "s/\..*//")
+            # run on valgrind
+            $(valgrind ./${exec_name})
+        fi  
     fi
 }
 
