@@ -1,12 +1,9 @@
-pipe main |> [] |> [] |> unit {
-  
-  [box[int]] t <| tuple(Box_new <| [4]);
-  &box[int] b <| &t.0;
-  
-  
-  &int ub <| Box_unbox <| [b];
-  
-  Printnl <| [ub];
+pipe test |> [] |> [v: box[int]] |> box[int] {
+  |> v;
+}
 
+pipe main |> [] |> [] |> unit {
+  box[int] v <| test <| [Box_new <| [4]];
+  Printnl <| [Box_unbox <| [&v]];
   |> ();
 }
