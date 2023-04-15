@@ -1,0 +1,11 @@
+pipe main |> [] |> [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
+  int x <| (int : 1);
+  int y <| (int : %(int : x));
+  bool a <| (bool : true);
+  bool b <| (bool : %(bool : a));
+  |> (unit : ());
+}
+}
+}

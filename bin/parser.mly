@@ -1,7 +1,7 @@
 %{ open Ast %}
 
 %token SEMI RANGE COLON DOT LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE CONCAT ASSIGN REASSIGN LPIPE RPIPE MUT
-%token NOT EQ NEQ LT LEQ GT GEQ AND OR DEREF BORROW MUTBORROW THING
+%token NOT EQ NEQ LT LEQ GT GEQ AND OR DEREF BORROW MUTBORROW THING CLONE
 %token IF ELSE NOELSE WHILE CHAR INT STRING STR BOOL FLOAT TUPLE UNIT BOX VECTOR OPTION LOOP AS PIPE
 %token <int> INTLIT
 %token <char> CHARLIT
@@ -22,7 +22,7 @@
 %left LT GT LEQ GEQ
 %left PLUS MINUS
 %left TIMES DIVIDE
-%right BORROW MUTBORROW DEREF
+%right BORROW MUTBORROW DEREF CLONE
 %right NOT
 
 %%
@@ -166,6 +166,7 @@ expr:
   | DEREF expr            { Unop(Deref, $2)    }
   | BORROW expr           { Unop(Ref, $2)      }
   | MUTBORROW expr        { Unop(MutRef, $2)   }
+  | CLONE expr            { Unop(Clone, $2)    }
 
   | IDENT LPIPE LBRACKET args_opt RBRACKET { PipeIn($1, $4)  }
   | LPAREN expr RPAREN { $2                   }

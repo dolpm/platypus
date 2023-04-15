@@ -327,11 +327,15 @@ let check (things, pipes) verbosity =
                 match t1 with
                 | Borrow (t_inner, _) | MutBorrow (t_inner, _) -> t_inner
                 | _ -> raise (Failure "panic!"))
+            | Clone -> (
+              (* Disallow clones of borrows *)
+              match t1 with
+              | MutBorrow _ | Borrow _ -> make_err "can't clone a borrow!"
+              | _ -> t1)
             | _ ->
-                raise
-                  (Failure
+                make_err
                      ("illegal unary operator " ^ string_of_uop op ^ " "
-                    ^ string_of_typ t1 ^ " in " ^ string_of_expr e))
+                    ^ string_of_typ t1 ^ " in " ^ string_of_expr e)
           in
           (ty, SUnop (op, (t1, e1')))
       | Binop (e1, op, e2) as e ->

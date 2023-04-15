@@ -5,7 +5,7 @@ pipe test |> [] |> [v: box[int]] |> int {
 pipe vtest |> []
 
 pipe main |> [] |> [] |> unit {
-  int v <| test <| [Box_new <| [4000]];
-  Printnl <| [v];
+  int x <| 10;
+  int y <| %x;
   |> ();
 }

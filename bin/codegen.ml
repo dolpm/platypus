@@ -77,6 +77,13 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "printf" printf_t the_module
   in
 
+  let memcpy_t : L.lltype =
+    L.function_type unit_t [| L.pointer_type(i8_t) ; L.pointer_type(i8_t); (L.i64_type context) |]
+  in
+  let _memcpy_func : L.llvalue = 
+    L.declare_function "memcpy" memcpy_t the_module
+  in
+
   let vector_new_t = L.function_type (ltype_of_typ (A.Vector A.Generic)) [||] in
   let vector_new_func =
     L.declare_function "Vector_new" vector_new_t the_module
@@ -167,6 +174,70 @@ let translate (things, pipes) ownership_map m_external =
       let local = L.build_alloca (ltype_of_typ t) n builder in
       let _ = L.build_store e' local builder in
       variables := StringMap.add n (local, t) !variables
+    in
+
+    let clone (typ: A.defined_type) (llvalue : L.llvalue) (builder : L.llbuilder) =
+      let clone_inner typ llvalue _builder (_is_root : bool) =
+        match typ with 
+        | A.Vector inner_typ -> 
+          (* Load struct from pointer *)
+          let v_struct = L.build_load llvalue "v_struct" builder in
+          let new_struct = 
+            L.build_call vector_get_func [||] "Vector_new" builder
+          in
+          let cloned_vector = 
+            match inner_typ with 
+            | A.Vector _ | A.Box _ ->
+              let vector_length = 
+                L.build_load 
+                  (L.build_struct_gep v_struct 0 "v_len_ptr" builder)
+                  "vector_length" builder
+              in
+
+              (* Index of our for loop *)
+              let index = L.build_alloca "cur_index" builder in
+              let _ =
+                L.build_store (L.const_int i32_t 0) index builder
+              in
+
+              (* start while loop *)
+              let pred_bb = L.append_block context "clone_while" the_pipe in
+              let _ = L.build_br pred_bb builder in
+
+              let body_bb = 
+                L.append_block context "clone_while_body" the_pipe
+              in
+              let _ = L.position_at_end body_bb builder in
+
+              (* get item from vector *)
+              let fetched_item = 
+                L.build_call vector_get_func 
+                  [| v_struct ; L.build_load index "i" builder |]
+                  "vector_item" builder
+              in
+
+              (* cast value (i8 pointer) to its type *)
+              let casted_value =
+                L.build_bitcast fetched_item (ltype_of_typ inner_typ)
+                  "vector_item_casted" builder
+              in
+
+
+          in
+
+          cloned_vector
+        | _ -> 
+          (* Store value into pointer *)
+          let clone_ptr = 
+            L.build_alloca (ltype_of_typ typ) "clone_ptr" builder
+          in
+          let _ =
+            L.build_store llvalue clone_ptr builder
+          in
+          (* Load ptr *)
+          L.build_load clone_ptr "clone_val" builder
+      in
+      clone_inner typ llvalue builder true
     in
 
     let rec expr (builder : L.llbuilder) ((_, e) : s_expr) : L.llvalue =
@@ -384,7 +455,11 @@ let translate (things, pipes) ownership_map m_external =
               L.build_neg load_value "negated_value" builder
           | Not ->
               let load_value = expr builder (t, e) in
-              L.build_not load_value "boolean_negated_value" builder)
+              L.build_not load_value "boolean_negated_value" builder
+          | Clone ->
+            let load_value = expr builder (t,e) in
+            clone t load_value builder 
+          )
       | SPipeIn ("Printnl", [ (t, sx) ]) -> (
           let arg = expr builder (t, sx) in
           match t with
