@@ -1,11 +1,8 @@
-pipe test |> [] |> [v: box[int]] |> int {
-  |> @(Box_unbox <| [&v]);
-}
-
-pipe vtest |> []
-
 pipe main |> [] |> [] |> unit {
-  int x <| 10;
-  int y <| %x;
+  bool spongebob <| true;
+  bool patrick <| !spongebob;
+
+  Printnl <| [spongebob];
+  Printnl <| [patrick];
   |> ();
 }

@@ -251,8 +251,12 @@ let borrow_ck pipes verbose =
                 in
 
                 (true, graph', [ wrapper_id ])
-            | SIf (sex, SBlock (stmts1, sblock_id1), SBlock (stmts2, sblock_id2), _, _)
-              ->
+            | SIf
+                ( sex,
+                  SBlock (stmts1, sblock_id1),
+                  SBlock (stmts2, sblock_id2),
+                  _,
+                  _ ) ->
                 let sex_id = node_id ^ ".0" in
                 let block1_id = node_id ^ ".1" in
                 let block2_id = node_id ^ ".2" in
@@ -674,36 +678,58 @@ let borrow_ck pipes verbose =
                   else
                     let st = StringMap.remove v_name symbol_table in
                     (StringMap.add b.name b.node_id st, active_refs)
+            | _ty, SPipeIn (_pipe_name, args) ->
+                (* check ownership of args *)
+                let names =
+                  List.fold_left
+                    (fun idents sex -> find_moves sex @ idents)
+                    [] args
+                in
+
+
+                let _ =
+                  List.iter
+                    (fun n ->
+                      if
+                        (not (StringMap.mem n symbol_table))
+                        && not (StringSet.mem n active_refs)
+                      then make_err (err_gave_ownership n))
+                    names
+                in
+
+                (* if ownership of another var given to pipe as arg *)
+                (* remove the original from the table *)
+                (* and validate that rhs is in same loop *)
+                let symbol_table' =
+                  List.fold_left
+                    (fun symbol_table arg ->
+                      match arg with
+                      | _ty, SIdent v_name ->
+                          if StringSet.mem v_name active_refs then symbol_table
+                          else
+                            let v_node =
+                              StringMap.find
+                                (StringMap.find v_name symbol_table)
+                                graph
+                            in
+                            let _v_parent, _v_node_id, _v_depth, v_loop =
+                              node_common_data v_node
+                            in
+                            if v_loop <> b.loop then
+                              raise
+                                (Failure
+                                   ("ownership of " ^ v_name
+                                  ^ " could be taken in a previous loop \
+                                     iteration"))
+                            else StringMap.remove v_name symbol_table
+                      | _ -> symbol_table)
+                    symbol_table args
+                in
+                (StringMap.add b.name b.node_id symbol_table', active_refs)
             | _ty, SUnop (Ref, (_, SIdent _))
             | _ty, SUnop (MutRef, (_, SIdent _)) ->
                 (symbol_table, StringSet.add b.name active_refs)
-            | expr ->
-                let moved_vars = find_moves expr in
-                (* if ownership of another var is given in rhs *)
-                (* remove the original from the table *)
-                (* and validate that rhs is in same loop *)
-                let st =
-                  List.fold_left
-                    (fun symbol_table v_name ->
-                      if StringSet.mem v_name active_refs then symbol_table
-                      else
-                        let v_node =
-                          StringMap.find
-                            (StringMap.find v_name symbol_table)
-                            graph
-                        in
-                        let _v_parent, _v_node_id, _v_depth, v_loop =
-                          node_common_data v_node
-                        in
-                        if v_loop <> b.loop then
-                          raise
-                            (Failure
-                               ("ownership of " ^ v_name
-                              ^ " could be taken in a previous loop iteration"))
-                        else StringMap.remove v_name symbol_table)
-                    symbol_table moved_vars
-                in
-                (StringMap.add b.name b.node_id st, active_refs)
+            | _expr -> (StringMap.add b.name b.node_id symbol_table, active_refs)
           in
 
           (symbol_table', active_refs', graph)
@@ -713,7 +739,7 @@ let borrow_ck pipes verbose =
           (* check ownership of args *)
           let names =
             List.fold_left
-              (fun idents sex -> find_identifiers sex @ idents)
+              (fun idents sex -> find_moves sex @ idents)
               [] pc.args
           in
 

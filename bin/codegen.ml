@@ -78,9 +78,10 @@ let translate (things, pipes) ownership_map m_external =
   in
 
   let memcpy_t : L.lltype =
-    L.function_type unit_t [| L.pointer_type(i8_t) ; L.pointer_type(i8_t); (L.i64_type context) |]
+    L.function_type unit_t
+      [| L.pointer_type i8_t; L.pointer_type i8_t; L.i64_type context |]
   in
-  let _memcpy_func : L.llvalue = 
+  let _memcpy_func : L.llvalue =
     L.declare_function "memcpy" memcpy_t the_module
   in
 
@@ -176,66 +177,122 @@ let translate (things, pipes) ownership_map m_external =
       variables := StringMap.add n (local, t) !variables
     in
 
-    let clone (typ: A.defined_type) (llvalue : L.llvalue) (builder : L.llbuilder) =
-      let clone_inner typ llvalue _builder (_is_root : bool) =
-        match typ with 
-        | A.Vector inner_typ -> 
-          (* Load struct from pointer *)
-          let v_struct = L.build_load llvalue "v_struct" builder in
-          let new_struct = 
-            L.build_call vector_get_func [||] "Vector_new" builder
-          in
-          let cloned_vector = 
-            match inner_typ with 
-            | A.Vector _ | A.Box _ ->
-              let vector_length = 
-                L.build_load 
+    let add_terminal (builder : L.llbuilder) instr : unit =
+      match L.block_terminator (L.insertion_block builder) with
+      | Some _ -> ()
+      | None -> ignore (instr builder)
+    in
+
+    let clone (typ : A.defined_type) (llvalue : L.llvalue)
+        (builder : L.llbuilder) =
+      let rec clone_inner typ llvalue builder (_is_root : bool) =
+        match typ with
+        | A.Vector inner_typ ->
+            (* Load struct from pointer *)
+            let v_struct = L.build_load llvalue "v_struct" builder in
+
+            (* Vector we'll push the cloned items into *)
+            let new_vector_generic =
+              L.build_call vector_new_func [||] "Vector_new" builder
+            in
+            let new_vector_casted =
+              L.build_bitcast new_vector_generic (ltype_of_typ typ)
+                "new_vector_casted" builder
+            in
+
+            let cloned_vector =
+              let vector_length =
+                L.build_load
                   (L.build_struct_gep v_struct 0 "v_len_ptr" builder)
                   "vector_length" builder
               in
 
               (* Index of our for loop *)
-              let index = L.build_alloca "cur_index" builder in
-              let _ =
-                L.build_store (L.const_int i32_t 0) index builder
-              in
+              let index = L.build_alloca i32_t "cur_index" builder in
+              let _ = L.build_store (L.const_int i32_t 0) index builder in
 
               (* start while loop *)
               let pred_bb = L.append_block context "clone_while" the_pipe in
               let _ = L.build_br pred_bb builder in
 
-              let body_bb = 
+              let body_bb =
                 L.append_block context "clone_while_body" the_pipe
               in
               let _ = L.position_at_end body_bb builder in
 
               (* get item from vector *)
-              let fetched_item = 
-                L.build_call vector_get_func 
-                  [| v_struct ; L.build_load index "i" builder |]
+              let fetched_item =
+                L.build_call vector_get_func
+                  [| v_struct; L.build_load index "i" builder |]
                   "vector_item" builder
               in
 
-              (* cast value (i8 pointer) to its type *)
-              let casted_value =
-                L.build_bitcast fetched_item (ltype_of_typ inner_typ)
-                  "vector_item_casted" builder
+              let cloned_child =
+                match inner_typ with
+                | A.Vector _ | A.Box _ | A.Str ->
+                    (* cast value (i8 pointer) to its type *)
+                    let casted_value =
+                      L.build_bitcast fetched_item (ltype_of_typ inner_typ)
+                        "vector_item_casted" builder
+                    in
+                    clone_inner inner_typ casted_value builder false
+                | _ ->
+                    (* cast value (i8 pointer) to a pointer to the atom type *)
+                    let casted_value =
+                      L.build_bitcast fetched_item
+                        (L.pointer_type (ltype_of_typ inner_typ))
+                        "vector_item_casted" builder
+                    in
+                    let malloc_of_atom =
+                      L.build_malloc (ltype_of_typ inner_typ) "cloned_value"
+                        builder
+                    in
+                    let _ =
+                      L.build_store
+                        (L.build_load casted_value "loaded_value" builder)
+                        malloc_of_atom builder
+                    in
+                    malloc_of_atom
               in
 
+              let _ =
+                L.build_call vector_push_func
+                  [| new_vector_casted; cloned_child |]
+                  "" builder
+              in
 
-          in
+              (* increment iterator *)
+              let add =
+                L.build_add
+                  (L.build_load index "x" builder)
+                  (L.const_int i32_t 1) "add" builder
+              in
+              let _ = L.build_store add index builder in
 
-          cloned_vector
-        | _ -> 
-          (* Store value into pointer *)
-          let clone_ptr = 
-            L.build_alloca (ltype_of_typ typ) "clone_ptr" builder
-          in
-          let _ =
-            L.build_store llvalue clone_ptr builder
-          in
-          (* Load ptr *)
-          L.build_load clone_ptr "clone_val" builder
+              let () = add_terminal builder (L.build_br pred_bb) in
+
+              let _ = L.position_at_end pred_bb builder in
+              let cmp_as_bool =
+                L.build_icmp L.Icmp.Slt
+                  (L.build_load index "x" builder)
+                  vector_length "clone_loop_cond" builder
+              in
+
+              let merge_bb = L.append_block context "free_merge" the_pipe in
+              let _ = L.build_cond_br cmp_as_bool body_bb merge_bb builder in
+
+              new_vector_casted
+            in
+
+            cloned_vector
+        | _ ->
+            (* Store value into pointer *)
+            let clone_ptr =
+              L.build_alloca (ltype_of_typ typ) "clone_ptr" builder
+            in
+            let _ = L.build_store llvalue clone_ptr builder in
+            (* Load ptr *)
+            L.build_load clone_ptr "clone_val" builder
       in
       clone_inner typ llvalue builder true
     in
@@ -457,9 +514,8 @@ let translate (things, pipes) ownership_map m_external =
               let load_value = expr builder (t, e) in
               L.build_not load_value "boolean_negated_value" builder
           | Clone ->
-            let load_value = expr builder (t,e) in
-            clone t load_value builder 
-          )
+              let load_value = expr builder (t, e) in
+              clone t load_value builder)
       | SPipeIn ("Printnl", [ (t, sx) ]) -> (
           let arg = expr builder (t, sx) in
           match t with
@@ -618,12 +674,6 @@ let translate (things, pipes) ownership_map m_external =
       | _ -> Llvm.build_call noop_func [||] "" builder
     in
 
-    let add_terminal (builder : L.llbuilder) instr : unit =
-      match L.block_terminator (L.insertion_block builder) with
-      | Some _ -> ()
-      | None -> ignore (instr builder)
-    in
-
     let free (typ : A.defined_type) (llvalue : L.llvalue)
         (builder : L.llbuilder) =
       let rec free_inner typ llvalue builder (is_root : bool) =
@@ -634,7 +684,8 @@ let translate (things, pipes) ownership_map m_external =
             (* before we free this value *)
             let builder =
               match typ_inner with
-              | A.Vector _ | A.Box _ ->
+              (* Make sure str should be here *)
+              | A.Vector _ | A.Box _ | A.Str ->
                   let v_len_llv =
                     L.build_load
                       (L.build_struct_gep v_struct_llv 0 "v_len" builder)
