@@ -748,7 +748,16 @@ let translate (things, pipes) ownership_map m_external =
                     (List.map fst (StringMap.bindings !variables))
                 in
                 match s with
-                | SPipeOut ((_, e) as ret_expr) ->
+                | SPipeOut ((_t, e) as ret_expr) ->
+                    (* Build return value register *)
+                    let ret_value =
+                      match ret_expr with
+                      | A.Unit, SUnitLiteral -> None
+                      | A.Unit, _ ->
+                          let _ = expr !builder' ret_expr in
+                          None
+                      | _ -> Some (expr !builder' ret_expr)
+                    in
                     let _ =
                       StringSet.iter
                         (fun n ->
@@ -763,12 +772,9 @@ let translate (things, pipes) ownership_map m_external =
                         | _ -> StringSet.inter v_names dangling_owns')
                     in
                     let _ =
-                      match ret_expr with
-                      | A.Unit, SUnitLiteral -> L.build_ret_void !builder'
-                      | A.Unit, _ ->
-                          let _ = expr !builder' ret_expr in
-                          L.build_ret_void !builder'
-                      | _ -> L.build_ret (expr !builder' ret_expr) !builder'
+                      match ret_value with
+                      | None -> L.build_ret_void !builder'
+                      | Some e -> L.build_ret e !builder'
                     in
                     Some ret_expr
                 | s ->

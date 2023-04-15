@@ -1,9 +1,11 @@
-pipe test |> [] |> [v: box[int]] |> box[int] {
-  |> v;
+pipe test |> [] |> [v: box[int]] |> int {
+  |> @(Box_unbox <| [&v]);
 }
 
+pipe vtest |> []
+
 pipe main |> [] |> [] |> unit {
-  box[int] v <| test <| [Box_new <| [4]];
-  Printnl <| [Box_unbox <| [&v]];
+  int v <| test <| [Box_new <| [4000]];
+  Printnl <| [v];
   |> ();
 }
