@@ -549,8 +549,6 @@ let translate (things, pipes) ownership_map m_external =
       | None -> ignore (instr builder)
     in
 
-    let return_value = ref None in
-
     let free (typ : A.defined_type) (llvalue : L.llvalue)
         (builder : L.llbuilder) =
       let rec free_inner typ llvalue builder (is_root : bool) =
@@ -741,6 +739,7 @@ let translate (things, pipes) ownership_map m_external =
           in
 
           (* build inner stmts *)
+          (*
           let builder' =
             List.fold_left
               (fun builder' s ->
@@ -749,57 +748,56 @@ let translate (things, pipes) ownership_map m_external =
                 | Some _ -> builder')
               builder sl
           in
-
-          let builder' = ref builder' in
+          *)
+          let builder' = ref builder in
 
           let _ =
             List.fold_left
-              (fun is_done stmt ->
+              (fun return_expr s ->
                 let v_names =
                   StringSet.of_list
                     (List.map fst (StringMap.bindings !variables))
                 in
-                match stmt with
-                | SPipeOut _ ->
+                match s with
+                | SPipeOut ((_, e) as ret_expr) ->
                     let _ =
                       StringSet.iter
                         (fun n ->
                           let v, t = StringMap.find n !variables in
                           builder' := free t v !builder')
-                        (StringSet.inter v_names dangling_owns')
+                        (* if we return a value that would otherwise *)
+                        (* need to be freed, make sure it doesn't get freed *)
+                        (match e with
+                        | SIdent n ->
+                            StringSet.remove n
+                              (StringSet.inter v_names dangling_owns')
+                        | _ -> StringSet.inter v_names dangling_owns')
                     in
-                    true
-                | _ -> is_done)
-              false sl
-          in
-
-          (* If we've seen a return, build it now (after freeing*)
-          let _ =
-            match !return_value with
-            | Some e ->
-                let _ =
-                  match e with
-                  | A.Unit, SUnitLiteral -> L.build_ret_void !builder'
-                  | A.Unit, _ ->
-                      let _ = expr !builder' e in
-                      L.build_ret_void !builder'
-                  | _ -> L.build_ret (expr !builder' e) !builder'
-                in
-                return_value := None
-            | None ->
-                List.iter
-                  (fun n ->
-                    let v, t = StringMap.find n !variables in
-                    builder' := free t v !builder')
-                  block_deallocs
+                    let _ =
+                      match ret_expr with
+                      | A.Unit, SUnitLiteral -> L.build_ret_void !builder'
+                      | A.Unit, _ ->
+                          let _ = expr !builder' ret_expr in
+                          L.build_ret_void !builder'
+                      | _ -> L.build_ret (expr !builder' ret_expr) !builder'
+                    in
+                    Some ret_expr
+                | s ->
+                    let _ =
+                      match return_expr with
+                      | None -> builder' := stmt s dangling_owns' !builder'
+                      | _ -> ()
+                    in
+                    return_expr)
+              None sl
           in
 
           !builder'
       | SExpr e ->
           let _ = expr builder e in
           builder
-      | SPipeOut e ->
-          let _ = return_value := Some e in
+      | SPipeOut _e ->
+          (* let _ = return_value := Some e in *)
           builder
       | SAssign (is_mut, t, name, e) ->
           let e' = expr builder e in
@@ -807,9 +805,10 @@ let translate (things, pipes) ownership_map m_external =
           builder
       | SReAssign (is_mutborrow, name, e) ->
           let e' = expr builder e in
-          let llv = fst (StringMap.find name !variables) in
+          let llv, typ = StringMap.find name !variables in
 
-          (* TODO: FREE OLD VALUE *)
+          (* free over-written value *)
+          let _ = free typ llv builder in
 
           (* if mutborrow, deref the ptr to update *)
           let _ =
