@@ -1,8 +1,16 @@
 pipe main |> [] |> [] |> unit {
-  bool spongebob <| true;
-  bool patrick <| !spongebob;
+  mut vector[int] x <| Vector_new <| [];
+  Vector_push <| [~&x, 2048];
 
-  Printnl <| [spongebob];
-  Printnl <| [patrick];
+  mut vector[int] y <| %x;
+
+  {
+      ~&int y_setter <| Vector_get_mut <| [~&y, 0];
+      y_setter <| 4028;
+  }
+
+  
+  Printnl <| [Vector_get <| [&y, 0]];
+  Printnl <| [Vector_get <| [&x, 0]];
   |> ();
 }

@@ -188,9 +188,6 @@ let translate (things, pipes) ownership_map m_external =
       let rec clone_inner typ llvalue builder (_is_root : bool) =
         match typ with
         | A.Vector inner_typ ->
-            (* Load struct from pointer *)
-            let v_struct = L.build_load llvalue "v_struct" builder in
-
             (* Vector we'll push the cloned items into *)
             let new_vector_generic =
               L.build_call vector_new_func [||] "Vector_new" builder
@@ -203,7 +200,7 @@ let translate (things, pipes) ownership_map m_external =
             let cloned_vector =
               let vector_length =
                 L.build_load
-                  (L.build_struct_gep v_struct 0 "v_len_ptr" builder)
+                  (L.build_struct_gep llvalue 0 "v_len_ptr" builder)
                   "vector_length" builder
               in
 
@@ -223,7 +220,7 @@ let translate (things, pipes) ownership_map m_external =
               (* get item from vector *)
               let fetched_item =
                 L.build_call vector_get_func
-                  [| v_struct; L.build_load index "i" builder |]
+                  [| llvalue; L.build_load index "i" builder |]
                   "vector_item" builder
               in
 
@@ -235,7 +232,14 @@ let translate (things, pipes) ownership_map m_external =
                       L.build_bitcast fetched_item (ltype_of_typ inner_typ)
                         "vector_item_casted" builder
                     in
-                    clone_inner inner_typ casted_value builder false
+
+                    let ptr_to_inner =
+                      L.build_alloca (ltype_of_typ inner_typ) "ptr_to_inner"
+                        builder
+                    in
+                    let _ = L.build_store casted_value ptr_to_inner builder in
+
+                    clone_inner inner_typ ptr_to_inner builder false
                 | _ ->
                     (* cast value (i8 pointer) to a pointer to the atom type *)
                     let casted_value =
@@ -255,9 +259,21 @@ let translate (things, pipes) ownership_map m_external =
                     malloc_of_atom
               in
 
+              let ptr_of_cloned_child =
+                L.build_alloca (ltype_of_typ A.Generic) "ptr_of_cloned_child"
+                  builder
+              in
+
+              let _ =
+                L.build_store
+                  (L.build_bitcast cloned_child (ltype_of_typ A.Generic) "tmp"
+                     builder)
+                  ptr_of_cloned_child builder
+              in
+
               let _ =
                 L.build_call vector_push_func
-                  [| new_vector_casted; cloned_child |]
+                  [| new_vector_casted; ptr_of_cloned_child |]
                   "" builder
               in
 
@@ -278,8 +294,12 @@ let translate (things, pipes) ownership_map m_external =
                   vector_length "clone_loop_cond" builder
               in
 
-              let merge_bb = L.append_block context "free_merge" the_pipe in
+              let merge_bb = L.append_block context "clone_merge" the_pipe in
               let _ = L.build_cond_br cmp_as_bool body_bb merge_bb builder in
+
+              let _ = L.position_at_end merge_bb builder in
+
+              let _ = print_endline "setting at end of merge" in
 
               new_vector_casted
             in
