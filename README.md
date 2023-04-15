@@ -10,13 +10,13 @@ Platypus is a language designed to combine a safety-first ownership model and a 
 ##### install required packages &rarr; ```make install```
 ##### build the compiler &rarr; ```make```
 ##### run tests &rarr; ```make test```
-##### run test &rarr; ```make test type=[ast|sast|codegen|compile] name=[test_name]```
+##### run test &rarr; ```make test type=[ast|sast|codegen|compile] name=[test_name] [memcheck=true]```
 
 #
 
 #### compiler commands:
 ##### print AST &rarr; ```./platypus -a ./path/to/file.ppus```
-##### print SAST &rarr; ```./platypus -a ./path/to/file.ppus```
+##### print SAST &rarr; ```./platypus -s ./path/to/file.ppus```
 ##### print LLVM IR &rarr; ```./platypus -l ./path/to/file.ppus```
 ##### compile &rarr; ```./platypus -c ./path/to/file.ppus```
 ##### execute (JIT) &rarr; ```./platypus -e ./path/to/file.ppus```
