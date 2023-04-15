@@ -738,17 +738,6 @@ let translate (things, pipes) ownership_map m_external =
             StringSet.union dangling_owns (StringSet.of_list block_deallocs)
           in
 
-          (* build inner stmts *)
-          (*
-          let builder' =
-            List.fold_left
-              (fun builder' s ->
-                match !return_value with
-                | None -> stmt s dangling_owns' builder'
-                | Some _ -> builder')
-              builder sl
-          in
-          *)
           let builder' = ref builder in
 
           let _ =
