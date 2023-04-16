@@ -233,13 +233,7 @@ let translate (things, pipes) ownership_map m_external =
                         "vector_item_casted" builder
                     in
 
-                    let ptr_to_inner =
-                      L.build_alloca (ltype_of_typ inner_typ) "ptr_to_inner"
-                        builder
-                    in
-                    let _ = L.build_store casted_value ptr_to_inner builder in
-
-                    clone_inner inner_typ ptr_to_inner builder false
+                    clone_inner inner_typ casted_value builder false
                 | _ ->
                     (* cast value (i8 pointer) to a pointer to the atom type *)
                     let casted_value =
@@ -309,26 +303,17 @@ let translate (things, pipes) ownership_map m_external =
               match typ_inner with
               (* recursively clone box internals *)
               | A.Vector _ | A.Box _ | A.Str ->
-                  (* store inner value in ptr on stack *)
-                  let inner_ptr =
-                    L.build_alloca (ltype_of_typ typ_inner) "box_inner_ptr"
-                      builder
-                  in
-
-                  (* load the value inside of the malloc (i.e., boxed thing) *)
-                  let _ =
-                    L.build_store
-                      (L.build_load llvalue "box_malloc_inner" builder)
-                      inner_ptr builder
-                  in
-
+                  (* get the inner value from the box and recurse on it *)
                   let cloned_box =
-                    clone_inner typ_inner inner_ptr builder true
+                    clone_inner typ_inner
+                      (L.build_load llvalue "box_malloc_inner" builder)
+                      builder true
                   in
                   cloned_box
               | _ -> L.build_load llvalue "loaded_inner" builder
             in
 
+            (* malloc the new value *)
             let malloc_of_box =
               L.build_malloc (ltype_of_typ typ_inner) "cloned_value" builder
             in
@@ -614,43 +599,33 @@ let translate (things, pipes) ownership_map m_external =
           L.build_load (expr builder box) "unboxed_box" builder
       | SPipeIn ("Vector_new", []) ->
           L.build_call vector_new_func [||] "Vector_new" builder
+      | SPipeIn ("Vector_length", [ vector ]) ->
+          let loaded_vec =
+            L.build_load (expr builder vector) "loaded_vec" builder
+          in
+          L.build_load
+            (L.build_struct_gep loaded_vec 0 "v_len_ptr" builder)
+            "vector_length" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->
-          (* Check if value is on heap or stack; if on stack, create void ptr of it before passing into alloc *)
           let e' = expr builder value in
 
           let elem_arg =
-            match t with
-            | A.Box _ -> e'
-            | A.Vector _ ->
-                let ptr_casted_to_void =
-                  L.build_bitcast e' (L.pointer_type i8_t) "ptr_casted_to_void"
-                    builder
-                in
-                let ref_of_ptr =
-                  L.build_alloca (L.pointer_type i8_t) "ref_of_ptr" builder
-                in
-                let _ = L.build_store ptr_casted_to_void ref_of_ptr builder in
+            let malloc_of_t =
+              L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
+            in
+            let _ = L.build_store e' malloc_of_t builder in
 
-                ref_of_ptr
-            | _ ->
-                let malloc_of_t =
-                  L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
-                in
-                let _ = L.build_store e' malloc_of_t builder in
+            let malloc_casted_to_void =
+              L.build_bitcast malloc_of_t (L.pointer_type i8_t)
+                "malloc_casted_to_void" builder
+            in
 
-                let malloc_casted_to_void =
-                  L.build_bitcast malloc_of_t (L.pointer_type i8_t)
-                    "malloc_casted_to_void" builder
-                in
+            let ref_of_malloc =
+              L.build_alloca (L.pointer_type i8_t) "ref_of_malloc" builder
+            in
+            let _ = L.build_store malloc_casted_to_void ref_of_malloc builder in
 
-                let ref_of_malloc =
-                  L.build_alloca (L.pointer_type i8_t) "ref_of_malloc" builder
-                in
-                let _ =
-                  L.build_store malloc_casted_to_void ref_of_malloc builder
-                in
-
-                ref_of_malloc
+            ref_of_malloc
           in
 
           let loaded_vec =
@@ -678,6 +653,7 @@ let translate (things, pipes) ownership_map m_external =
             | Borrow (Vector t, _) -> t
             | _ -> raise (Failure "panic!")
           in
+
           L.build_bitcast fetched_item
             (L.pointer_type (ltype_of_typ inner_type))
             "vector_item_as_type" builder

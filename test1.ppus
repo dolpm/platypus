@@ -1,33 +1,57 @@
-/*
 pipe main |> [] |> [] |> unit {
-  mut vector[int] x <| Vector_new <| [];
-  Vector_push <| [~&x, 2048];
-
-  mut vector[int] y <| %x;
-
+  /* depth = 1 */
+  /*
   {
-      ~&int y_setter <| Vector_get_mut <| [~&y, 0];
-      y_setter <| 4028;
-  }
+    mut vector[int] x <| Vector_new <| [];
+    Vector_push <| [~&x, 2048];
 
-  
-  Printnl <| [Vector_get <| [&y, 0]];
-  Printnl <| [Vector_get <| [&x, 0]];
+    mut vector[int] y <| %x;
+
+    {
+        ~&int y_setter <| Vector_get_mut <| [~&y, 0];
+        y_setter <| 4028;
+    }
+
+    
+    Printnl <| [Vector_get <| [&y, 0]];
+    Printnl <| [Vector_get <| [&x, 0]];
+  }
+  */
+
+  /* depth > 1 */
+  /*
+  {
+    mut vector[vector[int]] x <| Vector_new <| [];
+    mut vector[int] x_inner <| Vector_new <| [];
+    Vector_push <| [~&x_inner, 2048];
+    Vector_push <| [~&x, x_inner];
+    mut vector[vector[int]] y <| %x;
+
+    {
+        ~&vector[int] y_inner_setter <| Vector_get_mut <| [~&y, 0];
+        
+        ~&int y_setter <| Vector_get_mut <| [y_inner_setter, 0];
+        y_setter <| 4028;
+    }
+
+    Printnl <| [Vector_get <| [Vector_get <| [&y, 0], 0]];
+    Printnl <| [Vector_get <| [Vector_get <| [&x, 0], 0]];
+  }
+  */
+
+    mut vector[vector[int]] x <| Vector_new <| [];
+    mut vector[int] x_inner <| Vector_new <| [];
+    Vector_push <| [~&x_inner, 2048];
+    Vector_push <| [~&x, x_inner];
+    &vector[int] gotten <| Vector_get <| [&x, 0];
+
+    int len <| Vector_length <| [gotten];
+
+    Printnl <| [len];
+
+    /* Vector_get <| [Vector_get <| [&x, 0], 0]; */
+
   |> ();
 }
-*/
 
-pipe main |> [] |> [] |> unit {
-  box[int] x <| Box_new <| [2048];
-  mut box[int] y <| %x;
 
-  {
-    ~&int unboxed <| Box_unbox_mut <| [~&y];
-    unboxed <| 4028;
-  }
-
-  Printnl <| [Box_unbox <| [&y]];
-  Printnl <| [Box_unbox <| [&x]];
-
-  |> ();
-}
