@@ -728,7 +728,7 @@ let translate (things, pipes) ownership_map m_external =
 
     let free (typ : A.defined_type) (llvalue : L.llvalue)
         (builder : L.llbuilder) =
-      let rec free_inner typ llvalue builder (is_root : bool) =
+      let rec free_inner typ llvalue builder =
         match typ with
         | A.Vector typ_inner ->
             let v_struct_llv = L.build_load llvalue "v_struct" builder in
@@ -773,7 +773,7 @@ let translate (things, pipes) ownership_map m_external =
 
                   (* call free on this casted value *)
                   let body_builder' =
-                    free_inner typ_inner ptr_to_inner body_builder false
+                    free_inner typ_inner ptr_to_inner body_builder
                   in
 
                   (* increment iterator *)
@@ -806,15 +806,6 @@ let translate (things, pipes) ownership_map m_external =
               L.build_call vector_free_func [| v_struct_llv |] "" builder
             in
 
-            (* free the pointer itself, only needed at top level, otherwise we'll get a double-free *)
-            let _ =
-              if not is_root then
-                (* let _ = L.build_free v_struct_llv builder in *)
-                (* let _ = L.build_free llvalue builder in *)
-                ()
-              else ()
-            in
-
             builder
         | A.Box typ_inner ->
             (* load the malloc *)
@@ -836,7 +827,7 @@ let translate (things, pipes) ownership_map m_external =
                       inner_ptr builder
                   in
 
-                  let builder' = free_inner typ_inner inner_ptr builder true in
+                  let builder' = free_inner typ_inner inner_ptr builder in
                   builder'
               | _ -> builder
             in
@@ -865,7 +856,7 @@ let translate (things, pipes) ownership_map m_external =
                       (L.pointer_type (ltype_of_typ elem_typ))
                       "casted_gep" builder
                   in
-                  let builder' = free_inner elem_typ casted_gep builder true in
+                  let builder' = free_inner elem_typ casted_gep builder in
                   (idx + 1, builder'))
                 (0, builder)
                 (List.find (fun t -> t.stname = thing_name) things).selements
@@ -887,14 +878,14 @@ let translate (things, pipes) ownership_map m_external =
                       (L.pointer_type (ltype_of_typ elem_typ))
                       "casted_gep" builder
                   in
-                  let builder' = free_inner elem_typ casted_gep builder true in
+                  let builder' = free_inner elem_typ casted_gep builder in
                   (idx + 1, builder'))
                 (0, builder) inner_types
             in
             builder'
         | _ -> builder
       in
-      free_inner typ llvalue builder true
+      free_inner typ llvalue builder
     in
 
     let rec stmt s dangling_owns builder =
