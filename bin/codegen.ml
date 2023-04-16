@@ -223,35 +223,26 @@ let translate (things, pipes) ownership_map m_external =
                   "vector_item" builder
               in
 
+              let casted_value =
+                L.build_bitcast fetched_item
+                  (L.pointer_type (ltype_of_typ inner_typ))
+                  "vector_item_casted" builder
+              in
+
+              let malloc =
+                L.build_malloc (ltype_of_typ inner_typ) "cloned_value" builder
+              in
+
               let cloned_child =
                 match inner_typ with
                 | A.Vector _ | A.Box _ | A.Str ->
-                    (* cast value (i8 pointer) to its type *)
-                    let casted_value =
-                      L.build_bitcast fetched_item (ltype_of_typ inner_typ)
-                        "vector_item_casted" builder
-                    in
-
-                    clone_inner inner_typ casted_value builder false
-                | _ ->
-                    (* cast value (i8 pointer) to a pointer to the atom type *)
-                    let casted_value =
-                      L.build_bitcast fetched_item
-                        (L.pointer_type (ltype_of_typ inner_typ))
-                        "vector_item_casted" builder
-                    in
-
-                    let malloc_of_atom =
-                      L.build_malloc (ltype_of_typ inner_typ) "cloned_value"
-                        builder
-                    in
-                    let _ =
-                      L.build_store
-                        (L.build_load casted_value "loaded_value" builder)
-                        malloc_of_atom builder
-                    in
-                    malloc_of_atom
+                    clone_inner inner_typ
+                      (L.build_load casted_value "loaded_diaper" builder)
+                      builder false
+                | _ -> L.build_load casted_value "loaded_value" builder
               in
+
+              let _ = L.build_store cloned_child malloc builder in
 
               let ptr_of_cloned_child =
                 L.build_alloca (ltype_of_typ A.Generic) "ptr_of_cloned_child"
@@ -260,8 +251,8 @@ let translate (things, pipes) ownership_map m_external =
 
               let _ =
                 L.build_store
-                  (L.build_bitcast cloned_child (ltype_of_typ A.Generic) "tmp"
-                     builder)
+                  (L.build_bitcast malloc (ltype_of_typ A.Generic)
+                     "casted_to_push" builder)
                   ptr_of_cloned_child builder
               in
 
@@ -741,8 +732,7 @@ let translate (things, pipes) ownership_map m_external =
 
                   (* cast the value to its type *)
                   let ptr_to_inner =
-                    L.build_bitcast
-                      fetched_item
+                    L.build_bitcast fetched_item
                       (L.pointer_type (ltype_of_typ typ_inner))
                       "vector_item_as_type" body_builder
                   in
