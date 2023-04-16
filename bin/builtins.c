@@ -30,7 +30,6 @@ void *Vector_get(struct Vector *v, int index)
 
 void Vector_free(struct Vector *v)
 {
-  printf("called vector free\n");
   for (int i = 0; i < v->length; i++)
   {
     void *addr = *(void **)(v->list + (i * sizeof(void *)));
