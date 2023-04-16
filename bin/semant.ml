@@ -513,6 +513,11 @@ let check (things, pipes) verbosity =
                 (n, (et, e')) :: accum)
               [] children
           in
+
+          let _ = if List.length children' <> List.length thing_defn.elements then 
+            make_err ("number of fields in instance of thing " ^ t_name ^ " does not match thing definition") else () 
+          in
+
           (Ident t_name, SThingValue (t_name, List.rev children'))
       | ThingAccess _ -> make_err "thing access must be borrowed for use"
       | _ -> (Unit, SNoexpr)
