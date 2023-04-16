@@ -312,6 +312,47 @@ let translate (things, pipes) ownership_map m_external =
 
             malloc_of_box
         (* TODO: str, thing, tuple *)
+        | A.Ident thing_name ->
+            let new_instance =
+              L.build_alloca
+                (StringMap.find thing_name !thing_types)
+                "new_thing_instance" builder
+            in
+
+            let _ =
+              List.fold_left
+                (fun idx (_, elem_typ, _) ->
+                  let gepped =
+                    L.build_struct_gep llvalue idx "gep_on_instance" builder
+                  in
+
+                  let casted_gep =
+                    L.build_bitcast gepped
+                      (L.pointer_type (ltype_of_typ elem_typ))
+                      "casted_gep" builder
+                  in
+
+                  let loaded_cast = L.build_load casted_gep "tmp" builder in
+
+                  let cloned_value =
+                    match elem_typ with
+                    | A.Vector _ | A.Box _ | A.Str | A.Ident _ ->
+                        clone_inner elem_typ loaded_cast builder true
+                    | _ -> loaded_cast
+                  in
+
+                  let new_gepped =
+                    L.build_struct_gep new_instance idx "gep_on_new_instance"
+                      builder
+                  in
+
+                  let _ = L.build_store cloned_value new_gepped builder in
+
+                  idx + 1)
+                0 (List.find (fun t -> t.stname = thing_name) things).selements
+            in
+
+            new_instance
         | _ ->
             (* Store value into pointer *)
             let clone_ptr =
@@ -519,21 +560,14 @@ let translate (things, pipes) ownership_map m_external =
               let load_value = expr builder (t, e) in
               L.build_load load_value "derefed_value" builder
           | Ref | MutRef -> (
-              match t with
-              (*
-              | Vector _ | Box _ -> expr builder (t, e)
-              *)
+              match e with
+              | SIdent n -> fst (StringMap.find n !variables)
+              | SThingAccess _ | STupleIndex _ -> expr builder (t, e)
               | _ ->
-                  (* get a reference to the existing value *)
-                  let v_name =
-                    match e with
-                    | SIdent n -> n
-                    | _ -> raise (Failure "can't reference a non-ident!")
-                  in
-
-                  let reffed_value = fst (StringMap.find v_name !variables) in
-
-                  reffed_value)
+                  raise
+                    (Failure
+                       "can only do references on idents, thing accesses, and \
+                        tuple indexing!"))
           | Neg ->
               let load_value = expr builder (t, e) in
               L.build_neg load_value "negated_value" builder

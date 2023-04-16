@@ -1,41 +1,71 @@
+thing MyThingAtom <| {
+  family_jewels: int,
+  has_genetic_disease: bool,
+  dynasties: vector[int]
+}
+
+thing Forefather <| {
+  virility : float,
+  disappointment_of_a_son : MyThingAtom 
+}
+
 pipe main |> [] |> [] |> unit {
   /* depth = 1 */
   /*
   {
-    mut vector[int] x <| Vector_new <| [];
-    Vector_push <| [~&x, 2048];
+    mut MyThingAtom t <| MyThingAtom {
+      family_jewels: 1,
+      has_genetic_disease: true
+    };
 
-    mut vector[int] y <| %x;
+    mut MyThingAtom t_cloned <| %t;
+
 
     {
-        ~&int y_setter <| Vector_get_mut <| [~&y, 0];
-        y_setter <| 4028;
+        ~&int t_setter <| ~&t_cloned.family_jewels;
+        t_setter <| 0;
     }
 
     
-    Printnl <| [Vector_get <| [&y, 0]];
-    Printnl <| [Vector_get <| [&x, 0]];
+    Printnl <| [&t_cloned.family_jewels];
+    Printnl <| [&t.family_jewels];
   }
   */
 
   /* depth > 1 */
   {
-    mut vector[vector[int]] x <| Vector_new <| [];
-    mut vector[int] x_inner <| Vector_new <| [];
-    Vector_push <| [~&x_inner, 2048];
-    Vector_push <| [~&x, x_inner];
-    Printnl <| ["hi1"];
-    mut vector[vector[int]] y <| %x;
-    Printnl <| ["hi2"];
+    vector[int] reign_of_george <| Vector_new <| [];
 
+    mut Forefather king_gregory <| Forefather {
+      virility : 78.0,
+      disappointment_of_a_son: MyThingAtom {
+        family_jewels: 10,
+        has_genetic_disease: true,
+        dynasties: reign_of_george
+      }
+    };
+    
     {
-        ~&vector[int] y_inner_setter <| Vector_get_mut <| [~&y, 0];
-        ~&int y_setter <| Vector_get_mut <| [y_inner_setter, 0];
-        y_setter <| 4028;
+      ~&vector[int] middling_conquest <| ~&king_gregory.disappointment_of_a_son.dynasties;
+      Vector_push <| [middling_conquest, 55];
     }
 
-    Printnl <| [Vector_get <| [Vector_get <| [&y, 0], 0]];
-    Printnl <| [Vector_get <| [Vector_get <| [&x, 0], 0]];
+    mut Forefather queen_regina <| %king_gregory;
+
+    {
+      ~&vector[int] successful_empire <| ~&queen_regina.disappointment_of_a_son.dynasties;
+      Vector_pop <| [successful_empire];
+      Vector_push <| [successful_empire, 1738];
+
+      ~&int microplastics_in_placenta <| ~&queen_regina.disappointment_of_a_son.family_jewels;
+      microplastics_in_placenta <| 5;
+    }
+    
+    Printnl <| [Vector_get <| [&king_gregory.disappointment_of_a_son.dynasties, 0]];
+    Printnl <| [&king_gregory.disappointment_of_a_son.family_jewels];
+  
+    Printnl <| [Vector_get <| [&queen_regina.disappointment_of_a_son.dynasties, 0]];
+    Printnl <| [&queen_regina.disappointment_of_a_son.family_jewels];
   }
   
 

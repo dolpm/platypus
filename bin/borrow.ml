@@ -574,10 +574,11 @@ let borrow_ck pipes verbose =
     inner sex []
   in
 
-  let find_moves (sex : s_expr) : string list =
+  let find_moves (sex : s_expr) (active_refs : StringSet.t) : string list =
     let rec inner ((_t, e) : s_expr) (names : string list) : string list =
       match e with
-      | SIdent name -> name :: names
+      | SIdent name ->
+          if StringSet.mem name active_refs then [] else name :: names
       | SBinop (s1, _, s2) -> inner s2 names @ inner s1 names
       | SUnop (Ref, _) | SUnop (MutRef, _) -> []
       | SUnop (_, s) -> inner s names
@@ -682,10 +683,9 @@ let borrow_ck pipes verbose =
                 (* check ownership of args *)
                 let names =
                   List.fold_left
-                    (fun idents sex -> find_moves sex @ idents)
+                    (fun idents sex -> find_moves sex active_refs @ idents)
                     [] args
                 in
-
 
                 let _ =
                   List.iter
@@ -726,6 +726,10 @@ let borrow_ck pipes verbose =
                     symbol_table args
                 in
                 (StringMap.add b.name b.node_id symbol_table', active_refs)
+            | _ty, SUnop (Ref, (_, STupleIndex _))
+            | _ty, SUnop (MutRef, (_, STupleIndex _))
+            | _ty, SUnop (Ref, (_, SThingAccess _))
+            | _ty, SUnop (MutRef, (_, SThingAccess _))
             | _ty, SUnop (Ref, (_, SIdent _))
             | _ty, SUnop (MutRef, (_, SIdent _)) ->
                 (symbol_table, StringSet.add b.name active_refs)
@@ -739,7 +743,7 @@ let borrow_ck pipes verbose =
           (* check ownership of args *)
           let names =
             List.fold_left
-              (fun idents sex -> find_moves sex @ idents)
+              (fun idents sex -> find_moves sex active_refs @ idents)
               [] pc.args
           in
 

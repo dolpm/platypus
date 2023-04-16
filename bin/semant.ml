@@ -250,8 +250,7 @@ let check (things, pipes) verbosity =
             | Ref -> Borrow (inner_typ, "'_")
             | _ -> make_err "how the fuck did we get here?"
           in
-
-          (brw, STupleIndex (t_name, idx))
+          (brw, SUnop (op, (inner_typ, STupleIndex (t_name, idx))))
       | Unop ((Ref as op), ThingAccess (v_name, access_list))
       | Unop ((MutRef as op), ThingAccess (v_name, access_list)) ->
           let mut, typ = StringMap.find v_name symbols in
@@ -293,7 +292,11 @@ let check (things, pipes) verbosity =
             | Ref -> Borrow (typ_of_access, "'_")
             | _ -> make_err "how the fuck did we get here?"
           in
-          (brw, SThingAccess (t_to_be_accessed, v_name, access_list))
+          ( brw,
+            SUnop
+              ( op,
+                ( typ_of_access,
+                  SThingAccess (t_to_be_accessed, v_name, access_list) ) ) )
       | Unop (op, e1) as e ->
           let t1, e1' = expr e1 symbols in
           let ty =
