@@ -886,7 +886,7 @@ let translate (things, pipes) ownership_map m_external =
 
           let builder' = ref builder in
 
-          let _ =
+          let ret_expr =
             List.fold_left
               (fun return_expr s ->
                 let v_names =
@@ -931,6 +931,18 @@ let translate (things, pipes) ownership_map m_external =
                     in
                     return_expr)
               None sl
+          in
+
+          (* if no ret expression was found in block, free owned vars *)
+          let _ =
+            match ret_expr with
+            | None ->
+                List.iter
+                  (fun n ->
+                    let v, t = StringMap.find n !variables in
+                    builder' := free t v !builder')
+                  block_deallocs
+            | Some _ -> ()
           in
 
           !builder'
