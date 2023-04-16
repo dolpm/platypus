@@ -104,8 +104,7 @@ let translate (things, pipes) ownership_map m_external =
   in
 
   let vector_get_t =
-    L.function_type
-      (L.pointer_type (ltype_of_typ A.Generic))
+    L.function_type (ltype_of_typ A.Generic)
       [| L.pointer_type vector_t; i32_t |]
   in
   let vector_get_func =
@@ -704,7 +703,7 @@ let translate (things, pipes) ownership_map m_external =
 
     let free (typ : A.defined_type) (llvalue : L.llvalue)
         (builder : L.llbuilder) =
-      let rec free_inner typ llvalue builder (_is_root : bool) =
+      let rec free_inner typ llvalue builder (is_root : bool) =
         match typ with
         | A.Vector typ_inner ->
             let v_struct_llv = L.build_load llvalue "v_struct" builder in
@@ -742,7 +741,8 @@ let translate (things, pipes) ownership_map m_external =
 
                   (* cast the value to its type *)
                   let ptr_to_inner =
-                    L.build_bitcast fetched_item
+                    L.build_bitcast
+                      fetched_item
                       (L.pointer_type (ltype_of_typ typ_inner))
                       "vector_item_as_type" body_builder
                   in
@@ -783,14 +783,14 @@ let translate (things, pipes) ownership_map m_external =
             in
 
             (* free the pointer itself, only needed at top level, otherwise we'll get a double-free *)
-            (*
             let _ =
-              if is_root then
-                let _ = L.build_free v_struct_llv builder in
+              if not is_root then
+                (* let _ = L.build_free v_struct_llv builder in *)
+                (* let _ = L.build_free llvalue builder in *)
                 ()
               else ()
             in
-            *)
+
             builder
         | A.Box typ_inner ->
             (* load the malloc *)
