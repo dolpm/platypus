@@ -247,6 +247,7 @@ let translate (things, pipes) ownership_map m_external =
                         (L.pointer_type (ltype_of_typ inner_typ))
                         "vector_item_casted" builder
                     in
+
                     let malloc_of_atom =
                       L.build_malloc (ltype_of_typ inner_typ) "cloned_value"
                         builder
@@ -299,12 +300,43 @@ let translate (things, pipes) ownership_map m_external =
 
               let _ = L.position_at_end merge_bb builder in
 
-              let _ = print_endline "setting at end of merge" in
-
               new_vector_casted
             in
 
             cloned_vector
+        | A.Box typ_inner ->
+            let cloned_child =
+              match typ_inner with
+              (* recursively clone box internals *)
+              | A.Vector _ | A.Box _ | A.Str ->
+                  (* store inner value in ptr on stack *)
+                  let inner_ptr =
+                    L.build_alloca (ltype_of_typ typ_inner) "box_inner_ptr"
+                      builder
+                  in
+
+                  (* load the value inside of the malloc (i.e., boxed thing) *)
+                  let _ =
+                    L.build_store
+                      (L.build_load llvalue "box_malloc_inner" builder)
+                      inner_ptr builder
+                  in
+
+                  let cloned_box =
+                    clone_inner typ_inner inner_ptr builder true
+                  in
+                  cloned_box
+              | _ -> L.build_load llvalue "loaded_inner" builder
+            in
+
+            let malloc_of_box =
+              L.build_malloc (ltype_of_typ typ_inner) "cloned_value" builder
+            in
+
+            let _ = L.build_store cloned_child malloc_of_box builder in
+
+            malloc_of_box
+        (* TODO: str, thing, tuple *)
         | _ ->
             (* Store value into pointer *)
             let clone_ptr =

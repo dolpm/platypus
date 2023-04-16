@@ -1,3 +1,4 @@
+/*
 pipe main |> [] |> [] |> unit {
   mut vector[int] x <| Vector_new <| [];
   Vector_push <| [~&x, 2048];
@@ -12,5 +13,21 @@ pipe main |> [] |> [] |> unit {
   
   Printnl <| [Vector_get <| [&y, 0]];
   Printnl <| [Vector_get <| [&x, 0]];
+  |> ();
+}
+*/
+
+pipe main |> [] |> [] |> unit {
+  box[int] x <| Box_new <| [2048];
+  mut box[int] y <| %x;
+
+  {
+    ~&int unboxed <| Box_unbox_mut <| [~&y];
+    unboxed <| 4028;
+  }
+
+  Printnl <| [Box_unbox <| [&y]];
+  Printnl <| [Box_unbox <| [&x]];
+
   |> ();
 }
