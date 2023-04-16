@@ -132,6 +132,9 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "Str_compare" str_compare_t the_module
   in
 
+  let str_clone_t = L.function_type string_t [| string_t |] in
+  let str_clone_func = L.declare_function "Str_clone" str_clone_t the_module in
+
   (* Define all pipes declarations *)
   let pipe_decls : (L.llvalue * s_pipe_declaration) StringMap.t =
     let pipe_decl m pdecl =
@@ -351,8 +354,54 @@ let translate (things, pipes) ownership_map m_external =
                   idx + 1)
                 0 (List.find (fun t -> t.stname = thing_name) things).selements
             in
-
             new_instance
+        | A.Tuple typs ->
+            let built_types = List.map (fun t -> ltype_of_typ t) typs in
+            (* create the packed struct type and allocate space for it *)
+            let types_as_packed =
+              L.packed_struct_type context (Array.of_list built_types)
+            in
+
+            let ptr = L.build_alloca types_as_packed "tuple_ptr" builder in
+            (* access and store the values in the struct *)
+            let _ =
+              List.fold_left
+                (fun idx t ->
+                  let old_ep =
+                    L.build_struct_gep llvalue idx
+                      ("tuple-gep." ^ string_of_int idx)
+                      builder
+                  in
+
+                  let casted_gep =
+                    L.build_bitcast old_ep
+                      (L.pointer_type (ltype_of_typ t))
+                      "casted_gep" builder
+                  in
+
+                  let loaded_cast = L.build_load casted_gep "tmp" builder in
+
+                  let cloned_value =
+                    match t with
+                    | A.Vector _ | A.Box _ | A.Str | A.Ident _ ->
+                        clone_inner t loaded_cast builder true
+                    | _ -> loaded_cast
+                  in
+
+                  let new_ep =
+                    L.build_struct_gep ptr idx
+                      ("tuple-gep." ^ string_of_int idx)
+                      builder
+                  in
+
+                  let _ = L.build_store cloned_value new_ep builder in
+                  idx + 1)
+                0 typs
+            in
+
+            ptr
+        | A.Str ->
+            L.build_call str_clone_func [| llvalue |] "cloned_string" builder
         | _ ->
             (* Store value into pointer *)
             let clone_ptr =

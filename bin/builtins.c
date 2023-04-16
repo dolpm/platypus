@@ -109,3 +109,8 @@ int Str_compare(char *s1, char *s2)
 {
   return strcmp(s1, s2);
 }
+
+char *Str_clone(char *s)
+{
+  return strdup(s);
+}

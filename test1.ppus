@@ -1,72 +1,39 @@
-thing MyThingAtom <| {
-  family_jewels: int,
-  has_genetic_disease: bool,
-  dynasties: vector[int]
-}
-
-thing Forefather <| {
-  virility : float,
-  disappointment_of_a_son : MyThingAtom 
-}
-
 pipe main |> [] |> [] |> unit {
   /* depth = 1 */
   {
-    vector[int] nomadic <| Vector_new <| [];
-
-    mut MyThingAtom t <| MyThingAtom {
-      family_jewels: 1,
-      has_genetic_disease: true,
-      dynasties: nomadic
-    };
-
-    mut MyThingAtom t_cloned <| %t;
-
+    [int * string] t <| tuple(0, "hi");
+    mut [int * string] t_clone <| %t;
 
     {
-        ~&int t_setter <| ~&t_cloned.family_jewels;
-        t_setter <| 0;
+      ~&int zero <| ~&t_clone.0;
+      zero <| 1;
     }
 
-    
-    Printnl <| [&t_cloned.family_jewels];
-    Printnl <| [&t.family_jewels];
+    Printnl <| [&t.0];    
+    Printnl <| [&t_clone.0];
   }
 
   /* depth > 1 */
   {
-    vector[int] reign_of_george <| Vector_new <| [];
-
-    mut Forefather king_gregory <| Forefather {
-      virility : 78.0,
-      disappointment_of_a_son: MyThingAtom {
-        family_jewels: 10,
-        has_genetic_disease: true,
-        dynasties: reign_of_george
-      }
-    };
-    
-    {
-      ~&vector[int] middling_conquest <| ~&king_gregory.disappointment_of_a_son.dynasties;
-      Vector_push <| [middling_conquest, 55];
-    }
-
-    mut Forefather queen_regina <| %king_gregory;
+    mut vector[int] guests <| Vector_new <| [];
+    Vector_push <| [~&guests, 10];
+    [bool * vector[int]] lame_party <| tuple(false, guests);
+    mut [bool * vector[int]] swag_party <| %lame_party;
 
     {
-      ~&vector[int] successful_empire <| ~&queen_regina.disappointment_of_a_son.dynasties;
-      Vector_pop <| [successful_empire];
-      Vector_push <| [successful_empire, 1738];
+      ~&bool more_drugs <| ~&swag_party.0;
+      more_drugs <| true;
 
-      ~&int microplastics_in_placenta <| ~&queen_regina.disappointment_of_a_son.family_jewels;
-      microplastics_in_placenta <| 5;
+      ~&vector[int] pop_out_to_the_party <| ~&swag_party.1;
+      Vector_pop <| [pop_out_to_the_party];
+      Vector_push <| [pop_out_to_the_party, 14124];
     }
-    
-    Printnl <| [Vector_get <| [&king_gregory.disappointment_of_a_son.dynasties, 0]];
-    Printnl <| [&king_gregory.disappointment_of_a_son.family_jewels];
+
+    Printnl <| [&lame_party.0];
+    Printnl <| [Vector_get <| [&lame_party.1, 0]];
   
-    Printnl <| [Vector_get <| [&queen_regina.disappointment_of_a_son.dynasties, 0]];
-    Printnl <| [&queen_regina.disappointment_of_a_son.family_jewels];
+    Printnl <| [&swag_party.0];
+    Printnl <| [Vector_get <| [&swag_party.1, 0]];
   }
   
 
