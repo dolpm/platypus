@@ -37,6 +37,7 @@ void Vector_free(struct Vector *v)
   }
 
   free(v->list);
+  free(v);
 }
 
 void Vector_grow(struct Vector *v)
