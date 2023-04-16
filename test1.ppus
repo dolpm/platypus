@@ -29,7 +29,6 @@ pipe main |> [] |> [] |> unit {
 
     {
         ~&vector[int] y_inner_setter <| Vector_get_mut <| [~&y, 0];
-        
         ~&int y_setter <| Vector_get_mut <| [y_inner_setter, 0];
         y_setter <| 4028;
     }
@@ -38,19 +37,13 @@ pipe main |> [] |> [] |> unit {
     Printnl <| [Vector_get <| [Vector_get <| [&x, 0], 0]];
   }
   */
-
+  
     mut vector[vector[int]] x <| Vector_new <| [];
     mut vector[int] x_inner <| Vector_new <| [];
     Vector_push <| [~&x_inner, 2048];
     Vector_push <| [~&x, x_inner];
-    &vector[int] gotten <| Vector_get <| [&x, 0];
 
-    int len <| Vector_length <| [gotten];
-
-    Printnl <| [len];
-
-    /* Vector_get <| [Vector_get <| [&x, 0], 0]; */
-
+    Printnl <| ["hi"];
   |> ();
 }
 

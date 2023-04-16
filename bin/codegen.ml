@@ -741,18 +741,10 @@ let translate (things, pipes) ownership_map m_external =
                   in
 
                   (* cast the value to its type *)
-                  let casted_value =
-                    L.build_bitcast fetched_item (ltype_of_typ typ_inner)
-                      "vector_item_as_type" body_builder
-                  in
-
                   let ptr_to_inner =
-                    L.build_alloca (ltype_of_typ typ_inner) "ptr_to_inner"
-                      body_builder
-                  in
-
-                  let _ =
-                    L.build_store casted_value ptr_to_inner body_builder
+                    L.build_bitcast fetched_item
+                      (L.pointer_type (ltype_of_typ typ_inner))
+                      "vector_item_as_type" body_builder
                   in
 
                   (* call free on this casted value *)
