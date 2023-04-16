@@ -37,6 +37,7 @@ void Vector_free(struct Vector *v)
   }
 
   free(v->list);
+  free(v);
 }
 
 void Vector_grow(struct Vector *v)
@@ -107,4 +108,9 @@ void Str_push(char *s, char c)
 int Str_compare(char *s1, char *s2)
 {
   return strcmp(s1, s2);
+}
+
+char *Str_clone(char *s)
+{
+  return strdup(s);
 }

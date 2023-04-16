@@ -6,13 +6,6 @@ pipe main |> [] |> [] |> unit {
 
   Printnl <| [&s];
   Printnl <| [&s_cloned];
-  
-  /*
-  vector[int] v <| Vector_new <| [];
-  v <| Vector_new <| [];
-  */
 
   |> ();
 }
-
-

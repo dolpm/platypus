@@ -1,0 +1,7 @@
+pipe main |> [] |> [] |> unit {
+  mut vector[int] v <| Vector_new <| [];
+  v <| Vector_new <| [];
+  |> ();
+}
+
+

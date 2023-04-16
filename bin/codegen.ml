@@ -104,8 +104,7 @@ let translate (things, pipes) ownership_map m_external =
   in
 
   let vector_get_t =
-    L.function_type
-      (L.pointer_type (ltype_of_typ A.Generic))
+    L.function_type (ltype_of_typ A.Generic)
       [| L.pointer_type vector_t; i32_t |]
   in
   let vector_get_func =
@@ -132,6 +131,9 @@ let translate (things, pipes) ownership_map m_external =
   let str_compare_func =
     L.declare_function "Str_compare" str_compare_t the_module
   in
+
+  let str_clone_t = L.function_type string_t [| string_t |] in
+  let str_clone_func = L.declare_function "Str_clone" str_clone_t the_module in
 
   (* Define all pipes declarations *)
   let pipe_decls : (L.llvalue * s_pipe_declaration) StringMap.t =
@@ -224,41 +226,26 @@ let translate (things, pipes) ownership_map m_external =
                   "vector_item" builder
               in
 
+              let casted_value =
+                L.build_bitcast fetched_item
+                  (L.pointer_type (ltype_of_typ inner_typ))
+                  "vector_item_casted" builder
+              in
+
+              let malloc =
+                L.build_malloc (ltype_of_typ inner_typ) "cloned_value" builder
+              in
+
               let cloned_child =
                 match inner_typ with
                 | A.Vector _ | A.Box _ | A.Str ->
-                    (* cast value (i8 pointer) to its type *)
-                    let casted_value =
-                      L.build_bitcast fetched_item (ltype_of_typ inner_typ)
-                        "vector_item_casted" builder
-                    in
-
-                    let ptr_to_inner =
-                      L.build_alloca (ltype_of_typ inner_typ) "ptr_to_inner"
-                        builder
-                    in
-                    let _ = L.build_store casted_value ptr_to_inner builder in
-
-                    clone_inner inner_typ ptr_to_inner builder false
-                | _ ->
-                    (* cast value (i8 pointer) to a pointer to the atom type *)
-                    let casted_value =
-                      L.build_bitcast fetched_item
-                        (L.pointer_type (ltype_of_typ inner_typ))
-                        "vector_item_casted" builder
-                    in
-
-                    let malloc_of_atom =
-                      L.build_malloc (ltype_of_typ inner_typ) "cloned_value"
-                        builder
-                    in
-                    let _ =
-                      L.build_store
-                        (L.build_load casted_value "loaded_value" builder)
-                        malloc_of_atom builder
-                    in
-                    malloc_of_atom
+                    clone_inner inner_typ
+                      (L.build_load casted_value "loaded_diaper" builder)
+                      builder false
+                | _ -> L.build_load casted_value "loaded_value" builder
               in
+
+              let _ = L.build_store cloned_child malloc builder in
 
               let ptr_of_cloned_child =
                 L.build_alloca (ltype_of_typ A.Generic) "ptr_of_cloned_child"
@@ -267,8 +254,8 @@ let translate (things, pipes) ownership_map m_external =
 
               let _ =
                 L.build_store
-                  (L.build_bitcast cloned_child (ltype_of_typ A.Generic) "tmp"
-                     builder)
+                  (L.build_bitcast malloc (ltype_of_typ A.Generic)
+                     "casted_to_push" builder)
                   ptr_of_cloned_child builder
               in
 
@@ -309,26 +296,17 @@ let translate (things, pipes) ownership_map m_external =
               match typ_inner with
               (* recursively clone box internals *)
               | A.Vector _ | A.Box _ | A.Str ->
-                  (* store inner value in ptr on stack *)
-                  let inner_ptr =
-                    L.build_alloca (ltype_of_typ typ_inner) "box_inner_ptr"
-                      builder
-                  in
-
-                  (* load the value inside of the malloc (i.e., boxed thing) *)
-                  let _ =
-                    L.build_store
-                      (L.build_load llvalue "box_malloc_inner" builder)
-                      inner_ptr builder
-                  in
-
+                  (* get the inner value from the box and recurse on it *)
                   let cloned_box =
-                    clone_inner typ_inner inner_ptr builder true
+                    clone_inner typ_inner
+                      (L.build_load llvalue "box_malloc_inner" builder)
+                      builder true
                   in
                   cloned_box
               | _ -> L.build_load llvalue "loaded_inner" builder
             in
 
+            (* malloc the new value *)
             let malloc_of_box =
               L.build_malloc (ltype_of_typ typ_inner) "cloned_value" builder
             in
@@ -337,6 +315,93 @@ let translate (things, pipes) ownership_map m_external =
 
             malloc_of_box
         (* TODO: str, thing, tuple *)
+        | A.Ident thing_name ->
+            let new_instance =
+              L.build_alloca
+                (StringMap.find thing_name !thing_types)
+                "new_thing_instance" builder
+            in
+
+            let _ =
+              List.fold_left
+                (fun idx (_, elem_typ, _) ->
+                  let gepped =
+                    L.build_struct_gep llvalue idx "gep_on_instance" builder
+                  in
+
+                  let casted_gep =
+                    L.build_bitcast gepped
+                      (L.pointer_type (ltype_of_typ elem_typ))
+                      "casted_gep" builder
+                  in
+
+                  let loaded_cast = L.build_load casted_gep "tmp" builder in
+
+                  let cloned_value =
+                    match elem_typ with
+                    | A.Vector _ | A.Box _ | A.Str | A.Ident _ ->
+                        clone_inner elem_typ loaded_cast builder true
+                    | _ -> loaded_cast
+                  in
+
+                  let new_gepped =
+                    L.build_struct_gep new_instance idx "gep_on_new_instance"
+                      builder
+                  in
+
+                  let _ = L.build_store cloned_value new_gepped builder in
+
+                  idx + 1)
+                0 (List.find (fun t -> t.stname = thing_name) things).selements
+            in
+            new_instance
+        | A.Tuple typs ->
+            let built_types = List.map (fun t -> ltype_of_typ t) typs in
+            (* create the packed struct type and allocate space for it *)
+            let types_as_packed =
+              L.packed_struct_type context (Array.of_list built_types)
+            in
+
+            let ptr = L.build_alloca types_as_packed "tuple_ptr" builder in
+            (* access and store the values in the struct *)
+            let _ =
+              List.fold_left
+                (fun idx t ->
+                  let old_ep =
+                    L.build_struct_gep llvalue idx
+                      ("tuple-gep." ^ string_of_int idx)
+                      builder
+                  in
+
+                  let casted_gep =
+                    L.build_bitcast old_ep
+                      (L.pointer_type (ltype_of_typ t))
+                      "casted_gep" builder
+                  in
+
+                  let loaded_cast = L.build_load casted_gep "tmp" builder in
+
+                  let cloned_value =
+                    match t with
+                    | A.Vector _ | A.Box _ | A.Str | A.Ident _ ->
+                        clone_inner t loaded_cast builder true
+                    | _ -> loaded_cast
+                  in
+
+                  let new_ep =
+                    L.build_struct_gep ptr idx
+                      ("tuple-gep." ^ string_of_int idx)
+                      builder
+                  in
+
+                  let _ = L.build_store cloned_value new_ep builder in
+                  idx + 1)
+                0 typs
+            in
+
+            ptr
+        | A.Str ->
+            L.build_call str_clone_func [| llvalue |] "cloned_string" builder
         | _ ->
             (* Store value into pointer *)
             let clone_ptr =
@@ -544,21 +609,14 @@ let translate (things, pipes) ownership_map m_external =
               let load_value = expr builder (t, e) in
               L.build_load load_value "derefed_value" builder
           | Ref | MutRef -> (
-              match t with
-              (*
-              | Vector _ | Box _ -> expr builder (t, e)
-              *)
+              match e with
+              | SIdent n -> fst (StringMap.find n !variables)
+              | SThingAccess _ | STupleIndex _ -> expr builder (t, e)
               | _ ->
-                  (* get a reference to the existing value *)
-                  let v_name =
-                    match e with
-                    | SIdent n -> n
-                    | _ -> raise (Failure "can't reference a non-ident!")
-                  in
-
-                  let reffed_value = fst (StringMap.find v_name !variables) in
-
-                  reffed_value)
+                  raise
+                    (Failure
+                       "can only do references on idents, thing accesses, and \
+                        tuple indexing!"))
           | Neg ->
               let load_value = expr builder (t, e) in
               L.build_neg load_value "negated_value" builder
@@ -614,43 +672,33 @@ let translate (things, pipes) ownership_map m_external =
           L.build_load (expr builder box) "unboxed_box" builder
       | SPipeIn ("Vector_new", []) ->
           L.build_call vector_new_func [||] "Vector_new" builder
+      | SPipeIn ("Vector_length", [ vector ]) ->
+          let loaded_vec =
+            L.build_load (expr builder vector) "loaded_vec" builder
+          in
+          L.build_load
+            (L.build_struct_gep loaded_vec 0 "v_len_ptr" builder)
+            "vector_length" builder
       | SPipeIn ("Vector_push", [ vector; ((t, _e) as value) ]) ->
-          (* Check if value is on heap or stack; if on stack, create void ptr of it before passing into alloc *)
           let e' = expr builder value in
 
           let elem_arg =
-            match t with
-            | A.Box _ -> e'
-            | A.Vector _ ->
-                let ptr_casted_to_void =
-                  L.build_bitcast e' (L.pointer_type i8_t) "ptr_casted_to_void"
-                    builder
-                in
-                let ref_of_ptr =
-                  L.build_alloca (L.pointer_type i8_t) "ref_of_ptr" builder
-                in
-                let _ = L.build_store ptr_casted_to_void ref_of_ptr builder in
+            let malloc_of_t =
+              L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
+            in
+            let _ = L.build_store e' malloc_of_t builder in
 
-                ref_of_ptr
-            | _ ->
-                let malloc_of_t =
-                  L.build_malloc (ltype_of_typ t) "malloc_of_t" builder
-                in
-                let _ = L.build_store e' malloc_of_t builder in
+            let malloc_casted_to_void =
+              L.build_bitcast malloc_of_t (L.pointer_type i8_t)
+                "malloc_casted_to_void" builder
+            in
 
-                let malloc_casted_to_void =
-                  L.build_bitcast malloc_of_t (L.pointer_type i8_t)
-                    "malloc_casted_to_void" builder
-                in
+            let ref_of_malloc =
+              L.build_alloca (L.pointer_type i8_t) "ref_of_malloc" builder
+            in
+            let _ = L.build_store malloc_casted_to_void ref_of_malloc builder in
 
-                let ref_of_malloc =
-                  L.build_alloca (L.pointer_type i8_t) "ref_of_malloc" builder
-                in
-                let _ =
-                  L.build_store malloc_casted_to_void ref_of_malloc builder
-                in
-
-                ref_of_malloc
+            ref_of_malloc
           in
 
           let loaded_vec =
@@ -678,6 +726,7 @@ let translate (things, pipes) ownership_map m_external =
             | Borrow (Vector t, _) -> t
             | _ -> raise (Failure "panic!")
           in
+
           L.build_bitcast fetched_item
             (L.pointer_type (ltype_of_typ inner_type))
             "vector_item_as_type" builder
@@ -728,7 +777,7 @@ let translate (things, pipes) ownership_map m_external =
 
     let free (typ : A.defined_type) (llvalue : L.llvalue)
         (builder : L.llbuilder) =
-      let rec free_inner typ llvalue builder (is_root : bool) =
+      let rec free_inner typ llvalue builder =
         match typ with
         | A.Vector typ_inner ->
             let v_struct_llv = L.build_load llvalue "v_struct" builder in
@@ -765,23 +814,15 @@ let translate (things, pipes) ownership_map m_external =
                   in
 
                   (* cast the value to its type *)
-                  let casted_value =
-                    L.build_bitcast fetched_item (ltype_of_typ typ_inner)
-                      "vector_item_as_type" body_builder
-                  in
-
                   let ptr_to_inner =
-                    L.build_alloca (ltype_of_typ typ_inner) "ptr_to_inner"
-                      body_builder
-                  in
-
-                  let _ =
-                    L.build_store casted_value ptr_to_inner body_builder
+                    L.build_bitcast fetched_item
+                      (L.pointer_type (ltype_of_typ typ_inner))
+                      "vector_item_as_type" body_builder
                   in
 
                   (* call free on this casted value *)
                   let body_builder' =
-                    free_inner typ_inner ptr_to_inner body_builder false
+                    free_inner typ_inner ptr_to_inner body_builder
                   in
 
                   (* increment iterator *)
@@ -814,13 +855,6 @@ let translate (things, pipes) ownership_map m_external =
               L.build_call vector_free_func [| v_struct_llv |] "" builder
             in
 
-            (* free the pointer itself, only needed at top level, otherwise we'll get a double-free *)
-            let _ =
-              if is_root then
-                let _ = L.build_free v_struct_llv builder in
-                ()
-              else ()
-            in
             builder
         | A.Box typ_inner ->
             (* load the malloc *)
@@ -842,7 +876,7 @@ let translate (things, pipes) ownership_map m_external =
                       inner_ptr builder
                   in
 
-                  let builder' = free_inner typ_inner inner_ptr builder true in
+                  let builder' = free_inner typ_inner inner_ptr builder in
                   builder'
               | _ -> builder
             in
@@ -871,7 +905,7 @@ let translate (things, pipes) ownership_map m_external =
                       (L.pointer_type (ltype_of_typ elem_typ))
                       "casted_gep" builder
                   in
-                  let builder' = free_inner elem_typ casted_gep builder true in
+                  let builder' = free_inner elem_typ casted_gep builder in
                   (idx + 1, builder'))
                 (0, builder)
                 (List.find (fun t -> t.stname = thing_name) things).selements
@@ -893,14 +927,14 @@ let translate (things, pipes) ownership_map m_external =
                       (L.pointer_type (ltype_of_typ elem_typ))
                       "casted_gep" builder
                   in
-                  let builder' = free_inner elem_typ casted_gep builder true in
+                  let builder' = free_inner elem_typ casted_gep builder in
                   (idx + 1, builder'))
                 (0, builder) inner_types
             in
             builder'
         | _ -> builder
       in
-      free_inner typ llvalue builder true
+      free_inner typ llvalue builder
     in
 
     let rec stmt s dangling_owns builder =
@@ -918,7 +952,7 @@ let translate (things, pipes) ownership_map m_external =
 
           let builder' = ref builder in
 
-          let _ =
+          let ret_expr =
             List.fold_left
               (fun return_expr s ->
                 let v_names =
@@ -963,6 +997,18 @@ let translate (things, pipes) ownership_map m_external =
                     in
                     return_expr)
               None sl
+          in
+
+          (* if no ret expression was found in block, free owned vars *)
+          let _ =
+            match ret_expr with
+            | None ->
+                List.iter
+                  (fun n ->
+                    let v, t = StringMap.find n !variables in
+                    builder' := free t v !builder')
+                  block_deallocs
+            | Some _ -> ()
           in
 
           !builder'

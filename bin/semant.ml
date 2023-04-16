@@ -23,7 +23,7 @@ let check (things, pipes) verbosity =
       ( "Box_unbox_mut",
         [ (true, MutBorrow (Box Generic, "'_"), "x") ],
         MutBorrow (Generic, "'_") );
-      ("Vector_length", [ (false, Vector Generic, "x") ], Int);
+      ("Vector_length", [ (false, Borrow (Vector Generic, "'_"), "x") ], Int);
       ("Vector_new", [], Vector Generic);
       ( "Vector_get_mut",
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
@@ -250,8 +250,7 @@ let check (things, pipes) verbosity =
             | Ref -> Borrow (inner_typ, "'_")
             | _ -> make_err "how the fuck did we get here?"
           in
-
-          (brw, STupleIndex (t_name, idx))
+          (brw, SUnop (op, (inner_typ, STupleIndex (t_name, idx))))
       | Unop ((Ref as op), ThingAccess (v_name, access_list))
       | Unop ((MutRef as op), ThingAccess (v_name, access_list)) ->
           let mut, typ = StringMap.find v_name symbols in
@@ -293,7 +292,11 @@ let check (things, pipes) verbosity =
             | Ref -> Borrow (typ_of_access, "'_")
             | _ -> make_err "how the fuck did we get here?"
           in
-          (brw, SThingAccess (t_to_be_accessed, v_name, access_list))
+          ( brw,
+            SUnop
+              ( op,
+                ( typ_of_access,
+                  SThingAccess (t_to_be_accessed, v_name, access_list) ) ) )
       | Unop (op, e1) as e ->
           let t1, e1' = expr e1 symbols in
           let ty =
@@ -328,14 +331,14 @@ let check (things, pipes) verbosity =
                 | Borrow (t_inner, _) | MutBorrow (t_inner, _) -> t_inner
                 | _ -> raise (Failure "panic!"))
             | Clone -> (
-              (* Disallow clones of borrows *)
-              match t1 with
-              | MutBorrow _ | Borrow _ -> make_err "can't clone a borrow!"
-              | _ -> t1)
+                (* Disallow clones of borrows *)
+                match t1 with
+                | MutBorrow _ | Borrow _ -> make_err "can't clone a borrow!"
+                | _ -> t1)
             | _ ->
                 make_err
-                     ("illegal unary operator " ^ string_of_uop op ^ " "
-                    ^ string_of_typ t1 ^ " in " ^ string_of_expr e)
+                  ("illegal unary operator " ^ string_of_uop op ^ " "
+                 ^ string_of_typ t1 ^ " in " ^ string_of_expr e)
           in
           (ty, SUnop (op, (t1, e1')))
       | Binop (e1, op, e2) as e ->
@@ -510,6 +513,11 @@ let check (things, pipes) verbosity =
                 (n, (et, e')) :: accum)
               [] children
           in
+
+          let _ = if List.length children' <> List.length thing_defn.elements then 
+            make_err ("number of fields in instance of thing " ^ t_name ^ " does not match thing definition") else () 
+          in
+
           (Ident t_name, SThingValue (t_name, List.rev children'))
       | ThingAccess _ -> make_err "thing access must be borrowed for use"
       | _ -> (Unit, SNoexpr)
