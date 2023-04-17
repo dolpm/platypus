@@ -12,6 +12,8 @@ let check (things, pipes) verbosity =
     [
       ("Print", [ (false, Generic, "x") ], Unit);
       ("Printnl", [ (false, Generic, "x") ], Unit);
+      ("Rng_init", [ (false, Int, "x") ], Unit);
+      ("Rng_generate", [ (false, Int, "x"); (false, Int, "y") ], Int);
       ("panic", [ (false, String, "x") ], Unit);
       ("int_to_string", [ (false, Int, "x") ], String);
       ("float_to_string", [ (false, Float, "x") ], String);

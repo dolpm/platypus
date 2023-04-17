@@ -68,7 +68,6 @@ pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
 }
 
 pipe merge_sort |> [] |> [arr: ~&vector[int], l: int, r: int] |> unit {
-
   if (l < r) {
     int m <| l + (r - l) / 2;
     merge_sort <| [arr, %l, %m];
@@ -78,20 +77,20 @@ pipe merge_sort |> [] |> [arr: ~&vector[int], l: int, r: int] |> unit {
   |> ();
 }
 
-pipe main |> [] |> [] |> unit {
+pipe create_vec_of_size |> [] |> [size: int] |> vector[int] {
   mut vector[int] nums <| Vector_new <| [];
-  
-  {
-    ~&vector[int] nums_mb <| ~&nums;
-    Vector_push <| [nums_mb, 102];
-    Vector_push <| [nums_mb, 432];
-    Vector_push <| [nums_mb, 530];
-    Vector_push <| [nums_mb, 12];
-    Vector_push <| [nums_mb, 43];
-    Vector_push <| [nums_mb, 1020];
-    Vector_push <| [nums_mb, 42323];
-    Vector_push <| [nums_mb, 2034];
+  loop 0->(size-1) as i {
+    Vector_push <| [~&nums, Rng_generate <| [0, 100000]];
   }
+  |> nums;
+}
+
+pipe main |> [] |> [] |> unit {
+  Rng_init <| [1337];
+
+  int len <| 200;
+  
+  mut vector[int] nums <| create_vec_of_size <| [%len];
 
   Print <| ["unsorted: "];
   print_vec <| [&nums];
@@ -101,7 +100,7 @@ pipe main |> [] |> [] |> unit {
   */
 
 
-  merge_sort <| [~&nums, 0, 7];
+  merge_sort <| [~&nums, 0, len - 1];
 
   Print <| ["sorted: "];
   print_vec <| [&nums];

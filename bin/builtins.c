@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <stdlib.h>
 
 /* VECTORS */
 
@@ -113,4 +115,25 @@ int Str_compare(char *s1, char *s2)
 char *Str_clone(char *s)
 {
   return strdup(s);
+}
+
+/* RNG */
+void Rng_init(int seed)
+{
+  // set seed to 0 for actual randomization
+  if (seed == 0)
+  {
+    srand((unsigned int)time(NULL));
+  }
+  else
+  {
+    srand(seed);
+  }
+}
+
+int Rng_generate(int min, int max)
+{
+  return (rand() %
+          (max - min + 1)) +
+         min;
 }

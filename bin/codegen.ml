@@ -136,6 +136,14 @@ let translate (things, pipes) ownership_map m_external =
   let str_clone_t = L.function_type string_t [| string_t |] in
   let str_clone_func = L.declare_function "Str_clone" str_clone_t the_module in
 
+  let rng_init_t = L.function_type unit_t [| i32_t |] in
+  let rng_init_func = L.declare_function "Rng_init" rng_init_t the_module in
+
+  let rng_generate_t = L.function_type i32_t [| i32_t; i32_t |] in
+  let rng_generate_func =
+    L.declare_function "Rng_generate" rng_generate_t the_module
+  in
+
   (* Define all pipes declarations *)
   let pipe_decls : (L.llvalue * s_pipe_declaration) StringMap.t =
     let pipe_decl m pdecl =
@@ -694,6 +702,12 @@ let translate (things, pipes) ownership_map m_external =
           | String ->
               L.build_call printf_func [| newline_str; arg |] "printf" builder
           | _ -> raise (Failure "panic! invalid printnl arg type!"))
+      | SPipeIn ("Rng_init", [ seed ]) ->
+          L.build_call rng_init_func [| expr builder seed |] "" builder
+      | SPipeIn ("Rng_generate", [ min; max ]) ->
+          L.build_call rng_generate_func
+            [| expr builder min; expr builder max |]
+            "rng_generate" builder
       | SPipeIn ("Box_new", [ ((t, _e) as value) ]) ->
           (* evaluate the expression*)
           let e' = expr builder value in
