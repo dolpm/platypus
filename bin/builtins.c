@@ -126,7 +126,14 @@ int Rng_generate(int min, int max)
   return (unsigned int)(((next / 65536) % (max - min + 1)) + min);
 }
 
-void Rng_init(unsigned int seed)
+void Rng_init(int seed)
 {
-  next = seed;
+  if (seed < 0)
+  {
+    next = time(NULL);
+  }
+  else
+  {
+    next = seed;
+  }
 }
