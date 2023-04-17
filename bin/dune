@@ -9,8 +9,6 @@
   llvm.irreader
   llvm.linker
   llvm.executionengine
-  llvm.scalar_opts
-  llvm.target
   llvm.bitwriter
   llvm.passmgr_builder
   ctypes.foreign))

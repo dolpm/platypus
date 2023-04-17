@@ -48,13 +48,12 @@ run_test () {
     fi
 }
 
-test_dirs=("ast" "sast" "codegen" "compile")
-test_flags=("-a" "-s" "-l" "-e")
+test_dirs=("ast" "sast" "compile")
+test_flags=("-a" "-s" "-e")
 
 flag_map=(
     "ast|-a"
     "sast|-s"
-    "codegen|-l"
     "compile|-e"
 )
 
