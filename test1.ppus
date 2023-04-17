@@ -1,10 +1,5 @@
-pipe merge |> [] |> [arr: ~&vector[int]] |> unit {
-  |> ();
-}
-
 pipe print_vec |> [] |> [arr: &vector[int]] |> unit {
   int v_len <| Vector_length <| [arr];
-
   Print <| ["["];
   loop 0->(v_len - 1) as i {
     Print <| [Vector_get <| [arr, %i]];
@@ -13,6 +8,73 @@ pipe print_vec |> [] |> [arr: &vector[int]] |> unit {
     }
   }
   Printnl <| ["]"];  
+  |> ();
+}
+
+pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
+  int n1 <| (m - l) + 1;
+  int n2 <| r - m;
+
+  mut vector[int] left <| Vector_new <| [];
+  mut vector[int] right <| Vector_new <| [];
+
+  loop 0->(n1 - 1) as i {
+    /* TODO: make sure thi the vector item MUST be cloned (not just deref'd) */
+    Vector_push <| [~&left, %@Vector_get_mut <| [arr, l + i]];
+  }
+  
+  loop 0->(n2 - 1) as i {
+    Vector_push <| [~&right, %@Vector_get_mut <| [arr, m + i + 1]];
+  }
+
+  mut int i <| 0;
+  mut int j <| 0;
+  mut int k <| l;
+
+  while (i < n1 and j < n2) {
+    &int l_item <| Vector_get <| [&left, %i];
+    &int r_item <| Vector_get <| [&right, %j];
+
+    /* wow - illegal! so cool! */
+    /* ~&int l_item_mut <| Vector_get_mut <| [~&left, %i]; */
+
+    ~&int k_setter <| Vector_get_mut <| [arr, %k];
+    if (@l_item < @r_item) {
+      k_setter <| %@l_item;
+      i <| i + 1;
+    } else {
+      k_setter <| %@r_item;
+      j <| j + 1;
+    }
+    
+    k <| k + 1;
+  }
+
+  while (i < n1) {
+    ~&int k_setter <| Vector_get_mut <| [arr, %k];
+    k_setter <| %@(Vector_get <| [&left, %i]);
+    i <| i + 1;
+    k <| k + 1;
+  }
+
+  while (j < n2) {
+    ~&int k_setter <| Vector_get_mut <| [arr, %k];
+    k_setter <| %@(Vector_get <| [&right, %j]);
+    j <| j + 1;
+    k <| k + 1;
+  }
+
+  |> ();
+}
+
+pipe merge_sort |> [] |> [arr: ~&vector[int], l: int, r: int] |> unit {
+
+  if (l < r) {
+    int m <| l + (r - l) / 2;
+    merge_sort <| [arr, %l, %m];
+    merge_sort <| [arr, %m + 1, %r];
+    merge <| [arr, l, m, r];
+  }
   |> ();
 }
 
@@ -31,6 +93,17 @@ pipe main |> [] |> [] |> unit {
     Vector_push <| [nums_mb, 2034];
   }
 
+  Print <| ["unsorted: "];
+  print_vec <| [&nums];
+  /*
+  TODO: FIX not able to take this out on nums
+  int nums_len <| Vector_length <| [&nums];
+  */
+
+
+  merge_sort <| [~&nums, 0, 7];
+
+  Print <| ["sorted: "];
   print_vec <| [&nums];
   
   |> ();
