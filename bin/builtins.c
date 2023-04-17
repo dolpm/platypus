@@ -117,23 +117,16 @@ char *Str_clone(char *s)
   return strdup(s);
 }
 
-/* RNG */
-void Rng_init(int seed)
-{
-  // set seed to 0 for actual randomization
-  if (seed == 0)
-  {
-    srand((unsigned int)time(NULL));
-  }
-  else
-  {
-    srand(seed);
-  }
-}
+/* RNG (ISO C99 spec) */
+static unsigned long int next = 1;
 
 int Rng_generate(int min, int max)
 {
-  return (rand() %
-          (max - min + 1)) +
-         min;
+  next = next * 1103515245 + 12345;
+  return (unsigned int)(((next / 65536) % (max - min + 1)) + min);
+}
+
+void Rng_init(unsigned int seed)
+{
+  next = seed;
 }
