@@ -1242,7 +1242,9 @@ let borrow_ck pipes verbose =
                 StringMap.add n (true, [ (b.node_id, cur_depth) ]) borrow_table
           | _ty, SPipeIn (p_name, args) ->
               (* validate all arguments that may borrow things *)
-              let borrow_table' =
+              (* but don't worry about the resulting borrow table *)
+              (* as they will be dropped after the call *)
+              let _borrow_table' =
                 List.fold_left
                   (fun borrow_table arg ->
                     ck_expr borrow_table b.node_id cur_depth arg)
@@ -1278,7 +1280,7 @@ let borrow_ck pipes verbose =
                       StringMap.add n
                         (m, [ (b.node_id, max_arg_depth) ])
                         borrow_table)
-                  borrow_table' borrowed_args
+                  borrow_table borrowed_args
               in
 
               borrow_table'
@@ -1379,7 +1381,9 @@ let borrow_ck pipes verbose =
               let borrow_table' = remove_borrows_for_binding borrow_table in
 
               (* validate all arguments that may borrow things *)
-              let borrow_table' =
+              (* but don't worry about the resulting borrow table *)
+              (* as they will be dropped after the call *)
+              let _borrow_table' =
                 List.fold_left
                   (fun borrow_table arg ->
                     ck_expr borrow_table rb.node_id cur_depth arg)
