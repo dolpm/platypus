@@ -73,7 +73,6 @@ rule token = parse
 
   | "box"    { BOX }
   | "vector" { VECTOR }
-  | "option" { OPTION }
 
   | "()"     { UNITLIT }
   | "true"   { BOOLLIT(true)  }

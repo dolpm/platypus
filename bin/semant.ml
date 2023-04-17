@@ -14,11 +14,7 @@ let check (things, pipes) verbosity =
       ("Printnl", [ (false, Generic, "x") ], Unit);
       ("Rng_init", [ (false, Int, "x") ], Unit);
       ("Rng_generate", [ (false, Int, "x"); (false, Int, "y") ], Int);
-      ("panic", [ (false, String, "x") ], Unit);
-      ("int_to_string", [ (false, Int, "x") ], String);
-      ("float_to_string", [ (false, Float, "x") ], String);
-      ("char_to_string", [ (false, Char, "x") ], String);
-      ("bool_to_string", [ (false, Bool, "x") ], String);
+      ("Panic", [ (false, Generic, "x") ], Unit);
       ("Box_new", [ (true, Generic, "x") ], Box Generic);
       ( "Box_unbox",
         [ (false, Borrow (Box Generic, "'_"), "x") ],
@@ -42,8 +38,6 @@ let check (things, pipes) verbosity =
       ( "Str_push",
         [ (true, MutBorrow (Str, "'_"), "x"); (false, Char, "y") ],
         Unit );
-      ("option_is_none", [ (false, Option Generic, "x") ], Bool);
-      ("option_is_some", [ (false, Option Generic, "x") ], Bool);
     ]
   in
 
@@ -442,7 +436,7 @@ let check (things, pipes) verbosity =
             in
             let ret_type =
               match pname with
-              | "Print" | "Printnl" -> (
+              | "Panic" | "Print" | "Printnl" -> (
                   match first_arg_type with
                   | Borrow (t, _) | MutBorrow (t, _) -> (
                       match t with

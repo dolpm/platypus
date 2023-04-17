@@ -46,9 +46,6 @@ let translate (things, pipes) ownership_map m_external =
         if StringMap.mem s !thing_types then
           L.pointer_type (StringMap.find s !thing_types)
         else raise (Failure ("unrecognized thing type " ^ s))
-    | t ->
-        raise
-          (Failure ("Cannot convert type" ^ A.string_of_typ t ^ "to LLVM IR"))
   in
 
   (* create user-defined "thing" types *)
@@ -143,6 +140,9 @@ let translate (things, pipes) ownership_map m_external =
   let rng_generate_func =
     L.declare_function "Rng_generate" rng_generate_t the_module
   in
+
+  let panic_t = L.function_type unit_t [| i32_t |] in
+  let panic_func = L.declare_function "exit" panic_t the_module in
 
   (* Define all pipes declarations *)
   let pipe_decls : (L.llvalue * s_pipe_declaration) StringMap.t =
@@ -642,6 +642,18 @@ let translate (things, pipes) ownership_map m_external =
           | Clone ->
               let load_value = expr builder (t, e) in
               clone t load_value builder)
+      | SPipeIn ("Panic", [ msg ]) ->
+          (* build instr to print the messgae *)
+          let _ =
+            L.build_call printf_func
+              [|
+                nonewline_str;
+                L.build_global_stringptr "Panic! " "panic_strptr" builder;
+              |]
+              "printf" builder
+          in
+          let _ = expr builder (Unit, SPipeIn ("Printnl", [ msg ])) in
+          L.build_call panic_func [| L.const_int i32_t 1 |] "" builder
       | SPipeIn ("Print", [ (t, sx) ]) -> (
           let arg = expr builder (t, sx) in
           match t with
