@@ -580,7 +580,7 @@ let borrow_ck pipes verbose =
       | SIdent name ->
           if StringSet.mem name active_refs then [] else name :: names
       | SBinop (s1, _, s2) -> inner s2 names @ inner s1 names
-      | SUnop (Ref, _) | SUnop (MutRef, _) -> []
+      | SUnop (Ref, _) | SUnop (MutRef, _) | SUnop (Clone, _) -> []
       | SUnop (_, s) -> inner s names
       | SPipeIn (_, sl) | STupleValue sl ->
           List.fold_left (fun l s -> inner s l) names sl
@@ -724,12 +724,15 @@ let borrow_ck pipes verbose =
                     symbol_table moves
                 in
                 (StringMap.add b.name b.node_id symbol_table', active_refs)
-            | _ty, SUnop (Ref, (_, STupleIndex _))
-            | _ty, SUnop (MutRef, (_, STupleIndex _))
-            | _ty, SUnop (Ref, (_, SThingAccess _))
-            | _ty, SUnop (MutRef, (_, SThingAccess _))
-            | _ty, SUnop (Ref, (_, SIdent _))
-            | _ty, SUnop (MutRef, (_, SIdent _)) ->
+            | _, SUnop (Ref, (_, STupleIndex _))
+            | _, SUnop (MutRef, (_, STupleIndex _))
+            | _, SUnop (Ref, (_, SThingAccess _))
+            | _, SUnop (MutRef, (_, SThingAccess _))
+            | _, SUnop (Ref, (_, SIdent _))
+            | _, SUnop (MutRef, (_, SIdent _))
+            (* arg placeholder nodes *)
+            | Borrow _, SNoexpr
+            | MutBorrow _, SNoexpr ->
                 (symbol_table, StringSet.add b.name active_refs)
             | _expr -> (StringMap.add b.name b.node_id symbol_table, active_refs)
           in

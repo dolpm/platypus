@@ -1,18 +1,38 @@
-pipe main |> [] |> [] |> unit {
-  str s <| Str_new <| ["LLVM chad"];
-  mut str s_cloned <| %s;
-
-  Str_push <| [~&s_cloned, '!'];
-
-  Printnl <| [&s];
-  Printnl <| [&s_cloned];
-  
-  /*
-  vector[int] v <| Vector_new <| [];
-  v <| Vector_new <| [];
-  */
-
+pipe merge |> [] |> [arr: ~&vector[int]] |> unit {
   |> ();
 }
 
+pipe print_vec |> [] |> [arr: &vector[int]] |> unit {
+  int v_len <| Vector_length <| [arr];
 
+  loop 0->(v_len - 1) as i {
+    /* todo why does: int x <| %j break this shit */
+    Printnl <| [Vector_get <| [arr, %i]];
+    int x <| 4;
+    int y <| 5;
+  }
+
+  Printnl <| [""];
+  
+  |> ();
+}
+
+pipe main |> [] |> [] |> unit {
+  mut vector[int] nums <| Vector_new <| [];
+  
+  {
+    ~&vector[int] nums_mb <| ~&nums;
+    Vector_push <| [nums_mb, 102];
+    Vector_push <| [nums_mb, 432];
+    Vector_push <| [nums_mb, 530];
+    Vector_push <| [nums_mb, 12];
+    Vector_push <| [nums_mb, 43];
+    Vector_push <| [nums_mb, 1020];
+    Vector_push <| [nums_mb, 42323];
+    Vector_push <| [nums_mb, 2034];
+  }
+
+  print_vec <| [&nums];
+  
+  |> ();
+}
