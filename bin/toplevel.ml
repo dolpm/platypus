@@ -7,6 +7,8 @@ let () =
   let set_verbosity () = verbosity := true in
   let keep = ref false in
   let set_keep () = keep := true in
+  let opt = ref false in
+  let set_opt () = opt := true in
   let speclist =
     [
       ("-a", Arg.Unit (set_action Ast), "Print the AST");
@@ -15,6 +17,7 @@ let () =
       ("-l", Arg.Unit (set_action LLVM_IR), "Print the generated LLVM IR");
       ("-c", Arg.Unit (set_action Compile), "Compile the platypus program");
       ("-k", Arg.Unit set_keep, "Keep intermediary files");
+      ("-o", Arg.Unit set_opt, "Enable LLVM IR optimizations");
       ( "-e",
         Arg.Unit (set_action Exec),
         "Compile and execute the platypus program" );
@@ -55,6 +58,49 @@ let () =
           let m = Codegen.translate sast ownership_map m_external in
           let _ = Llvm_analysis.assert_valid_module m in
           let _ = Llvm_linker.link_modules' m m_external in
+
+          let _ =
+            if !opt then
+              (* create passmgrs *)
+              let module_passmgr = Llvm.PassManager.create () in
+              let func_passmgr = Llvm.PassManager.create_function m in
+              let lto_passmgr = Llvm.PassManager.create () in
+              let pm_builder = Llvm_passmgr_builder.create () in
+
+              (* set up optimization config *)
+              let _ = Llvm_passmgr_builder.set_opt_level 3 pm_builder in
+              let _ = Llvm_passmgr_builder.set_size_level 1 pm_builder in
+              let _ =
+                Llvm_passmgr_builder.set_disable_unit_at_a_time false pm_builder
+              in
+              let _ =
+                Llvm_passmgr_builder.set_disable_unroll_loops false pm_builder
+              in
+              let _ =
+                Llvm_passmgr_builder.use_inliner_with_threshold 10 pm_builder
+              in
+              let _ =
+                Llvm_passmgr_builder.populate_function_pass_manager func_passmgr
+                  pm_builder
+              in
+              let _ =
+                Llvm_passmgr_builder.populate_module_pass_manager module_passmgr
+                  pm_builder
+              in
+              let _ =
+                Llvm_passmgr_builder.populate_lto_pass_manager lto_passmgr
+                  ~internalize:false ~run_inliner:false pm_builder
+              in
+
+              (* run the optimizations *)
+              let _ = Llvm.PassManager.run_module m module_passmgr in
+
+              (* clean up *)
+              let _ = Llvm.PassManager.dispose module_passmgr in
+              let _ = Llvm.PassManager.dispose func_passmgr in
+              let _ = Llvm.PassManager.dispose lto_passmgr in
+              ()
+          in
 
           match c with
           | Compile ->

@@ -28,23 +28,11 @@ Platypus is a language designed to combine a safety-first ownership model and a 
 ```-v``` &rarr; enable verbose compilation output
 **usage:** ```./platypus -c -v ./test/test_cases/compile/pos_hello_world.ppus```
 
+```-o``` &rarr; enable compiler optimizations
+**usage:** ```./platypus -c -o ./test/test_cases/compile/pos_hello_world.ppus```
+
 #
 
 #### testing mechanisms:
 For all test types, the testing program will validate the output of
 a compiler command on a ```.ppus``` input file matches the expected output -- the desired output can be found in the ```.out``` file for each test.  For integration tests, we use llvm's executionengine to fetch this output (```-e```) to avoid the maintenance of auxiliary files during the usual compilation process (```-c```). If a program can't be compiled, the stderr output of the compiler command will be compared to the desired output.
-
-#
-
-#### references
-- ```microc compiler```
-- ```llvm.moe```
-
-#
-
-#### contact
-- Dylan Maloy (dylan.maloy@tufts.edu)
-- Rodrigo Campos (rodrigo.campos@tufts.edu)
-- Ronit Sinha (ronit.sinha@tufts.edu)
-- Tony Huang (ziheng.huang@tufts.edu)
-- Abe Park (yangsun.park@tufts.edu)

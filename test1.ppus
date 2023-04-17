@@ -98,21 +98,17 @@ pipe main |> [] |> [] |> unit {
   /* initialize rng with seed */
   Rng_init <| [1337];
 
-  int len <| 200;
+  int len <| 500000;
   
   mut vector[int] nums <| create_vec_of_size <| [%len];
 
-  Print <| ["unsorted: "];
-  print_vec <| [&nums];
+  /* make sure len doesn't move to merge_sort here lmao */
+  merge_sort <| [~&nums, 0, %len - 1];
 
-  merge_sort <| [~&nums, 0, len - 1];
-
-  Print <| ["sorted: "];
-  print_vec <| [&nums];
-
-  Printnl <| [""];
   if (validate_sort <| [&nums]) {
-    Printnl <| ["Successfully sorted integers."];
+    Print <| ["Successfully sorted "];
+    Print <| [&len];
+    Printnl <| [" integers."];
   } else {
     Printnl <| ["Integer sort was unsuccessful."];
   }
