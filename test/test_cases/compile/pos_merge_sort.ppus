@@ -105,11 +105,6 @@ pipe main |> [] |> [] |> unit {
   Print <| ["unsorted: "];
   print_vec <| [&nums];
 
-  /*
-  TODO: FIX not able to take this out on nums
-  int nums_len <| Vector_length <| [&nums];
-  */
-
   merge_sort <| [~&nums, 0, len - 1];
 
   Print <| ["sorted: "];
