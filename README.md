@@ -2,7 +2,9 @@
 
 #
 
-Platypus is a language designed to combine a safety-first ownership model and a developer friendly syntax. The intention is to enforce memory-safe practices at compilation, significantly reducing the runtime’s memory management overhead. Rust, the largest presence in this domain, is a low-level systems language that can be difficult to understand for a user who is used to higher-level ones. The goal of Platypus is to act as an intermediary between these two parties.
+Platypus is a language designed to combine a safety-first ownership model and a developer friendly syntax. The intention is to enforce memory-safe development practices *and* perform memory all management at compile time.
+
+Rust, the largest presence in this domain, is a low-level systems language that can be difficult to understand for a user who is used to higher-level ones. The goal of Platypus is to act as an intermediary between these two language species.
 
 #
 
