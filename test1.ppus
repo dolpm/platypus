@@ -99,10 +99,6 @@ pipe main |> [] |> [] |> unit {
   Rng_init <| [1337];
 
 
-    str panic_msg <| Str_new <| ["I'm a super cool panic msg :P"];
-    Panic <| [&panic_msg];
-
-
   int len <| 500000;
   
   mut vector[int] nums <| create_vec_of_size <| [%len];

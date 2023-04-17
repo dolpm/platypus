@@ -1,4 +1,4 @@
-$(clang ./bin/builtins.c -S -O0 -emit-llvm -o $1)
+$(clang ./bin/builtins.c -S -O3 -emit-llvm -o $1)
 cat <<-EOF > $1
 $(echo "let as_llvm_ir = {|")
 $(cat $1)
