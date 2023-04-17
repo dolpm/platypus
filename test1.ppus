@@ -5,15 +5,14 @@ pipe merge |> [] |> [arr: ~&vector[int]] |> unit {
 pipe print_vec |> [] |> [arr: &vector[int]] |> unit {
   int v_len <| Vector_length <| [arr];
 
+  Print <| ["["];
   loop 0->(v_len - 1) as i {
-    /* todo why does: int x <| %j break this shit */
-    Printnl <| [Vector_get <| [arr, %i]];
-    int x <| 4;
-    int y <| 5;
+    Print <| [Vector_get <| [arr, %i]];
+    if (i != v_len - 1) {
+      Print <| [","];
+    }
   }
-
-  Printnl <| [""];
-  
+  Printnl <| ["]"];  
   |> ();
 }
 

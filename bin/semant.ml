@@ -10,6 +10,7 @@ let check (things, pipes) verbosity =
   (* (name, [param(is_mut, type, name)], ret_type) *)
   let stdlib_pipe_decls =
     [
+      ("Print", [ (false, Generic, "x") ], Unit);
       ("Printnl", [ (false, Generic, "x") ], Unit);
       ("panic", [ (false, String, "x") ], Unit);
       ("int_to_string", [ (false, Int, "x") ], String);
@@ -439,7 +440,7 @@ let check (things, pipes) verbosity =
             in
             let ret_type =
               match pname with
-              | "Printnl" -> (
+              | "Print" | "Printnl" -> (
                   match first_arg_type with
                   | Borrow (t, _) | MutBorrow (t, _) -> (
                       match t with
@@ -514,8 +515,12 @@ let check (things, pipes) verbosity =
               [] children
           in
 
-          let _ = if List.length children' <> List.length thing_defn.elements then 
-            make_err ("number of fields in instance of thing " ^ t_name ^ " does not match thing definition") else () 
+          let _ =
+            if List.length children' <> List.length thing_defn.elements then
+              make_err
+                ("number of fields in instance of thing " ^ t_name
+               ^ " does not match thing definition")
+            else ()
           in
 
           (Ident t_name, SThingValue (t_name, List.rev children'))

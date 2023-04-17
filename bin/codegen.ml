@@ -51,6 +51,7 @@ let translate (things, pipes) ownership_map m_external =
           (Failure ("Cannot convert type" ^ A.string_of_typ t ^ "to LLVM IR"))
   in
 
+  (* create user-defined "thing" types *)
   let _ =
     List.iter
       (fun tdecl ->
@@ -156,9 +157,17 @@ let translate (things, pipes) ownership_map m_external =
     let the_pipe, _ = StringMap.find pdecl.sname pipe_decls in
     let builder = L.builder_at_end context (L.entry_block the_pipe) in
 
-    let newline_str = L.build_global_stringptr "%s\n" "fmt_nl" builder
-    and int_format_str = L.build_global_stringptr "%d\n" "fmt" builder
-    and float_format_str = L.build_global_stringptr "%g\n" "fmt" builder in
+    let nonewline_str = L.build_global_stringptr "%s" "fmt_str_nnl" builder
+    and nonewline_int_format_str =
+      L.build_global_stringptr "%d" "fmt_int_nnl" builder
+    and nonewline_float_format_str =
+      L.build_global_stringptr "%g" "fmt_float_nnl" builder
+    and newline_str = L.build_global_stringptr "%s\n" "fmt_str_nl" builder
+    and newline_int_format_str =
+      L.build_global_stringptr "%d\n" "fmt_int_nl" builder
+    and newline_float_format_str =
+      L.build_global_stringptr "%g\n" "fmt_float_nl" builder
+    in
 
     let variables =
       let add_formal m (_is_mut, t, n) p =
@@ -173,7 +182,7 @@ let translate (things, pipes) ownership_map m_external =
            (Array.to_list (L.params the_pipe)))
     in
 
-    let add_local_variable (_is_mut, t, n) e' =
+    let add_local_variable (_is_mut, t, n) e' builder =
       let local = L.build_alloca (ltype_of_typ t) n builder in
       let _ = L.build_store e' local builder in
       variables := StringMap.add n (local, t) !variables
@@ -314,7 +323,6 @@ let translate (things, pipes) ownership_map m_external =
             let _ = L.build_store cloned_child malloc_of_box builder in
 
             malloc_of_box
-        (* TODO: str, thing, tuple *)
         | A.Ident thing_name ->
             let new_instance =
               L.build_alloca
@@ -626,6 +634,36 @@ let translate (things, pipes) ownership_map m_external =
           | Clone ->
               let load_value = expr builder (t, e) in
               clone t load_value builder)
+      | SPipeIn ("Print", [ (t, sx) ]) -> (
+          let arg = expr builder (t, sx) in
+          match t with
+          | Borrow (t, _) | MutBorrow (t, _) -> (
+              let loaded_arg = L.build_load arg "print arg" builder in
+              match t with
+              | Int | Bool ->
+                  L.build_call printf_func
+                    [| nonewline_int_format_str; loaded_arg |]
+                    "printf" builder
+              | Float ->
+                  L.build_call printf_func
+                    [| nonewline_float_format_str; loaded_arg |]
+                    "printf" builder
+              | String | Str ->
+                  L.build_call printf_func
+                    [| nonewline_str; loaded_arg |]
+                    "printf" builder
+              | _ -> raise (Failure "panic! invalid arg type!"))
+          | Int | Bool ->
+              L.build_call printf_func
+                [| nonewline_int_format_str; arg |]
+                "printf" builder
+          | Float ->
+              L.build_call printf_func
+                [| nonewline_float_format_str; arg |]
+                "printf" builder
+          | String ->
+              L.build_call printf_func [| nonewline_str; arg |] "printf" builder
+          | _ -> raise (Failure "panic! invalid printnl arg type!"))
       | SPipeIn ("Printnl", [ (t, sx) ]) -> (
           let arg = expr builder (t, sx) in
           match t with
@@ -634,11 +672,11 @@ let translate (things, pipes) ownership_map m_external =
               match t with
               | Int | Bool ->
                   L.build_call printf_func
-                    [| int_format_str; loaded_arg |]
+                    [| newline_int_format_str; loaded_arg |]
                     "printf" builder
               | Float ->
                   L.build_call printf_func
-                    [| float_format_str; loaded_arg |]
+                    [| newline_float_format_str; loaded_arg |]
                     "printf" builder
               | String | Str ->
                   L.build_call printf_func
@@ -646,11 +684,12 @@ let translate (things, pipes) ownership_map m_external =
                     "printf" builder
               | _ -> raise (Failure "panic! invalid arg type!"))
           | Int | Bool ->
-              L.build_call printf_func [| int_format_str; arg |] "printf"
-                builder
+              L.build_call printf_func
+                [| newline_int_format_str; arg |]
+                "printf" builder
           | Float ->
               L.build_call printf_func
-                [| float_format_str; arg |]
+                [| newline_float_format_str; arg |]
                 "printf" builder
           | String ->
               L.build_call printf_func [| newline_str; arg |] "printf" builder
@@ -771,7 +810,7 @@ let translate (things, pipes) ownership_map m_external =
           L.build_load
             (fst (StringMap.find name !variables))
             (name ^ "_loaded") builder
-      (* Dummy add instruction *)
+      (* noop *)
       | _ -> Llvm.build_call noop_func [||] "" builder
     in
 
@@ -966,6 +1005,7 @@ let translate (things, pipes) ownership_map m_external =
                       match ret_expr with
                       | A.Unit, SUnitLiteral -> None
                       | A.Unit, _ ->
+                          (* build the unit expr *)
                           let _ = expr !builder' ret_expr in
                           None
                       | _ -> Some (expr !builder' ret_expr)
@@ -1020,7 +1060,7 @@ let translate (things, pipes) ownership_map m_external =
           builder
       | SAssign (is_mut, t, name, e) ->
           let e' = expr builder e in
-          let _ = add_local_variable (is_mut, t, name) e' in
+          let _ = add_local_variable (is_mut, t, name) e' builder in
           builder
       | SReAssign (is_mutborrow, name, e) ->
           let e' = expr builder e in
