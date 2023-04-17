@@ -2,14 +2,14 @@
 
 #
 
-Platypus is a language designed to combine a safety-first ownership model and a developer friendly syntax. The intention is to enforce memory-safe practices at compilation, significantly reducing the runtime’s memory management overhead. Rust, the largest competitor in this domain, is a low-level systems language that can be difficult to understand for a user who is used to higher-level languages such as Python and JavaScript. Our goal is to act as an intermediary between these two parties.
+Platypus is a language designed to combine a safety-first ownership model and a developer friendly syntax. The intention is to enforce memory-safe practices at compilation, significantly reducing the runtime’s memory management overhead. Rust, the largest presence in this domain, is a low-level systems language that can be difficult to understand for a user who is used to higher-level ones. The goal of Platypus is to act as an intermediary between these two parties.
 
 #
 
-#### make commands:
+#### build commands:
 ##### install required packages &rarr; ```make install```
-##### build the compiler &rarr; ```make```
-##### run tests &rarr; ```make test```
+##### build the platypus compiler &rarr; ```make```
+##### run tests &rarr; ```make test [memcheck=true]```
 ##### run test &rarr; ```make test type=[ast|sast|codegen|compile] name=[test_name] [memcheck=true]```
 
 #
@@ -18,10 +18,12 @@ Platypus is a language designed to combine a safety-first ownership model and a 
 ##### print AST &rarr; ```./platypus -a ./path/to/file.ppus```
 ##### print SAST &rarr; ```./platypus -s ./path/to/file.ppus```
 ##### print LLVM IR &rarr; ```./platypus -l ./path/to/file.ppus```
-##### compile &rarr; ```./platypus -c ./path/to/file.ppus```
-##### execute (JIT) &rarr; ```./platypus -e ./path/to/file.ppus```
+##### execute (JITc) &rarr; ```./platypus -e ./path/to/file.ppus```
+##### compile into executable &rarr; ```./platypus -c ./path/to/file.ppus```
 
-#### extra flags:
+#
+
+#### optional flags:
 ```-k``` &rarr; persist intermediary files (```*.o```, ```*.bc```) generated during compilation
 **usage:** ```./platypus -c -k ./test/test_cases/compile/pos_hello_world.ppus```
 
@@ -30,6 +32,11 @@ Platypus is a language designed to combine a safety-first ownership model and a 
 
 ```-o``` &rarr; enable compiler optimizations
 **usage:** ```./platypus -c -o ./test/test_cases/compile/pos_hello_world.ppus```
+
+#
+
+#### code samples:
+check out some algorithm implementations [here](https://github.com/dolpm/platypus/tree/main/examples)!
 
 #
 
