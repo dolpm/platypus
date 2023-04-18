@@ -6,7 +6,7 @@ pipe main |> [] |> [] |> unit {
 
     {
       ~&int unboxed <| Box_unbox_mut <| [~&y];
-      unboxed <| 4028;
+      @unboxed <| 4028;
     }
 
     Printnl <| [Box_unbox <| [&y]];
@@ -20,7 +20,7 @@ pipe main |> [] |> [] |> unit {
 
     {
       ~&int unboxed <| Box_unbox_mut <| [Box_unbox_mut <| [~&y]];
-      unboxed <| 4028;
+      @unboxed <| 4028;
     }
 
     Printnl <| [Box_unbox <| [Box_unbox <| [&y]]];

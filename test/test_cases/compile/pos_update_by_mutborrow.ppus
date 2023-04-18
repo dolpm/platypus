@@ -4,7 +4,7 @@ pipe main |> [] |> [] |> unit {
         Printnl <| [&x];
         ~&int y <| ~&x;
         Printnl <| [y];
-        y <| 5;
+        @y <| 5;
         Printnl <| [y];
     }
     Printnl <| [&x];

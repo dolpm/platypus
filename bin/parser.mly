@@ -15,6 +15,7 @@
 
 %nonassoc NOELSE
 %nonassoc ELSE
+%nonassoc IDENT
 %right LPIPE
 %left LBRACKET RBRACKET
 %left OR
@@ -116,7 +117,9 @@ stmt:
   | typ IDENT LPIPE expr SEMI   { Assign(false, $1, $2, $4) }
   | MUT typ IDENT LPIPE expr SEMI   { Assign(true, $2, $3, $5) }
   
-  | IDENT LPIPE expr SEMI   { ReAssign($1, $3)         }
+  /* when assigning to mutborrow, deref is required */
+  | DEREF IDENT LPIPE expr SEMI   { ReAssign(true, $2, $4)         }
+  | IDENT LPIPE expr SEMI   { ReAssign(false, $1, $3)         }
 
 expr_opt:
   | { NoExpr }

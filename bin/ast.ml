@@ -72,7 +72,8 @@ type stmt =
   | While of expr * stmt
   (* is_mut ... *)
   | Assign of bool * defined_type * string * expr
-  | ReAssign of string * expr
+  (* is_mutborrow, name, rhs *)
+  | ReAssign of bool * string * expr
 
 type thing_declaration = { tname : string; elements : type_binding list }
 
@@ -200,7 +201,7 @@ let rec string_of_stmt stmt pad =
       indent pad
       ^ (if is_mut then "mut " else "")
       ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
-  | ReAssign (v, e) -> indent pad ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
+  | ReAssign (is_mb, v, e) -> indent pad ^ (if is_mb then "@" else "") ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
 
 let string_of_tdecl tdecl =
   "thing " ^ tdecl.tname ^ " <| {\n"

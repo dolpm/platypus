@@ -25,7 +25,7 @@ pipe main |> [] |> [] |> unit {
 
     {
         ~&int t_setter <| ~&t_cloned[family_jewels];
-        t_setter <| 0;
+        @t_setter <| 0;
     }
 
     
@@ -61,7 +61,7 @@ pipe main |> [] |> [] |> unit {
       }
 
       ~&int microplastics_in_placenta <| ~&queen_regina[disappointment_of_a_son][family_jewels];
-      microplastics_in_placenta <| 5;
+      @microplastics_in_placenta <| 5;
     }
     
     Printnl <| [Vector_get <| [&king_gregory[disappointment_of_a_son][dynasties], 0]];

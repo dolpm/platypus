@@ -6,7 +6,7 @@ pipe main |> [] |> [] |> unit {
 
     {
       ~&int zero <| ~&t_clone[0];
-      zero <| 1;
+      @zero <| 1;
     }
 
     Printnl <| [&t[0]];    
@@ -23,7 +23,7 @@ pipe main |> [] |> [] |> unit {
     {
       {
         ~&bool more_drugs <| ~&swag_party[0];
-        more_drugs <| true;
+        @more_drugs <| true;
       }
       ~&vector[int] pop_out_to_the_party <| ~&swag_party[1];
       Vector_pop <| [pop_out_to_the_party];

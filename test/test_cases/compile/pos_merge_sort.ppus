@@ -36,10 +36,10 @@ pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
 
     ~&int k_setter <| Vector_get_mut <| [arr, %k];
     if (@l_item < @r_item) {
-      k_setter <| %@l_item;
+      @k_setter <| %@l_item;
       i <| i + 1;
     } else {
-      k_setter <| %@r_item;
+      @k_setter <| %@r_item;
       j <| j + 1;
     }
     
@@ -48,14 +48,14 @@ pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
 
   while (i < n1) {
     ~&int k_setter <| Vector_get_mut <| [arr, %k];
-    k_setter <| %@(Vector_get <| [&left, %i]);
+    @k_setter <| %@(Vector_get <| [&left, %i]);
     i <| i + 1;
     k <| k + 1;
   }
 
   while (j < n2) {
     ~&int k_setter <| Vector_get_mut <| [arr, %k];
-    k_setter <| %@(Vector_get <| [&right, %j]);
+    @k_setter <| %@(Vector_get <| [&right, %j]);
     j <| j + 1;
     k <| k + 1;
   }

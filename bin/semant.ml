@@ -174,7 +174,7 @@ let check (things, pipes) verbosity =
           MutBorrow (check_assign lt rt err, l1)
       | Borrow (lt, l1), Borrow (rt, _l2) -> Borrow (check_assign lt rt err, l1)
       | Tuple tl1, Tuple tl2 ->
-        Tuple (List.map2 (fun t1 t2 -> check_assign t1 t2 err) tl1 tl2)
+          Tuple (List.map2 (fun t1 t2 -> check_assign t1 t2 err) tl1 tl2)
       | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
@@ -363,7 +363,8 @@ let check (things, pipes) verbosity =
                 | _ -> raise (Failure "panic!"))
             | Clone -> (
                 (* Disallow clones of borrows and clones of clones *)
-                let _ = match e1 with
+                let _ =
+                  match e1 with
                   | Unop (Clone, _) -> make_err "can't clone on clone!"
                   | _ -> ()
                 in
@@ -653,7 +654,7 @@ let check (things, pipes) verbosity =
           in
           let _ = check_assign lt rt err in
           SAssign (is_mut || is_mutborrow, t, name, (rt, e'))
-      | ReAssign (name, e) as ass ->
+      | ReAssign (rb_is_mb, name, e) as ass ->
           (* make sure we aren't reassigning a deref to a variable (illegal) *)
           let _ =
             match e with
@@ -673,7 +674,12 @@ let check (things, pipes) verbosity =
 
           let lt, is_mutborrow =
             match (is_mut, lt) with
-            | _, MutBorrow (t, _) -> (t, true)
+            | _, MutBorrow (t, _) ->
+                if rb_is_mb then (t, true)
+                else
+                  make_err
+                    ("mutborrow " ^ name
+                   ^ " must be dereferenced to be assigned to")
             | true, t -> (t, false)
             | _ ->
                 make_err

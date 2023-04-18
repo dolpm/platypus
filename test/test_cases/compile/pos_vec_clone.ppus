@@ -8,7 +8,7 @@ pipe main |> [] |> [] |> unit {
 
     {
         ~&int y_setter <| Vector_get_mut <| [~&y, 0];
-        y_setter <| 4028;
+        @y_setter <| 4028;
     }
 
     
@@ -27,7 +27,7 @@ pipe main |> [] |> [] |> unit {
     {
         ~&vector[int] y_inner_setter <| Vector_get_mut <| [~&y, 0];
         ~&int y_setter <| Vector_get_mut <| [y_inner_setter, 0];
-        y_setter <| 4028;
+        @y_setter <| 4028;
     }
 
     Printnl <| [Vector_get <| [Vector_get <| [&y, 0], 0]];
