@@ -13,7 +13,7 @@ and sx =
   | SThingValue of string * (string * s_expr) list
   | SThingAccess of string * s_expr * string
   | STupleValue of s_expr list
-  | STupleIndex of string * int
+  | STupleIndex of s_expr * int
   | SIdent of string
   | SBinop of s_expr * binary_operator * s_expr
   | SUnop of unary_operator * s_expr
@@ -81,7 +81,7 @@ let rec string_of_s_expr (t, e) =
         "tuple("
         ^ String.concat ", " (List.map (fun e -> "" ^ string_of_s_expr e) es)
         ^ ")"
-    | STupleIndex (name, i) -> name ^ "." ^ string_of_int i
+    | STupleIndex (e, i) -> string_of_s_expr e ^ "." ^ string_of_int i
     | SIdent s -> s
     | SBinop (e1, o, e2) ->
         string_of_s_expr e1 ^ " " ^ string_of_op o ^ " " ^ string_of_s_expr e2

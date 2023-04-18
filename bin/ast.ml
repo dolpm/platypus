@@ -52,7 +52,7 @@ type expr =
   (* thing var name, list of names in order of access *)
   | ThingAccess of (expr * string)
   | TupleValue of expr list
-  | TupleIndex of string * int
+  | TupleIndex of expr * int
   | Ident of string
   | Binop of expr * binary_operator * expr
   | Unop of unary_operator * expr
@@ -156,7 +156,7 @@ let rec string_of_expr = function
       "tuple("
       ^ String.concat ", " (List.map (fun e -> "" ^ string_of_expr e) es)
       ^ ")"
-  | TupleIndex (name, i) -> name ^ "." ^ string_of_int i
+  | TupleIndex (e, i) -> string_of_expr e ^ "." ^ string_of_int i
   | Ident s -> s
   | Binop (e1, o, e2) ->
       string_of_expr e1 ^ " " ^ string_of_op o ^ " " ^ string_of_expr e2

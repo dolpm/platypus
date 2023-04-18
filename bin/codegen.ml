@@ -619,7 +619,7 @@ let translate (things, pipes) ownership_map m_external =
       free_inner typ llvalue builder
     in
 
-    let rec expr (builder : L.llbuilder) ((_, e) : s_expr) : L.llvalue =
+    let rec expr (builder : L.llbuilder) ((t, e) : s_expr) : L.llvalue =
       match e with
       | SIntLiteral i -> L.const_int i32_t i
       | SFloatLiteral f -> L.const_float_of_string float_t f
@@ -652,14 +652,8 @@ let translate (things, pipes) ownership_map m_external =
               0 built_exprs
           in
           ptr
-      | STupleIndex (t_name, idx) ->
-          let instance, typ = StringMap.find t_name !variables in
-
-          let item_typ =
-            match typ with
-            | A.Tuple inner_types -> List.nth inner_types idx
-            | _ -> raise (Failure "panic! not possible!")
-          in
+      | STupleIndex (e, idx) ->
+          let instance = expr builder e in
 
           let loaded_instance =
             L.build_load instance "instance_of_struct" builder
@@ -670,7 +664,7 @@ let translate (things, pipes) ownership_map m_external =
 
           let casted_gep =
             L.build_bitcast gepped
-              (L.pointer_type (ltype_of_typ item_typ))
+              (ltype_of_typ t)
               "casted_gep" builder
           in
           casted_gep
