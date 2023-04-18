@@ -173,6 +173,8 @@ let check (things, pipes) verbosity =
       | MutBorrow (lt, l1), MutBorrow (rt, _l2) ->
           MutBorrow (check_assign lt rt err, l1)
       | Borrow (lt, l1), Borrow (rt, _l2) -> Borrow (check_assign lt rt err, l1)
+      | Tuple tl1, Tuple tl2 ->
+        Tuple (List.map2 (fun t1 t2 -> check_assign t1 t2 err) tl1 tl2)
       | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
