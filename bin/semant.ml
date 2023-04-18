@@ -362,7 +362,11 @@ let check (things, pipes) verbosity =
                 | Borrow (t_inner, _) | MutBorrow (t_inner, _) -> t_inner
                 | _ -> raise (Failure "panic!"))
             | Clone -> (
-                (* Disallow clones of borrows *)
+                (* Disallow clones of borrows and clones of clones *)
+                let _ = match e1 with
+                  | Unop (Clone, _) -> make_err "can't clone on clone!"
+                  | _ -> ()
+                in
                 match t1 with
                 | MutBorrow _ | Borrow _ -> make_err "can't clone a borrow!"
                 | _ -> t1)
