@@ -1,15 +1,13 @@
-pipe test |> ['a] |> [x: &'a int] |> &'a int {
-  |> x;
+thing MyThing <| {
+  im_an_int: &int
 }
 
 pipe main |> [] |> [] |> unit {
-  /* depth = 1 */
-  mut int x <| 4;
+  int x <| 4;
+  [int * &int] y <| tuple(4, &x);
 
-  {
-  &int y <| test <| [&x];
-  }
-  ~&x;
+
+
 
   |> ();
 }

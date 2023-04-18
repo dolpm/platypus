@@ -33,6 +33,13 @@ let check (things, pipes) verbosity =
       ( "Vector_get",
         [ (false, Generic, "x"); (false, Int, "y") ],
         Borrow (Generic, "'_") );
+      ( "Vector_update",
+        [
+          (true, MutBorrow (Vector Generic, "'_"), "x");
+          (false, Generic, "y");
+          (false, Int, "z");
+        ],
+        Borrow (Generic, "'_") );
       ( "Vector_push",
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
         Unit );
@@ -120,6 +127,20 @@ let check (things, pipes) verbosity =
   let check_things ts =
     let dup_err t_name = "duplicate thing: " ^ t_name in
     let check_thing t =
+      (* make sure no top level borrows *)
+      let _ =
+        List.iter
+          (fun (_, typ, _) ->
+            match typ with
+            | Borrow _ | MutBorrow _ ->
+                raise
+                  (Failure
+                     ("Illegal type! Thing " ^ t.tname
+                    ^ " contains a top-level borrow. Composite types can't \
+                       contain borrows."))
+            | _ -> ())
+          t.elements
+      in
       if List.length (List.filter (fun t' -> t'.tname = t.tname) ts) > 1 then
         raise (Failure (dup_err t.tname))
       else { stname = t.tname; selements = check_bindings t.elements }
@@ -133,6 +154,16 @@ let check (things, pipes) verbosity =
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let rec check_assign lvaluet rvaluet err =
       match (lvaluet, rvaluet) with
+      (* make sure can't put borrows in boxes/vecs *)
+      | Vector (MutBorrow _), _
+      | Vector (Borrow _), _
+      | Box (MutBorrow _), _
+      | Box (Borrow _), _
+      | _, Vector (MutBorrow _)
+      | _, Vector (Borrow _)
+      | _, Box (MutBorrow _)
+      | _, Box (Borrow _) ->
+          raise (Failure "Illegal type. Composite types can't contain borrows.")
       | Vector Generic, Vector rt -> Vector rt
       | Vector lt, Vector Generic -> Vector lt
       | Box Generic, Box rt -> Box rt
@@ -478,6 +509,10 @@ let check (things, pipes) verbosity =
                   match first_arg_type with
                   | Borrow (Vector t, lt) -> Borrow (t, lt)
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Vector_update" -> (
+                  match first_arg_type with
+                  | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Vector_get_mut" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
@@ -502,6 +537,18 @@ let check (things, pipes) verbosity =
       | Ident s -> (snd (type_of_identifier s symbols), SIdent s)
       | TupleValue exprs ->
           let values = List.map (fun e -> expr e symbols) exprs in
+          let _ =
+            List.iter
+              (fun (t, _) ->
+                match t with
+                | Borrow _ | MutBorrow _ ->
+                    raise
+                      (Failure
+                         "Illegal type! Tuple contains a top-level borrow. \
+                          Composite types can't contain borrows.")
+                | _ -> ())
+              values
+          in
           (Tuple (List.map fst values), STupleValue values)
       | ThingValue (t_name, children) ->
           let thing_defn =
