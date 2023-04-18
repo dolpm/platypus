@@ -126,21 +126,12 @@ let rec string_of_s_stmt s_stmt pad =
   | SAssign (is_mut, t, v, e) ->
       indent pad
       ^ (if is_mut then "mut " else "")
-      ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
+      ^ string_of_typ t ^ " " ^ v ^ " = " ^ string_of_s_expr e ^ ";\n"
   | SReAssign (_is_mutborrow, v, e) ->
-      indent pad ^ v ^ " <| " ^ string_of_s_expr e ^ ";\n"
-
-(* let string_of_tdecl t =
-   match t with
-   | Thing (s, l) ->
-       "thing " ^ s ^ " <| {\n"
-       ^ String.concat ",\n"
-           (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
-       ^ "\n}"
-   | _ -> "" *)
+      indent pad ^ v ^ " = " ^ string_of_s_expr e ^ ";\n"
 
 let string_of_tdecl tdecl =
-  "thing " ^ tdecl.stname ^ " <| {\n"
+  "thing " ^ tdecl.stname ^ " = {\n"
   ^ String.concat ",\n"
       (List.map
          (fun v -> match v with _, t, n -> n ^ ": " ^ string_of_typ t)
@@ -148,9 +139,11 @@ let string_of_tdecl tdecl =
   ^ "\n}"
 
 let string_of_spdecl pdecl =
-  "pipe " ^ pdecl.sname ^ " |> ["
-  ^ String.concat ", " pdecl.slifetimes
-  ^ "] |> ["
+  "pipe " ^ pdecl.sname
+  ^ (if List.length pdecl.slifetimes > 0 then
+     " |" ^ String.concat ", " pdecl.slifetimes ^ "| "
+    else " ")
+  ^ "["
   ^ String.concat ", "
       (List.map
          (fun v -> match v with _, t, n -> n ^ ": " ^ string_of_typ t)

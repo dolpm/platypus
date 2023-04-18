@@ -1,6 +1,6 @@
-pipe main |> [] |> [] |> unit {
-  mut int x <| 4;
-  int z <| 4;
-  ~&int w <| ~&x;
+pipe main [] |> unit {
+  mut int x = 4;
+  int z = 4;
+  ~&int w = ~&x;
   |> ();
 }

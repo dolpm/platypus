@@ -1,5 +1,5 @@
-pipe fname |> ['a, 'b] |> [x: ~&'a int, y: &'b int] |> &'b int {
-    x <| x + 20;
+pipe fname |'a, 'b| [x: ~&'a int, y: &'b int] |> &'b int {
+    x = x + 20;
     
     if (x > y) {
       |> x;
@@ -8,7 +8,7 @@ pipe fname |> ['a, 'b] |> [x: ~&'a int, y: &'b int] |> &'b int {
     |> y;
 }
 
-pipe takes_in_tuple |> [] |> [x: & [int * bool * int]] |> unit {
+pipe takes_in_tuple [x: & [int * bool * int]] |> unit {
     if (x[1]) {
         Printnl <| [x[0] + x[2]];
     }

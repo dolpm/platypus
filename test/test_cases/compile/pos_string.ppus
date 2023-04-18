@@ -1,7 +1,7 @@
-pipe main |> [] |> [] |> unit {
-  str x <| Str_new <| ["hello"];
-  str y <| Str_new <| [", world"];
-  str z <| x ^ y;
+pipe main [] |> unit {
+  str x = Str_new <| ["hello"];
+  str y = Str_new <| [", world"];
+  str z = x ^ y;
   Printnl <| [&z];
   |> ();
 }

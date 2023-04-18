@@ -1,8 +1,8 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
-  mut int x <| (int : 4);
-  x <| (int : 5);
+  mut int x = (int : 4);
+  x = (int : 5);
   (unit : Printnl <| [(int : x)]);
   |> (unit : ());
 }

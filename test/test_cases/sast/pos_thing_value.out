@@ -1,9 +1,9 @@
-thing MyThing <| {
+thing MyThing = {
 im_an_int: int
-}pipe main |> [] |> [] |> unit {
+}pipe main [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
-  MyThing t <| (MyThing : MyThing {
+  MyThing t = (MyThing : MyThing {
     im_an_int: (int : 5)
   });
   |> (unit : ());

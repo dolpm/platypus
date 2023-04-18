@@ -200,29 +200,27 @@ let rec string_of_stmt stmt pad =
   | Assign (is_mut, t, v, e) ->
       indent pad
       ^ (if is_mut then "mut " else "")
-      ^ string_of_typ t ^ " " ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
-  | ReAssign (is_mb, v, e) -> indent pad ^ (if is_mb then "@" else "") ^ v ^ " <| " ^ string_of_expr e ^ ";\n"
+      ^ string_of_typ t ^ " " ^ v ^ " = " ^ string_of_expr e ^ ";\n"
+  | ReAssign (is_mb, v, e) ->
+      indent pad
+      ^ (if is_mb then "@" else "")
+      ^ v ^ " = " ^ string_of_expr e ^ ";\n"
 
 let string_of_tdecl tdecl =
-  "thing " ^ tdecl.tname ^ " <| {\n"
+  "thing " ^ tdecl.tname ^ " = {\n"
   ^ String.concat ",\n"
       (List.map
          (fun v ->
            match v with _, t, n -> indent 1 ^ n ^ ": " ^ string_of_typ t)
          tdecl.elements)
   ^ "\n}"
-(* match t with
-   | Thing (s, l) ->
-       "thing " ^ s ^ " <| {\n"
-       ^ String.concat ",\n"
-           (List.map (fun (n, t) -> indent 1 ^ n ^ ": " ^ string_of_typ t) l)
-       ^ "\n}"
-   | _ -> "" *)
 
 let string_of_pdecl pdecl =
-  "pipe " ^ pdecl.name ^ " |> ["
-  ^ String.concat ", " pdecl.lifetimes
-  ^ "] |> ["
+  "pipe " ^ pdecl.name
+  ^ (if List.length pdecl.lifetimes > 0 then
+     " |" ^ String.concat ", " pdecl.lifetimes ^ "| "
+    else " ")
+  ^ "["
   ^ String.concat ", "
       (List.map
          (fun v -> match v with _, t, n -> n ^ ": " ^ string_of_typ t)

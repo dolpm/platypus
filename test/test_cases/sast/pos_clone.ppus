@@ -1,9 +1,9 @@
-pipe main |> [] |> [] |> unit {
-    int x <| 1;
-    int y <| %x;
+pipe main [] |> unit {
+    int x = 1;
+    int y = %x;
     
-    bool a <| true;
-    bool b <| %a;
+    bool a = true;
+    bool b = %a;
     
     |> ();
 }

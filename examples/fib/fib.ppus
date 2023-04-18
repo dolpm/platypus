@@ -1,13 +1,13 @@
-pipe fib |> [] |> [i: int] |> int {
+pipe fib [i: int] |> int {
   if (i <= 1) {
     |> i;
   }
   |> fib <| [i - 1] + fib <| [i - 2];
 }
 
-pipe main |> [] |> [] |> unit {
-  int value <| 30;
-  int result <| fib <| [%value];
+pipe main [] |> unit {
+  int value = 30;
+  int result = fib <| [%value];
 
   Print <| ["result of fib on input "];
   Print <| [value];

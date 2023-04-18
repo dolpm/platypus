@@ -1,10 +1,10 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
-  int x <| (int : 4);
+  int x = (int : 4);
 {(id: 1)
-  &'_ int y <| (&'_ int : &(int : x));
-  &'_ int z <| (&'_ int : &(int : x));
+  &'_ int y = (&'_ int : &(int : x));
+  &'_ int z = (&'_ int : &(int : x));
 }
   |> (unit : ());
 }

@@ -1,10 +1,10 @@
-pipe main |> [] |> [] |> unit {
-    mut int x <| 4;
+pipe main [] |> unit {
+    mut int x = 4;
     {
         Printnl <| [&x];
-        ~&int y <| ~&x;
+        ~&int y = ~&x;
         Printnl <| [y];
-        @y <| 5;
+        @y = 5;
         Printnl <| [y];
     }
     Printnl <| [&x];

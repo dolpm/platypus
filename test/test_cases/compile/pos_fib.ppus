@@ -1,10 +1,10 @@
-pipe fib |> [] |> [i: int] |> int {
+pipe fib [i: int] |> int {
   if (i <= 1) {
     |> i;
   }
   |> fib <| [i - 1] + fib <| [i - 2];
 }
 
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
   |> Printnl <| [fib <| [30]];
 }

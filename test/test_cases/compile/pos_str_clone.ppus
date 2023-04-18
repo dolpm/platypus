@@ -1,6 +1,6 @@
-pipe main |> [] |> [] |> unit {
-  str s <| Str_new <| ["LLVM chad"];
-  mut str s_cloned <| %s;
+pipe main [] |> unit {
+  str s = Str_new <| ["LLVM chad"];
+  mut str s_cloned = %s;
 
   Str_push <| [~&s_cloned, '!'];
 

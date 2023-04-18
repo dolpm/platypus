@@ -1,7 +1,7 @@
 %{ open Ast %}
 
-%token SEMI RANGE COLON DOT LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE CONCAT ASSIGN REASSIGN LPIPE RPIPE MUT
-%token NOT EQ NEQ LT LEQ GT GEQ AND OR DEREF BORROW MUTBORROW THING CLONE
+%token SEMI RANGE COLON DOT LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE CONCAT ASSIGN REASSIGN LPIPE RPIPE MUT EQUAL
+%token NOT EQ NEQ LT LEQ GT GEQ AND OR DEREF BORROW MUTBORROW THING CLONE 
 %token IF ELSE NOELSE WHILE CHAR INT STRING STR BOOL FLOAT TUPLE UNIT BOX VECTOR LOOP AS PIPE
 %token <int> INTLIT
 %token <char> CHARLIT
@@ -61,8 +61,8 @@ decls:
  | decls pdecl { (fst $1, ($2 :: snd $1)) }
 
 pdecl:
-  PIPE IDENT RPIPE
-    LBRACKET lifetime_opt RBRACKET RPIPE
+  PIPE IDENT
+    lifetime_opt
     LBRACKET formals_opt RBRACKET RPIPE
     typ
     LBRACE
@@ -71,16 +71,16 @@ pdecl:
     {
       {
         name = $2;
-        lifetimes = List.rev $5;
-        formals = List.rev $9;
-        return_type = $12;
-        body = List.rev $14;
+        lifetimes = List.rev $3;
+        formals = List.rev $5;
+        return_type = $8;
+        body = List.rev $10;
       }
     }
 
 lifetime_opt:
   | { [] }
-  | lifetime_list   { $1 }
+  | PIPE lifetime_list PIPE   { $2 }
 
 lifetime_list:
   | LIFETIME                   { [$1] }
@@ -114,12 +114,12 @@ stmt:
     LPAREN IDENT COMMA expr RPAREN stmt      { Loop($2, $4, $7, $9, $11)   }
   | WHILE LPAREN expr RPAREN stmt                    { While($3, $5)         }
 
-  | typ IDENT LPIPE expr SEMI   { Assign(false, $1, $2, $4) }
-  | MUT typ IDENT LPIPE expr SEMI   { Assign(true, $2, $3, $5) }
+  | typ IDENT EQUAL expr SEMI   { Assign(false, $1, $2, $4) }
+  | MUT typ IDENT EQUAL expr SEMI   { Assign(true, $2, $3, $5) }
   
   /* when assigning to mutborrow, deref is required */
-  | DEREF IDENT LPIPE expr SEMI   { ReAssign(true, $2, $4)         }
-  | IDENT LPIPE expr SEMI   { ReAssign(false, $1, $3)         }
+  | DEREF IDENT EQUAL expr SEMI   { ReAssign(true, $2, $4)         }
+  | IDENT EQUAL expr SEMI   { ReAssign(false, $1, $3)         }
 
 expr_opt:
   | { NoExpr }
