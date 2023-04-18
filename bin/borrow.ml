@@ -579,9 +579,14 @@ let borrow_ck pipes verbose =
       match e with
       | SIdent name ->
           if StringSet.mem name active_refs then [] else name :: names
+      | SBinop _ | SUnop _ -> []
+      (*
+      Binops/unops create new values -- don't take ownership in any case.
+
       | SBinop (s1, _, s2) -> inner s2 names @ inner s1 names
       | SUnop (Ref, _) | SUnop (MutRef, _) | SUnop (Clone, _) -> []
       | SUnop (_, s) -> inner s names
+      *)
       | SPipeIn (_, sl) | STupleValue sl ->
           List.fold_left (fun l s -> inner s l) names sl
       | SThingValue (_, tl) ->

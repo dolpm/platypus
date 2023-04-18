@@ -19,7 +19,6 @@ pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
   mut vector[int] right <| Vector_new <| [];
 
   loop 0->(n1 - 1) as i {
-    /* TODO: make sure thi the vector item MUST be cloned (not just deref'd) */
     Vector_push <| [~&left, %@Vector_get_mut <| [arr, l + i]];
   }
   
@@ -34,9 +33,6 @@ pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
   while (i < n1 and j < n2) {
     &int l_item <| Vector_get <| [&left, %i];
     &int r_item <| Vector_get <| [&right, %j];
-
-    /* wow - illegal! so cool! */
-    /* ~&int l_item_mut <| Vector_get_mut <| [~&left, %i]; */
 
     ~&int k_setter <| Vector_get_mut <| [arr, %k];
     if (@l_item < @r_item) {
@@ -71,7 +67,7 @@ pipe merge_sort |> [] |> [arr: ~&vector[int], l: int, r: int] |> unit {
   if (l < r) {
     int m <| l + (r - l) / 2;
     merge_sort <| [arr, %l, %m];
-    merge_sort <| [arr, %m + 1, %r];
+    merge_sort <| [arr, m + 1, %r];
     merge <| [arr, l, m, r];
   }
   |> ();

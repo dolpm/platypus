@@ -71,7 +71,7 @@ pipe merge_sort |> [] |> [arr: ~&vector[int], l: int, r: int] |> unit {
   if (l < r) {
     int m <| l + (r - l) / 2;
     merge_sort <| [arr, %l, %m];
-    merge_sort <| [arr, %m + 1, %r];
+    merge_sort <| [arr, m + 1, %r];
     merge <| [arr, l, m, r];
   }
   |> ();
@@ -104,7 +104,7 @@ pipe main |> [] |> [] |> unit {
   Print <| ["Before: "];
   print_vec <| [&nums];
 
-  merge_sort <| [~&nums, 0, %len - 1];
+  merge_sort <| [~&nums, 0, len - 1];
 
   if (validate_sort <| [&nums]) {
   Print <| ["After: "];

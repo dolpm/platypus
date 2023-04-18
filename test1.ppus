@@ -35,9 +35,6 @@ pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
     &int l_item <| Vector_get <| [&left, %i];
     &int r_item <| Vector_get <| [&right, %j];
 
-    /* wow - illegal! so cool! */
-    /* ~&int l_item_mut <| Vector_get_mut <| [~&left, %i]; */
-
     ~&int k_setter <| Vector_get_mut <| [arr, %k];
     if (@l_item < @r_item) {
       k_setter <| %@l_item;
@@ -71,7 +68,7 @@ pipe merge_sort |> [] |> [arr: ~&vector[int], l: int, r: int] |> unit {
   if (l < r) {
     int m <| l + (r - l) / 2;
     merge_sort <| [arr, %l, %m];
-    merge_sort <| [arr, %m + 1, %r];
+    merge_sort <| [arr, m + 1, %r];
     merge <| [arr, l, m, r];
   }
   |> ();
@@ -98,17 +95,14 @@ pipe main |> [] |> [] |> unit {
   /* initialize rng with seed */
   Rng_init <| [1337];
 
-
   int len <| 10000000;
   
   mut vector[int] nums <| create_vec_of_size <| [%len];
-
-  /* make sure len doesn't move to merge_sort here lmao */
-  merge_sort <| [~&nums, 0, %len - 1];
+  merge_sort <| [~&nums, 0, len - 1];
 
   if (validate_sort <| [&nums]) {
     Print <| ["Successfully sorted "];
-    Print <| [&len];
+    Print <| [len];
     Printnl <| [" integers."];
   } else {
     Printnl <| ["Integer sort was unsuccessful."];
