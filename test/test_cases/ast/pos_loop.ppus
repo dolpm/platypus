@@ -1,4 +1,4 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
     loop 0 -> 5 as i {
         Printnl <| [int_to_string <| [i]]; 
     }
@@ -9,7 +9,7 @@ pipe main |> [] |> [] |> unit {
 
     while (i < 10) {
         Printnl <| [int_to_string <| [i]];
-        i <| (i + 1);
+        i = (i + 1);
     }
 
     |> ();

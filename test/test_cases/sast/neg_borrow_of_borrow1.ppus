@@ -1,6 +1,6 @@
-pipe main |> [] |> [] |> unit {
-    int a <| 1;
-    ~&int b <| ~&a;
+pipe main [] |> unit {
+    int a = 1;
+    ~&int b = ~&a;
     &b;
     |> ();
 }

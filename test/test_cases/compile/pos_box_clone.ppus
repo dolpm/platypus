@@ -1,12 +1,12 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
   /* depth = 1 */
   {
-    box[int] x <| Box_new <| [2048];
-    mut box[int] y <| %x;
+    box[int] x = Box_new <| [2048];
+    mut box[int] y = %x;
 
     {
-      ~&int unboxed <| Box_unbox_mut <| [~&y];
-      @unboxed <| 4028;
+      ~&int unboxed = Box_unbox_mut <| [~&y];
+      @unboxed = 4028;
     }
 
     Printnl <| [Box_unbox <| [&y]];
@@ -15,12 +15,12 @@ pipe main |> [] |> [] |> unit {
 
   /* depth > 1 */
   {
-    box[box[int]] x <| Box_new <| [Box_new <| [2048]];
-    mut box[box[int]] y <| %x;
+    box[box[int]] x = Box_new <| [Box_new <| [2048]];
+    mut box[box[int]] y = %x;
 
     {
-      ~&int unboxed <| Box_unbox_mut <| [Box_unbox_mut <| [~&y]];
-      @unboxed <| 4028;
+      ~&int unboxed = Box_unbox_mut <| [Box_unbox_mut <| [~&y]];
+      @unboxed = 4028;
     }
 
     Printnl <| [Box_unbox <| [Box_unbox <| [&y]]];

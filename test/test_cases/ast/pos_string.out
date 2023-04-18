@@ -1,6 +1,6 @@
-pipe main |> [] |> [] |> unit {
-  int n <| 1;
-  string x <| "hello";
-  str y <| Str_new <| [", world"];
+pipe main [] |> unit {
+  int n = 1;
+  string x = "hello";
+  str y = Str_new <| [", world"];
   |> ();
 }

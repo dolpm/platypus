@@ -1,6 +1,6 @@
-pipe main |> [] |> [] |> unit {
-    int x <| 1;
-    bool b <| %x;
+pipe main [] |> unit {
+    int x = 1;
+    bool b = %x;
     
     |> ();
 }

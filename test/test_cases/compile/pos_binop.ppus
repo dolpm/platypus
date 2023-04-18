@@ -1,4 +1,4 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
     /* integers */
     Printnl <| [4 + 9];
     Printnl <| [1024 - 1000];

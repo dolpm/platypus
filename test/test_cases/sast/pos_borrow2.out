@@ -1,9 +1,9 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
-  mut int x <| (int : 4);
-  int z <| (int : 4);
-  mut ~&'_ int w <| (~&'_ int : ~&(int : x));
+  mut int x = (int : 4);
+  int z = (int : 4);
+  mut ~&'_ int w = (~&'_ int : ~&(int : x));
   |> (unit : ());
 }
 }

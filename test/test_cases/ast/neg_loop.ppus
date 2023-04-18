@@ -1,4 +1,4 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
 
     loop 0 -> 10 as (i..2) {
         Printnl <| [int_to_string <| [i]];

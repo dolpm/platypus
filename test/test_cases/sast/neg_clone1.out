@@ -1,1 +1,1 @@
-Fatal error: exception Failure("illegal assignment bool = int in bool b <| %x;\n")
+Fatal error: exception Failure("illegal assignment bool = int in bool b = %x;\n")

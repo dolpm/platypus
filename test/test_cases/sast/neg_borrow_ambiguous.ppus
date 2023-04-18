@@ -1,17 +1,17 @@
-pipe test |> ['a, 'b] |> [x: &'a int, y: &'b int] |> &'b int {
+pipe test |'a, 'b| [x: &'a int, y: &'b int] |> &'b int {
   if (@x == 2) {
     |> x;
   }
   |> y;
 }
 
-pipe main |> [] |> [] |> unit {
-  int x <| 4;
-  mut &int w <| &x;
+pipe main [] |> unit {
+  int x = 4;
+  mut &int w = &x;
   while (x < 5) {
-    int y <| 4;
+    int y = 4;
     loop 0 -> 5 as z {
-      w <| (test <| [&x, &y]);
+      w = (test <| [&x, &y]);
     }
   }
   |> ();

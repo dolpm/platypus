@@ -38,6 +38,7 @@ rule token = parse
   | "mut"    { MUT }
 
   | '|'      { PIPE }
+  | "<|"     { LPIPE }
   | "|>"     { RPIPE }
 
   | "=="     { EQ }

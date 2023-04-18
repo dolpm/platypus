@@ -1,14 +1,14 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
   /* depth = 1 */
   {
-    mut vector[int] x <| Vector_new <| [];
+    mut vector[int] x = Vector_new <| [];
     Vector_push <| [~&x, 2048];
 
-    mut vector[int] y <| %x;
+    mut vector[int] y = %x;
 
     {
-        ~&int y_setter <| Vector_get_mut <| [~&y, 0];
-        @y_setter <| 4028;
+        ~&int y_setter = Vector_get_mut <| [~&y, 0];
+        @y_setter = 4028;
     }
 
     
@@ -18,16 +18,16 @@ pipe main |> [] |> [] |> unit {
 
   /* depth > 1 */
   {
-    mut vector[vector[int]] x <| Vector_new <| [];
-    mut vector[int] x_inner <| Vector_new <| [];
+    mut vector[vector[int]] x = Vector_new <| [];
+    mut vector[int] x_inner = Vector_new <| [];
     Vector_push <| [~&x_inner, 2048];
     Vector_push <| [~&x, x_inner];
-    mut vector[vector[int]] y <| %x;
+    mut vector[vector[int]] y = %x;
 
     {
-        ~&vector[int] y_inner_setter <| Vector_get_mut <| [~&y, 0];
-        ~&int y_setter <| Vector_get_mut <| [y_inner_setter, 0];
-        @y_setter <| 4028;
+        ~&vector[int] y_inner_setter = Vector_get_mut <| [~&y, 0];
+        ~&int y_setter = Vector_get_mut <| [y_inner_setter, 0];
+        @y_setter = 4028;
     }
 
     Printnl <| [Vector_get <| [Vector_get <| [&y, 0], 0]];

@@ -1,5 +1,5 @@
-pipe print_vec |> [] |> [arr: &vector[int]] |> unit {
-  int v_len <| Vector_length <| [arr];
+pipe print_vec [arr: &vector[int]] |> unit {
+  int v_len = Vector_length <| [arr];
   Print <| ["["];
   loop 0->(v_len - 1) as i {
     Print <| [Vector_get <| [arr, %i]];
@@ -11,12 +11,12 @@ pipe print_vec |> [] |> [arr: &vector[int]] |> unit {
   |> ();
 }
 
-pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
-  int n1 <| (m - l) + 1;
-  int n2 <| r - m;
+pipe merge [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
+  int n1 = (m - l) + 1;
+  int n2 = r - m;
 
-  mut vector[int] left <| Vector_new <| [];
-  mut vector[int] right <| Vector_new <| [];
+  mut vector[int] left = Vector_new <| [];
+  mut vector[int] right = Vector_new <| [];
 
   loop 0->(n1 - 1) as i {
     Vector_push <| [~&left, %@Vector_get_mut <| [arr, l + i]];
@@ -26,43 +26,43 @@ pipe merge |> [] |> [arr: ~&vector[int], l: int, m: int, r: int] |> unit {
     Vector_push <| [~&right, %@Vector_get_mut <| [arr, m + i + 1]];
   }
 
-  mut int i <| 0;
-  mut int j <| 0;
-  mut int k <| l;
+  mut int i = 0;
+  mut int j = 0;
+  mut int k = l;
 
   while (i < n1 and j < n2) {
-    &int l_item <| Vector_get <| [&left, %i];
-    &int r_item <| Vector_get <| [&right, %j];
+    &int l_item = Vector_get <| [&left, %i];
+    &int r_item = Vector_get <| [&right, %j];
 
     if (@l_item < @r_item) {
       Vector_update <| [arr, %k, %@l_item];
-      i <| i + 1;
+      i = i + 1;
     } else {
       Vector_update <| [arr, %k, %@r_item];
-      j <| j + 1;
+      j = j + 1;
     }
     
-    k <| k + 1;
+    k = k + 1;
   }
 
   while (i < n1) {
     Vector_update <| [arr, %k, %@(Vector_get <| [&left, %i])];
-    i <| i + 1;
-    k <| k + 1;
+    i = i + 1;
+    k = k + 1;
   }
 
   while (j < n2) {
     Vector_update <| [arr, %k, %@(Vector_get <| [&right, %j])];
-    j <| j + 1;
-    k <| k + 1;
+    j = j + 1;
+    k = k + 1;
   }
 
   |> ();
 }
 
-pipe merge_sort |> [] |> [arr: ~&vector[int], l: int, r: int] |> unit {
+pipe merge_sort [arr: ~&vector[int], l: int, r: int] |> unit {
   if (l < r) {
-    int m <| l + (r - l) / 2;
+    int m = l + (r - l) / 2;
     merge_sort <| [arr, %l, %m];
     merge_sort <| [arr, m + 1, %r];
     merge <| [arr, l, m, r];
@@ -70,7 +70,7 @@ pipe merge_sort |> [] |> [arr: ~&vector[int], l: int, r: int] |> unit {
   |> ();
 }
 
-pipe validate_sort |> [] |> [arr: &vector[int]] |> bool {
+pipe validate_sort [arr: &vector[int]] |> bool {
   loop 1->((Vector_length <| [arr]) - 1) as i {
     if (@(Vector_get <| [arr, i-1]) > @(Vector_get <| [arr, %i])) {
       |> false;
@@ -79,20 +79,20 @@ pipe validate_sort |> [] |> [arr: &vector[int]] |> bool {
   |> true;
 }
 
-pipe create_vec_of_size |> [] |> [size: int] |> vector[int] {
-  mut vector[int] nums <| Vector_new <| [];
+pipe create_vec_of_size [size: int] |> vector[int] {
+  mut vector[int] nums = Vector_new <| [];
   loop 0->(size-1) as i {
     Vector_push <| [~&nums, Rng_generate <| [0, 100000]];
   }
   |> nums;
 }
 
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
   /* initialize rng with random seed (i.e., anything < 0) */
   Rng_init <| [-1];
 
-  int len <| 10;
-  mut vector[int] nums <| create_vec_of_size <| [%len];
+  int len = 10;
+  mut vector[int] nums = create_vec_of_size <| [%len];
 
   Print <| ["Before: "];
   print_vec <| [&nums];

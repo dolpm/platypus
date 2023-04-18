@@ -1,12 +1,12 @@
-pipe main |> [] |> [] |> unit {
-    mut vector[int] inner <| Vector_new <| [];
+pipe main [] |> unit {
+    mut vector[int] inner = Vector_new <| [];
     Vector_push <| [~&inner, 6];
     Vector_push <| [~&inner, 7];
 
-    box[vector[int]] b_inner <| Box_new <| [inner];
+    box[vector[int]] b_inner = Box_new <| [inner];
 
 
-    box[box[vector[int]]] b_outer <| Box_new <| [b_inner];
+    box[box[vector[int]]] b_outer = Box_new <| [b_inner];
 
     |> ();
 }

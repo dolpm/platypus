@@ -1,5 +1,5 @@
-pipe main |> [] |> [] |> unit {
-  mut [int * bool * float] happy_lil_tuple <| tuple(21, false, 17.38);
-  happy_lil_tuple <| tuple(20, true, 17.72);
+pipe main [] |> unit {
+  mut [int * bool * float] happy_lil_tuple = tuple(21, false, 17.38);
+  happy_lil_tuple = tuple(20, true, 17.72);
   |> ();
 }

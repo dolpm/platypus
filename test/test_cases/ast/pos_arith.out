@@ -1,8 +1,8 @@
-pipe main |> [] |> [] |> unit {
-  int n <| 1;
-  int m <| 2;
-  int r1 <| n + m;
-  float a <| 1.1;
-  float b <| 2.2;
-  float r2 <| a + b;
+pipe main [] |> unit {
+  int n = 1;
+  int m = 2;
+  int r1 = n + m;
+  float a = 1.1;
+  float b = 2.2;
+  float r2 = a + b;
 }

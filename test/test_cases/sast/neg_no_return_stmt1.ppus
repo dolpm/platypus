@@ -1,12 +1,12 @@
-pipe test |> [] |> [a : bool , b : bool] |> int {
+pipe test [a : bool , b : bool] |> int {
     if (a and b) {
         |> 10;
     } else {
-        bool x <| a;
+        bool x = a;
     }
 }
 
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
     test <| [true, false];
     |> ();
 }

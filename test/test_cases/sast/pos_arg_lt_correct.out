@@ -1,4 +1,4 @@
-pipe test |> ['a, 'b, 'c] |> [x: &'a int, y: &'b int, z: &'c int] |> &'c int {
+pipe test |'a, 'b, 'c| [x: &'a int, y: &'b int, z: &'c int] |> &'c int {
 {(id: test_with_args)
 {(id: test_wrapper)
   if ((bool : (int : @(&'a int : x)) == (int : 2)))
@@ -14,13 +14,13 @@ pipe test |> ['a, 'b, 'c] |> [x: &'a int, y: &'b int, z: &'c int] |> &'c int {
 }
 }
 
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
-  int x <| (int : 4);
+  int x = (int : 4);
   while (bool : (int : x) < (int : 5))
   {(id: 1)
-    int y <| (int : 4);
+    int y = (int : 4);
     loop (int : 0) -> (int : 5) as (z,(int : 1))    {(id: 2)
       (&'_ int : test <| [(&'_ int : &(int : x)), (&'_ int : &(int : y)), (&'_ int : &(int : z))]);
     }

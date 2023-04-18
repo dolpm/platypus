@@ -1,4 +1,4 @@
-pipe main |> [] |> [] |> unit {
+pipe main [] |> unit {
   while (true) {
     if (true) {
       |> ();

@@ -1,7 +1,7 @@
-pipe main |> [] |> [] |> unit {
-    int x <| 1;
-    &int y <| &x;
-    &int b <| %y;
+pipe main [] |> unit {
+    int x = 1;
+    &int y = &x;
+    &int b = %y;
     
     |> ();
 }

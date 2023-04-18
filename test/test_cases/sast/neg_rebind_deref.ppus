@@ -1,7 +1,7 @@
-pipe main |> [] |> [] |> unit {
-    int x <| 4;
-    &int y <| &x;
-    mut int z <| 4;
-    z <| @y;
+pipe main [] |> unit {
+    int x = 4;
+    &int y = &x;
+    mut int z = 4;
+    z = @y;
     |> ();
 }
