@@ -91,8 +91,12 @@ formals_opt:
 
 /* currently just doing false for mutable but this should be handled */
 formal_list:
-  | IDENT COLON typ                   { [(false,$3,$1)] }
-  | formal_list COMMA IDENT COLON typ { (false,$5,$3) :: $1 }
+  | formal                   { [$1] }
+  | formal_list COMMA formal { $3 :: $1 }
+
+formal:
+  | MUT IDENT COLON typ     { (true, $4, $2) }
+  | IDENT COLON typ         { (false, $3, $1) }
 
 stmt_list:
   | { [] }

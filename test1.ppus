@@ -1,9 +1,23 @@
+thing CloudConsciousness <| {
+  enemies : vector[bool]
+}
+
+pipe transfigure |> [] |> [subject : CloudConsciousness] |> unit {
+  &vector[bool] to_be_enlightened <| &subject[enemies];
+
+  |> ();
+}
+
 pipe main |> [] |> [] |> unit {
-  mut [int * [int * int]] t <| tuple(4, tuple(4, 5));
+  mut [vector[int] * box[bool]] brainfolds <| tuple(Vector_new <| [], Box_new <| [true]);
 
-  ~&int nested <| ~&t[1][1];
+  ~&vector[int] memories <| ~&brainfolds[0];
 
-  Printnl <| [nested];
+  mut CloudConsciousness mortality <| CloudConsciousness {
+    enemies : Vector_new <| []
+  };
+
+  transfigure <| [mortality];
 
   |> ();
 }
