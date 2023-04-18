@@ -382,7 +382,19 @@ let check (things, pipes) verbosity =
                 ^ string_of_expr pipein))
           else
             let args_checked = List.map (fun arg -> expr arg symbols) args in
+
             let check_pipein (_, ft, _) e =
+              (* check for derefs in args (illegal) *)
+              let _ =
+                match e with
+                | Unop (Deref, _) ->
+                    make_err
+                      "Can't provide the deref, which is an owned value, as a \
+                       pipe argument. Please clone the value before passing \
+                       it."
+                | _ -> ()
+              in
+
               (* we will check lifetimes later - just make sure they are ambiguous *)
               (* for this step *)
               let ft =
@@ -642,6 +654,17 @@ let check (things, pipes) verbosity =
           SWhile ((t', e'), check_stmt s symbols, stmt_returns)
       | PipeOut e ->
           let t, e' = expr e symbols in
+
+          (* check for derefs in args (illegal) *)
+          let _ =
+            match e with
+            | Unop (Deref, _) ->
+                make_err
+                  "Can't provide the deref, which is an owned value, as a pipe \
+                   return value. Please clone the value before returning it."
+            | _ -> ()
+          in
+
           let err =
             "expected return type of " ^ string_of_typ t ^ " for pipe " ^ p.name
           in

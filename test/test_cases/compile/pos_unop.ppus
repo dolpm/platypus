@@ -11,11 +11,11 @@ pipe main |> [] |> [] |> unit {
     mut int z <| 5;
     {
       &int a <| &z;
-      Printnl <| [@a];
+      Printnl <| [a];
     }
     {
       ~&int a <| ~&z;
-      Printnl <| [@a];
+      Printnl <| [a];
     }
 
     |> ();

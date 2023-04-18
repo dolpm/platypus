@@ -1,0 +1,12 @@
+pipe test |> [] |> [x: int] |> unit {
+  |> ();
+}
+
+pipe main |> [] |> [] |> unit {
+    int x <| 4;
+    &int y <| &x;
+
+    test <| [@y];
+
+    |> ();
+}
