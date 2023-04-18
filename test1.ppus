@@ -99,7 +99,7 @@ pipe main |> [] |> [] |> unit {
   Rng_init <| [1337];
 
 
-  int len <| 500000;
+  int len <| 10000000;
   
   mut vector[int] nums <| create_vec_of_size <| [%len];
 

@@ -68,6 +68,16 @@ let translate (things, pipes) ownership_map m_external =
   let noop_t = Llvm.function_type unit_t [||] in
   let noop_func = L.declare_function "llvm.donothing" noop_t the_module in
 
+  let stacksave_t = Llvm.function_type (L.pointer_type i8_t) [||] in
+  let stacksave_func =
+    Llvm.declare_function "llvm.stacksave" stacksave_t the_module
+  in
+
+  let stackrestore_t = Llvm.function_type unit_t [| L.pointer_type i8_t |] in
+  let stackrestore_func =
+    Llvm.declare_function "llvm.stackrestore" stackrestore_t the_module
+  in
+
   let printf_t : L.lltype =
     L.var_arg_function_type i32_t [| L.pointer_type i8_t |]
   in
@@ -236,6 +246,11 @@ let translate (things, pipes) ownership_map m_external =
               in
               let _ = L.position_at_end body_bb builder in
 
+              (* save stackptr before building body *)
+              let stackptr_prebody =
+                L.build_call stacksave_func [||] "stackptr_prebody" builder
+              in
+
               (* get item from vector *)
               let fetched_item =
                 L.build_call vector_get_func
@@ -290,6 +305,9 @@ let translate (things, pipes) ownership_map m_external =
               in
               let _ = L.build_store add index builder in
 
+              let _ =
+                L.build_call stackrestore_func [| stackptr_prebody |] "" builder
+              in
               let () = add_terminal builder (L.build_br pred_bb) in
 
               let _ = L.position_at_end pred_bb builder in
@@ -870,6 +888,11 @@ let translate (things, pipes) ownership_map m_external =
                     L.append_block context "free_while_body" the_pipe
                   in
                   let body_builder = L.builder_at_end context body_bb in
+                  (* save stackptr before building body *)
+                  let stackptr_prebody =
+                    L.build_call stacksave_func [||] "stackptr_prebody"
+                      body_builder
+                  in
 
                   (* fetch the item from the vector *)
                   let fetched_item =
@@ -898,6 +921,10 @@ let translate (things, pipes) ownership_map m_external =
                   in
                   let _ = L.build_store add cur_item body_builder in
 
+                  let _ =
+                    L.build_call stackrestore_func [| stackptr_prebody |] ""
+                      body_builder
+                  in
                   let () = add_terminal body_builder' (L.build_br pred_bb) in
 
                   let pred_builder = L.builder_at_end context pred_bb in
@@ -1111,12 +1138,21 @@ let translate (things, pipes) ownership_map m_external =
           let _ = L.build_br pred_bb builder in
 
           let body_bb = L.append_block context "while_body" the_pipe in
-          let while_builder =
-            stmt body dangling_owns (L.builder_at_end context body_bb)
+          let body_builder = L.builder_at_end context body_bb in
+
+          (* save stackptr before building body *)
+          let stackptr_prebody =
+            L.build_call stacksave_func [||] "stackptr_prebody" body_builder
           in
+
+          let while_builder = stmt body dangling_owns body_builder in
 
           let _ =
             if not s_returns then
+              let _ =
+                L.build_call stackrestore_func [| stackptr_prebody |] ""
+                  body_builder
+              in
               add_terminal while_builder (L.build_br pred_bb)
             else ()
           in
