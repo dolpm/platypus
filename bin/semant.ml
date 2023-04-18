@@ -10,30 +10,34 @@ let check (things, pipes) verbosity =
   (* (name, [param(is_mut, type, name)], ret_type) *)
   let stdlib_pipe_decls =
     [
+      (* print *)
       ("Print", [ (false, Generic, "x") ], Unit);
       ("Printnl", [ (false, Generic, "x") ], Unit);
+      (* rng *)
       ("Rng_init", [ (false, Int, "x") ], Unit);
       ("Rng_generate", [ (false, Int, "x"); (false, Int, "y") ], Int);
+      (* panic *)
       ("Panic", [ (false, Generic, "x") ], Unit);
+      (* boxes *)
       ("Box_new", [ (true, Generic, "x") ], Box Generic);
-      ( "Box_unbox",
-        [ (false, Borrow (Box Generic, "'_"), "x") ],
-        Borrow (Generic, "'_") );
+      ("Box_unbox", [ (false, Generic, "x") ], Borrow (Generic, "'_"));
       ( "Box_unbox_mut",
         [ (true, MutBorrow (Box Generic, "'_"), "x") ],
         MutBorrow (Generic, "'_") );
-      ("Vector_length", [ (false, Borrow (Vector Generic, "'_"), "x") ], Int);
+      (* vec *)
+      ("Vector_length", [ (false, Generic, "x") ], Int);
       ("Vector_new", [], Vector Generic);
       ( "Vector_get_mut",
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
         MutBorrow (Generic, "'_") );
       ( "Vector_get",
-        [ (false, Borrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
+        [ (false, Generic, "x"); (false, Int, "y") ],
         Borrow (Generic, "'_") );
       ( "Vector_push",
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
         Unit );
       ("Vector_pop", [ (true, MutBorrow (Vector Generic, "'_"), "x") ], Unit);
+      (* str *)
       ("Str_new", [ (false, String, "x") ], Str);
       ( "Str_push",
         [ (true, MutBorrow (Str, "'_"), "x"); (false, Char, "y") ],
@@ -466,9 +470,9 @@ let check (things, pipes) verbosity =
                   match first_arg_type with
                   | MutBorrow (Box t, lt) -> MutBorrow (t, lt)
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
-              | "Vector_pop" -> (
+              | "Vector_length" -> (
                   match first_arg_type with
-                  | MutBorrow (Vector t, _) -> t
+                  | Borrow (Vector _t, _lt) -> Int
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Vector_get" -> (
                   match first_arg_type with
@@ -478,7 +482,14 @@ let check (things, pipes) verbosity =
                   match first_arg_type with
                   | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
-              | "Vector_push" -> Unit
+              | "Vector_pop" -> (
+                  match first_arg_type with
+                  | MutBorrow (Vector t, _) -> t
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Vector_push" -> (
+                  match first_arg_type with
+                  | MutBorrow (Vector _t, _lt) -> Unit
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | _ -> pd.return_type
             in
             let ret_type =
