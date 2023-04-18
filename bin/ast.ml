@@ -50,7 +50,7 @@ type expr =
   (* assignable thing value *)
   | ThingValue of (string * (string * expr) list)
   (* thing var name, list of names in order of access *)
-  | ThingAccess of (string * string list)
+  | ThingAccess of (expr * string)
   | TupleValue of expr list
   | TupleIndex of string * int
   | Ident of string
@@ -150,8 +150,8 @@ let rec string_of_expr = function
              (fun (c_name, e) -> "    " ^ c_name ^ ": " ^ string_of_expr e)
              children)
       ^ "\n  }"
-  | ThingAccess (v_name, access_list) ->
-      v_name ^ "." ^ String.concat "." access_list
+  | ThingAccess (e, elem_to_access) ->
+      string_of_expr e ^ "[" ^ elem_to_access ^ "]"
   | TupleValue es ->
       "tuple("
       ^ String.concat ", " (List.map (fun e -> "" ^ string_of_expr e) es)

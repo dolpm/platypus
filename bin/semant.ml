@@ -283,52 +283,46 @@ let check (things, pipes) verbosity =
             | _ -> make_err "how the fuck did we get here?"
           in
           (brw, SUnop (op, (inner_typ, STupleIndex (t_name, idx))))
-      | Unop ((Ref as op), ThingAccess (v_name, access_list))
-      | Unop ((MutRef as op), ThingAccess (v_name, access_list)) ->
-          let mut, typ = StringMap.find v_name symbols in
+      | ThingAccess (e, elem_to_access) ->
+          let typ, e' = expr e symbols in
+
+          let ttyp =
+            match typ with
+            | MutBorrow (ttyp, _) | Borrow (ttyp, _) -> ttyp
+            | _ -> raise (Failure "thing access must be done on a borrow.")
+          in
+
           let typ_of_access =
-            List.fold_left
-              (fun (cur_typ : defined_type) c_name ->
-                let t_name =
-                  match cur_typ with
-                  | Ident t_name -> t_name
-                  | _ ->
-                      raise
-                        (Failure "thing access must be done on a thing type.")
-                in
-                (* get the actual thing to recurse on inner type *)
-                let assoc_t = List.find (fun t -> t.tname = t_name) things in
-                (* make sure inner element exists *)
-                let _, typ', _ =
-                  List.find
-                    (fun (_is_mut, _typ, n) -> n = c_name)
-                    assoc_t.elements
-                in
-                typ')
-              typ access_list
+            let t_name =
+              match ttyp with
+              | Ident t_name -> t_name
+              | _ ->
+                  raise (Failure "thing access must be done on a thing type.")
+            in
+            (* get the actual thing to recurse on inner type *)
+            let assoc_t = List.find (fun t -> t.tname = t_name) things in
+
+            (* make sure inner element exists *)
+            let _, typ', _ =
+              List.find
+                (fun (_is_mut, _typ, n) -> n = elem_to_access)
+                assoc_t.elements
+            in
+
+            match typ with
+            | MutBorrow _ -> MutBorrow (typ', "'_")
+            | Borrow _ -> Borrow (typ', "'_")
+            | _ -> raise (Failure "not possible!")
           in
 
           let t_to_be_accessed =
-            match typ with
+            match ttyp with
             | Ident t_name -> t_name
             | _ -> raise (Failure "thing access must be done on a thing type.")
           in
 
-          let brw =
-            match op with
-            | MutRef ->
-                if mut then MutBorrow (typ_of_access, "'_")
-                else
-                  make_err
-                    "can't take a mut borrow access out on an immutable thing"
-            | Ref -> Borrow (typ_of_access, "'_")
-            | _ -> make_err "how the fuck did we get here?"
-          in
-          ( brw,
-            SUnop
-              ( op,
-                ( typ_of_access,
-                  SThingAccess (t_to_be_accessed, v_name, access_list) ) ) )
+          ( typ_of_access,
+            SThingAccess (t_to_be_accessed, (typ, e'), elem_to_access) )
       | Unop (op, e1) as e ->
           let t1, e1' = expr e1 symbols in
           let ty =
@@ -594,7 +588,6 @@ let check (things, pipes) verbosity =
           in
 
           (Ident t_name, SThingValue (t_name, List.rev children'))
-      | ThingAccess _ -> make_err "thing access must be borrowed for use"
       | _ -> (Unit, SNoexpr)
     in
 

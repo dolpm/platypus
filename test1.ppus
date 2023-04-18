@@ -1,12 +1,25 @@
+thing MyInnerThing <| {
+  im_a_float: float
+}
+
+thing MyThing <| {
+  inner: MyInnerThing,
+  im_an_int: int
+}
+
 pipe main |> [] |> [] |> unit {
-  mut vector[box[int]] x <| Vector_new <| [];
-  Vector_push <| [~&x, Box_new <| [4]];
+  MyInnerThing t_inner <| MyInnerThing {
+      im_a_float: 17.38
+  };
 
-  Printnl <| [Box_unbox <| [Vector_get <| [&x, 0]]];
+  mut MyThing t <| MyThing {
+    inner: t_inner,
+    im_an_int: 10
+  };
 
-  Vector_update <| [~&x, 0, Box_new <| [2]];
-
-  Printnl <| [Box_unbox <| [Vector_get <| [&x, 0]]];
+  ~&MyInnerThing inner <| ~&t[inner];
+  
+  &MyInnerThing inner_2 <| &t[inner];
 
   |> ();
 }
