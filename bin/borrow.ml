@@ -731,8 +731,7 @@ let borrow_ck pipes verbose =
                 (StringMap.add b.name b.node_id symbol_table', active_refs)
             | _, SUnop (Ref, (_, STupleIndex _))
             | _, SUnop (MutRef, (_, STupleIndex _))
-            | _, SUnop (Ref, (_, SThingAccess _))
-            | _, SUnop (MutRef, (_, SThingAccess _))
+            | _, SThingAccess _
             | _, SUnop (Ref, (_, SIdent _))
             | _, SUnop (MutRef, (_, SIdent _))
             (* arg placeholder nodes *)
@@ -844,6 +843,7 @@ let borrow_ck pipes verbose =
       match e with
       | SUnop (Ref, (_typ, SIdent v)) -> (v, false) :: borrows
       | SUnop (MutRef, (_typ, SIdent v)) -> (v, true) :: borrows
+      | SThingAccess (_, s, _) -> inner s borrows
       | SBinop (s1, _, s2) -> inner s2 borrows @ inner s1 borrows
       | SUnop (_, s) -> inner s borrows
       | SPipeIn (_, sl) | STupleValue sl ->

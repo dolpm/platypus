@@ -17,7 +17,7 @@ pipe main |> [] |> [] |> unit {
     im_an_int: 10
   };
 
-  ~&float z <| ~&t.inner.im_a_float;
+  ~&float z <| ~&t[inner][im_a_float];
 
   Printnl <| [z];
 

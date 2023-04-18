@@ -693,48 +693,35 @@ let translate (things, pipes) ownership_map m_external =
               0 elems
           in
           ptr
-      | SThingAccess (t, instance_of_t, access_list) ->
+      | SThingAccess (thing_name, instance_of_t, elem_to_access) ->
           let rec find_elem_index n lst =
             match lst with
             | [] -> raise (Failure "Not Found")
             | (_, _, h) :: t -> if n = h then 0 else 1 + find_elem_index n t
           in
 
-          let _typ_of_elem, casted_gep =
-            List.fold_left
-              (fun ((thing_typ : A.defined_type), instance) elem_to_match ->
-                let thing_name =
-                  match thing_typ with
-                  | Ident t -> t
-                  | _ -> raise (Failure "panic! not possible")
-                in
+          let loaded_instance =
+            L.build_load
+              (expr builder instance_of_t)
+              "instance_of_struct" builder
+          in
 
-                let loaded_instance =
-                  L.build_load instance "instance_of_struct" builder
-                in
+          let elem_types =
+            (List.find (fun t -> t.stname = thing_name) things).selements
+          in
+          let idx = find_elem_index elem_to_access elem_types in
+          let _, elem_typ, _ =
+            List.find (fun (_, _, n) -> n = elem_to_access) elem_types
+          in
 
-                let elem_types =
-                  (List.find (fun t -> t.stname = thing_name) things).selements
-                in
-                let idx = find_elem_index elem_to_match elem_types in
-                let _, elem_typ, _ =
-                  List.find (fun (_, _, n) -> n = elem_to_match) elem_types
-                in
+          let gepped =
+            L.build_struct_gep loaded_instance idx "gep_on_instance" builder
+          in
 
-                let gepped =
-                  L.build_struct_gep loaded_instance idx "gep_on_instance"
-                    builder
-                in
-
-                let casted_gep =
-                  L.build_bitcast gepped
-                    (L.pointer_type (ltype_of_typ elem_typ))
-                    "casted_gep" builder
-                in
-
-                (elem_typ, casted_gep))
-              (Ident t, fst (StringMap.find instance_of_t !variables))
-              access_list
+          let casted_gep =
+            L.build_bitcast gepped
+              (L.pointer_type (ltype_of_typ elem_typ))
+              "casted_gep" builder
           in
 
           casted_gep

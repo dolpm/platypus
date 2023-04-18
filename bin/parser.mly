@@ -16,6 +16,7 @@
 %nonassoc NOELSE
 %nonassoc ELSE
 %right LPIPE
+%left LBRACKET RBRACKET
 %left OR
 %left AND
 %left EQ NEQ CONCAT
@@ -125,10 +126,6 @@ tpl_child_list:
   | expr                          { [$1] }  
   | tpl_child_list COMMA expr     { $3 :: $1 }
 
-thing_access_list:
-  | IDENT                         { [$1] }
-  | thing_access_list DOT IDENT   { $3 :: $1 }
-
 expr:
   | INTLIT          { IntLiteral($1)            }
   | FLOATLIT	           { FloatLiteral($1)           }
@@ -141,7 +138,7 @@ expr:
   | IDENT LBRACE thing_child_assn_list RBRACE { ThingValue($1, List.rev $3) }
   | TUPLE LPAREN tpl_child_list RPAREN { TupleValue(List.rev $3) }  
 
-  | IDENT DOT thing_access_list { ThingAccess($1, List.rev $3) }  
+  | expr LBRACKET IDENT RBRACKET { ThingAccess($1, $3) }  
 
   // tuple indexing
   | IDENT DOT INTLIT { TupleIndex($1, $3) } 
