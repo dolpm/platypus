@@ -1,7 +1,7 @@
 pipe main |> [] |> [] |> unit {
-  [int * [int * int]] t <| tuple(4, tuple(4, 5));
+  mut [int * [int * int]] t <| tuple(4, tuple(4, 5));
 
-  &int nested <| &t[1][1];
+  ~&int nested <| ~&t[1][1];
 
   Printnl <| [nested];
 

@@ -844,6 +844,7 @@ let borrow_ck pipes verbose =
       | SUnop (Ref, (_typ, SIdent v)) -> (v, false) :: borrows
       | SUnop (MutRef, (_typ, SIdent v)) -> (v, true) :: borrows
       | SThingAccess (_, s, _) -> inner s borrows
+      | STupleIndex (s, _) -> inner s borrows
       | SBinop (s1, _, s2) -> inner s2 borrows @ inner s1 borrows
       | SUnop (_, s) -> inner s borrows
       | SPipeIn (_, sl) | STupleValue sl ->
