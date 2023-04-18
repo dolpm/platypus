@@ -37,7 +37,7 @@ rule token = parse
 
   | "mut"    { MUT }
 
-  | "<|"     { LPIPE }
+  | '|'      { PIPE }
   | "|>"     { RPIPE }
 
   | "=="     { EQ }
@@ -49,6 +49,7 @@ rule token = parse
   | "and"     { AND }
   | "or"     { OR }
   | "||"     { CONCAT } 
+  | "="      { EQUAL }
 
   | '!'      { NOT }
 
