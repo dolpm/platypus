@@ -731,8 +731,7 @@ let borrow_ck pipes verbose =
                 (StringMap.add b.name b.node_id symbol_table', active_refs)
             | _, SUnop (Ref, (_, STupleIndex _))
             | _, SUnop (MutRef, (_, STupleIndex _))
-            | _, SUnop (Ref, (_, SThingAccess _))
-            | _, SUnop (MutRef, (_, SThingAccess _))
+            | _, SThingAccess _
             | _, SUnop (Ref, (_, SIdent _))
             | _, SUnop (MutRef, (_, SIdent _))
             (* arg placeholder nodes *)
