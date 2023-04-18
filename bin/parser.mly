@@ -141,7 +141,7 @@ expr:
   | expr LBRACKET IDENT RBRACKET { ThingAccess($1, $3) }  
 
   // tuple indexing
-  | IDENT DOT INTLIT { TupleIndex($1, $3) } 
+  | expr LBRACKET INTLIT RBRACKET { TupleIndex($1, $3) } 
 
   | expr PLUS   expr { Binop($1, Add,   $3)   }
   | expr MINUS  expr { Binop($1, Sub,   $3)   }

@@ -263,26 +263,29 @@ let check (things, pipes) verbosity =
       | CharLiteral l -> (Char, SCharLiteral l)
       | UnitLiteral -> (Unit, SUnitLiteral)
       | StringLiteral l -> (String, SStringLiteral l)
-      | Unop ((Ref as op), TupleIndex (t_name, idx))
-      | Unop ((MutRef as op), TupleIndex (t_name, idx)) ->
-          let mut, tuple_type = type_of_identifier t_name symbols in
+      | TupleIndex (e, idx) ->
+          let typ, e' = expr e symbols in
+
+          let ttyp =
+            match typ with
+            | MutBorrow (ttyp, _) | Borrow (ttyp, _) -> ttyp
+            | _ -> raise (Failure "tuple indexing must be done on a borrow.")
+          in
+
           let inner_typ =
-            match tuple_type with
+            match ttyp with
             | Tuple inner_types -> List.nth inner_types idx
             | _ -> make_err "Tuple access must be done on a tuple."
           in
 
-          let brw =
-            match op with
-            | MutRef ->
-                if mut then MutBorrow (inner_typ, "'_")
-                else
-                  make_err
-                    "can't take a mut borrow access out on an immutable tuple"
-            | Ref -> Borrow (inner_typ, "'_")
-            | _ -> make_err "how the fuck did we get here?"
+          let type_of_access =
+            match typ with
+            | MutBorrow _ -> MutBorrow (inner_typ, "'_")
+            | Borrow _ -> Borrow (inner_typ, "'_")
+            | _ -> raise (Failure "not possible!")
           in
-          (brw, SUnop (op, (inner_typ, STupleIndex (t_name, idx))))
+
+          (type_of_access, STupleIndex ((typ, e'), idx))
       | ThingAccess (e, elem_to_access) ->
           let typ, e' = expr e symbols in
 

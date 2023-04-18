@@ -1,25 +1,9 @@
-thing MyInnerThing <| {
-  im_a_float: float
-}
-
-thing MyThing <| {
-  inner: MyInnerThing,
-  im_an_int: int
-}
-
 pipe main |> [] |> [] |> unit {
-  MyInnerThing t_inner <| MyInnerThing {
-      im_a_float: 17.38
-  };
+  [int * [int * int]] t <| tuple(4, tuple(4, 5));
 
-  mut MyThing t <| MyThing {
-    inner: t_inner,
-    im_an_int: 10
-  };
+  &int nested <| &t[1][1];
 
-  &float inner <| &t[inner][im_a_float];
-  
-  ~&MyInnerThing inner_2 <| ~&t[inner];
+  Printnl <| [nested];
 
   |> ();
 }
