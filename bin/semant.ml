@@ -568,7 +568,9 @@ let check (things, pipes) verbosity =
           let _ =
             match e with
             | Unop (Deref, _) ->
-                make_err "Can't bind the result of a de-reference."
+                make_err
+                  "Can't rebind a deref because it is an owned value. Please \
+                   clone the value before binding it."
             | _ -> ()
           in
 
@@ -592,7 +594,9 @@ let check (things, pipes) verbosity =
           let _ =
             match e with
             | Unop (Deref, _) ->
-                make_err "Can't bind the result of a de-reference."
+                make_err
+                  "Can't bind a deref because it is an owned value. Please \
+                   clone the value before binding it."
             | _ -> ()
           in
 
