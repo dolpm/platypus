@@ -448,6 +448,177 @@ let translate (things, pipes) ownership_map m_external =
       clone_inner typ llvalue builder true
     in
 
+    let free (typ : A.defined_type) (llvalue : L.llvalue)
+        (builder : L.llbuilder) =
+      let rec free_inner typ llvalue builder =
+        match typ with
+        | A.Vector typ_inner ->
+            let v_struct_llv = L.build_load llvalue "v_struct" builder in
+            (* if inner type is on the heap, free the values individually *)
+            (* before we free this value *)
+            let builder =
+              match typ_inner with
+              (* Make sure str should be here *)
+              | A.Vector _ | A.Box _ | A.Str ->
+                  let v_len_llv =
+                    L.build_load
+                      (L.build_struct_gep v_struct_llv 0 "v_len" builder)
+                      "stored_v_len" builder
+                  in
+
+                  let cur_item = L.build_alloca i32_t "cur_item" builder in
+                  let _ =
+                    L.build_store (L.const_int i32_t 0) cur_item builder
+                  in
+
+                  let pred_bb = L.append_block context "free_while" the_pipe in
+                  let _ = L.build_br pred_bb builder in
+
+                  let body_bb =
+                    L.append_block context "free_while_body" the_pipe
+                  in
+                  let body_builder = L.builder_at_end context body_bb in
+                  (* save stackptr before building body *)
+                  let stackptr_prebody =
+                    L.build_call stacksave_func [||] "stackptr_prebody"
+                      body_builder
+                  in
+
+                  (* fetch the item from the vector *)
+                  let fetched_item =
+                    L.build_call vector_get_func
+                      [| v_struct_llv; L.build_load cur_item "x" body_builder |]
+                      "vector_item" body_builder
+                  in
+
+                  (* cast the value to its type *)
+                  let ptr_to_inner =
+                    L.build_bitcast fetched_item
+                      (L.pointer_type (ltype_of_typ typ_inner))
+                      "vector_item_as_type" body_builder
+                  in
+
+                  (* call free on this casted value *)
+                  let body_builder' =
+                    free_inner typ_inner ptr_to_inner body_builder
+                  in
+
+                  (* increment iterator *)
+                  let add =
+                    L.build_add
+                      (L.build_load cur_item "x" body_builder)
+                      (L.const_int i32_t 1) "add" body_builder
+                  in
+                  let _ = L.build_store add cur_item body_builder in
+
+                  let _ =
+                    L.build_call stackrestore_func [| stackptr_prebody |] ""
+                      body_builder
+                  in
+                  let () = add_terminal body_builder' (L.build_br pred_bb) in
+
+                  let pred_builder = L.builder_at_end context pred_bb in
+                  let cmp_as_bool =
+                    L.build_icmp L.Icmp.Slt
+                      (L.build_load cur_item "x" pred_builder)
+                      v_len_llv "free_loop_cond" pred_builder
+                  in
+
+                  let merge_bb = L.append_block context "free_merge" the_pipe in
+                  let _ =
+                    L.build_cond_br cmp_as_bool body_bb merge_bb pred_builder
+                  in
+                  L.builder_at_end context merge_bb
+              | _ -> builder
+            in
+
+            (* free the vector contents by calling the helper *)
+            let _ =
+              L.build_call vector_free_func [| v_struct_llv |] "" builder
+            in
+
+            builder
+        | A.Box typ_inner ->
+            (* load the malloc *)
+            let box = L.build_load llvalue "box_malloc_to_free" builder in
+            let builder' =
+              match typ_inner with
+              (* recursively free box internals *)
+              | A.Vector _ | A.Box _ ->
+                  (* store inner value in ptr on stack *)
+                  let inner_ptr =
+                    L.build_alloca (ltype_of_typ typ_inner) "box_inner_ptr"
+                      builder
+                  in
+
+                  (* load the value inside of the malloc (i.e., boxed thing) *)
+                  let _ =
+                    L.build_store
+                      (L.build_load box "box_malloc_inner" builder)
+                      inner_ptr builder
+                  in
+
+                  let builder' = free_inner typ_inner inner_ptr builder in
+                  builder'
+              | _ -> builder
+            in
+
+            let _ = L.build_free box builder' in
+
+            builder'
+        | A.Str ->
+            (* load the malloc *)
+            let str = L.build_load llvalue "str_malloc_to_free" builder in
+            let _ = L.build_free str builder in
+            builder
+        | Ident thing_name ->
+            let loaded_instance =
+              L.build_load llvalue "instance_of_struct" builder
+            in
+            let _, builder' =
+              List.fold_left
+                (fun (idx, builder) (_, elem_typ, _) ->
+                  let gepped =
+                    L.build_struct_gep loaded_instance idx "gep_on_instance"
+                      builder
+                  in
+                  let casted_gep =
+                    L.build_bitcast gepped
+                      (L.pointer_type (ltype_of_typ elem_typ))
+                      "casted_gep" builder
+                  in
+                  let builder' = free_inner elem_typ casted_gep builder in
+                  (idx + 1, builder'))
+                (0, builder)
+                (List.find (fun t -> t.stname = thing_name) things).selements
+            in
+            builder'
+        | Tuple inner_types ->
+            let loaded_instance =
+              L.build_load llvalue "instance_of_tuple" builder
+            in
+            let _, builder' =
+              List.fold_left
+                (fun (idx, builder) elem_typ ->
+                  let gepped =
+                    L.build_struct_gep loaded_instance idx "gep_on_instance"
+                      builder
+                  in
+                  let casted_gep =
+                    L.build_bitcast gepped
+                      (L.pointer_type (ltype_of_typ elem_typ))
+                      "casted_gep" builder
+                  in
+                  let builder' = free_inner elem_typ casted_gep builder in
+                  (idx + 1, builder'))
+                (0, builder) inner_types
+            in
+            builder'
+        | _ -> builder
+      in
+      free_inner typ llvalue builder
+    in
+
     let rec expr (builder : L.llbuilder) ((_, e) : s_expr) : L.llvalue =
       match e with
       | SIntLiteral i -> L.const_int i32_t i
@@ -813,6 +984,34 @@ let translate (things, pipes) ownership_map m_external =
           L.build_bitcast fetched_item
             (L.pointer_type (ltype_of_typ inner_type))
             "vector_item_as_type" builder
+      | SPipeIn ("Vector_update", [ ((vt, _v) as vector); index; updated_value ])
+        ->
+          let loaded_vec =
+            L.build_load (expr builder vector) "loaded_vec" builder
+          in
+
+          let fetched_item =
+            L.build_call vector_get_func
+              [| loaded_vec; expr builder index |]
+              "vector_item" builder
+          in
+
+          let inner_type =
+            match vt with
+            | MutBorrow (Vector t, _) -> t
+            | _ -> raise (Failure "panic!")
+          in
+
+          let casted_item =
+            L.build_bitcast fetched_item
+              (L.pointer_type (ltype_of_typ inner_type))
+              "vector_item_as_type" builder
+          in
+
+          (* free over-written value if on the heap *)
+          let _ = free inner_type casted_item builder in
+
+          L.build_store (expr builder updated_value) casted_item builder
       | SPipeIn ("Vector_get_mut", [ ((vt, _v) as vector); index ]) ->
           let loaded_vec =
             L.build_load (expr builder vector) "loaded_vec" builder
@@ -856,177 +1055,6 @@ let translate (things, pipes) ownership_map m_external =
             (name ^ "_loaded") builder
       (* noop *)
       | _ -> Llvm.build_call noop_func [||] "" builder
-    in
-
-    let free (typ : A.defined_type) (llvalue : L.llvalue)
-        (builder : L.llbuilder) =
-      let rec free_inner typ llvalue builder =
-        match typ with
-        | A.Vector typ_inner ->
-            let v_struct_llv = L.build_load llvalue "v_struct" builder in
-            (* if inner type is on the heap, free the values individually *)
-            (* before we free this value *)
-            let builder =
-              match typ_inner with
-              (* Make sure str should be here *)
-              | A.Vector _ | A.Box _ | A.Str ->
-                  let v_len_llv =
-                    L.build_load
-                      (L.build_struct_gep v_struct_llv 0 "v_len" builder)
-                      "stored_v_len" builder
-                  in
-
-                  let cur_item = L.build_alloca i32_t "cur_item" builder in
-                  let _ =
-                    L.build_store (L.const_int i32_t 0) cur_item builder
-                  in
-
-                  let pred_bb = L.append_block context "free_while" the_pipe in
-                  let _ = L.build_br pred_bb builder in
-
-                  let body_bb =
-                    L.append_block context "free_while_body" the_pipe
-                  in
-                  let body_builder = L.builder_at_end context body_bb in
-                  (* save stackptr before building body *)
-                  let stackptr_prebody =
-                    L.build_call stacksave_func [||] "stackptr_prebody"
-                      body_builder
-                  in
-
-                  (* fetch the item from the vector *)
-                  let fetched_item =
-                    L.build_call vector_get_func
-                      [| v_struct_llv; L.build_load cur_item "x" body_builder |]
-                      "vector_item" body_builder
-                  in
-
-                  (* cast the value to its type *)
-                  let ptr_to_inner =
-                    L.build_bitcast fetched_item
-                      (L.pointer_type (ltype_of_typ typ_inner))
-                      "vector_item_as_type" body_builder
-                  in
-
-                  (* call free on this casted value *)
-                  let body_builder' =
-                    free_inner typ_inner ptr_to_inner body_builder
-                  in
-
-                  (* increment iterator *)
-                  let add =
-                    L.build_add
-                      (L.build_load cur_item "x" body_builder)
-                      (L.const_int i32_t 1) "add" body_builder
-                  in
-                  let _ = L.build_store add cur_item body_builder in
-
-                  let _ =
-                    L.build_call stackrestore_func [| stackptr_prebody |] ""
-                      body_builder
-                  in
-                  let () = add_terminal body_builder' (L.build_br pred_bb) in
-
-                  let pred_builder = L.builder_at_end context pred_bb in
-                  let cmp_as_bool =
-                    L.build_icmp L.Icmp.Slt
-                      (L.build_load cur_item "x" pred_builder)
-                      v_len_llv "free_loop_cond" pred_builder
-                  in
-
-                  let merge_bb = L.append_block context "free_merge" the_pipe in
-                  let _ =
-                    L.build_cond_br cmp_as_bool body_bb merge_bb pred_builder
-                  in
-                  L.builder_at_end context merge_bb
-              | _ -> builder
-            in
-
-            (* free the vector contents by calling the helper *)
-            let _ =
-              L.build_call vector_free_func [| v_struct_llv |] "" builder
-            in
-
-            builder
-        | A.Box typ_inner ->
-            (* load the malloc *)
-            let box = L.build_load llvalue "box_malloc_to_free" builder in
-            let builder' =
-              match typ_inner with
-              (* recursively free box internals *)
-              | A.Vector _ | A.Box _ ->
-                  (* store inner value in ptr on stack *)
-                  let inner_ptr =
-                    L.build_alloca (ltype_of_typ typ_inner) "box_inner_ptr"
-                      builder
-                  in
-
-                  (* load the value inside of the malloc (i.e., boxed thing) *)
-                  let _ =
-                    L.build_store
-                      (L.build_load box "box_malloc_inner" builder)
-                      inner_ptr builder
-                  in
-
-                  let builder' = free_inner typ_inner inner_ptr builder in
-                  builder'
-              | _ -> builder
-            in
-
-            let _ = L.build_free box builder' in
-
-            builder'
-        | A.Str ->
-            (* load the malloc *)
-            let str = L.build_load llvalue "str_malloc_to_free" builder in
-            let _ = L.build_free str builder in
-            builder
-        | Ident thing_name ->
-            let loaded_instance =
-              L.build_load llvalue "instance_of_struct" builder
-            in
-            let _, builder' =
-              List.fold_left
-                (fun (idx, builder) (_, elem_typ, _) ->
-                  let gepped =
-                    L.build_struct_gep loaded_instance idx "gep_on_instance"
-                      builder
-                  in
-                  let casted_gep =
-                    L.build_bitcast gepped
-                      (L.pointer_type (ltype_of_typ elem_typ))
-                      "casted_gep" builder
-                  in
-                  let builder' = free_inner elem_typ casted_gep builder in
-                  (idx + 1, builder'))
-                (0, builder)
-                (List.find (fun t -> t.stname = thing_name) things).selements
-            in
-            builder'
-        | Tuple inner_types ->
-            let loaded_instance =
-              L.build_load llvalue "instance_of_tuple" builder
-            in
-            let _, builder' =
-              List.fold_left
-                (fun (idx, builder) elem_typ ->
-                  let gepped =
-                    L.build_struct_gep loaded_instance idx "gep_on_instance"
-                      builder
-                  in
-                  let casted_gep =
-                    L.build_bitcast gepped
-                      (L.pointer_type (ltype_of_typ elem_typ))
-                      "casted_gep" builder
-                  in
-                  let builder' = free_inner elem_typ casted_gep builder in
-                  (idx + 1, builder'))
-                (0, builder) inner_types
-            in
-            builder'
-        | _ -> builder
-      in
-      free_inner typ llvalue builder
     in
 
     let rec stmt s dangling_owns builder =

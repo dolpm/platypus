@@ -36,8 +36,8 @@ let check (things, pipes) verbosity =
       ( "Vector_update",
         [
           (true, MutBorrow (Vector Generic, "'_"), "x");
-          (false, Generic, "y");
           (false, Int, "z");
+          (false, Generic, "y");
         ],
         Borrow (Generic, "'_") );
       ( "Vector_push",
@@ -511,7 +511,11 @@ let check (things, pipes) verbosity =
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Vector_update" -> (
                   match first_arg_type with
-                  | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
+                  | MutBorrow (Vector t, _lt) ->
+                      let t3 = fst (List.nth args' 2) in
+                      if t3 <> t then
+                        raise (Failure ("unexpected arg type in " ^ pname))
+                      else Unit
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | "Vector_get_mut" -> (
                   match first_arg_type with

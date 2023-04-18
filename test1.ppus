@@ -1,13 +1,12 @@
-thing MyThing <| {
-  im_an_int: &int
-}
-
 pipe main |> [] |> [] |> unit {
-  int x <| 4;
-  [int * &int] y <| tuple(4, &x);
+  mut vector[box[int]] x <| Vector_new <| [];
+  Vector_push <| [~&x, Box_new <| [4]];
 
+  Printnl <| [Box_unbox <| [Vector_get <| [&x, 0]]];
 
+  Vector_update <| [~&x, 0, Box_new <| [2]];
 
+  Printnl <| [Box_unbox <| [Vector_get <| [&x, 0]]];
 
   |> ();
 }
