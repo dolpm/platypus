@@ -17,9 +17,9 @@ pipe main |> [] |> [] |> unit {
     im_an_int: 10
   };
 
-  ~&MyInnerThing inner <| ~&t[inner];
+  &float inner <| &t[inner][im_a_float];
   
-  &MyInnerThing inner_2 <| &t[inner];
+  ~&MyInnerThing inner_2 <| ~&t[inner];
 
   |> ();
 }

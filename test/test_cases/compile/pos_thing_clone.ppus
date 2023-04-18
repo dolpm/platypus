@@ -54,9 +54,11 @@ pipe main |> [] |> [] |> unit {
     mut Forefather queen_regina <| %king_gregory;
 
     {
-      ~&vector[int] successful_empire <| ~&queen_regina[disappointment_of_a_son][dynasties];
-      Vector_pop <| [successful_empire];
-      Vector_push <| [successful_empire, 1738];
+      {
+        ~&vector[int] successful_empire <| ~&queen_regina[disappointment_of_a_son][dynasties];
+        Vector_pop <| [successful_empire];
+        Vector_push <| [successful_empire, 1738];
+      }
 
       ~&int microplastics_in_placenta <| ~&queen_regina[disappointment_of_a_son][family_jewels];
       microplastics_in_placenta <| 5;
