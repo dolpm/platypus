@@ -1,0 +1,1 @@
+Fatal error: exception Failure("thing access must be done on a borrow.")
