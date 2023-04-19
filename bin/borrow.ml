@@ -875,6 +875,29 @@ let borrow_ck pipes verbose =
       "lifetime " ^ lt ^ " used but not defined in " ^ p.sname
     and make_err er = raise (Failure er) in
 
+    let graph_for_pipe = StringMap.find p.sname graph in
+
+    (* For each ident, if it is a borrow, what is it's lifetime? *)
+    (* TODO: add args to this map at the start *)
+    let ident_assoc_lt_map = ref StringMap.empty in
+
+    (* Seq.fold_left
+        (fun lt_map (_id, node) ->
+          match node with
+          | Binding b -> 
+            (* update map only if this binding is a borrow *)
+            match b.typ with 
+            | MutBorrow _ | Borrow _ ->
+              (* furthermore, need to set depth correctly based on rhs *)
+              match (snd b.expr) with
+              | SPipeIn 
+            | _ -> lt_map
+          | _ -> lt_map)
+        StringMap.empty
+        (StringMap.to_seq graph_for_pipe)
+    in
+  *)
+
     (* we are kinda gonna have to limit returned values to args *)
     (* vs. allowing re-bindings of refs of args to also be returned *)
     let possible_ret_vars =
@@ -901,9 +924,37 @@ let borrow_ck pipes verbose =
                   in
                   pos_returned_args
               | _ -> ret_vals)
+          (* Also, populate the lt map as we go *)
+          | Binding b ->
+            (* update map only if this binding is a borrow *)
+            let _ = match b.typ with 
+            | MutBorrow _ | Borrow _ ->
+              (* furthermore, need to set depth correctly based on rhs *)
+              match (snd b.expr) with
+              | SPipeIn (_, args) ->
+                let lts_of_args = 
+                  List.fold_left 
+                    (fun l (t,e) ->
+                      match t with
+                      | MutBorrow _ | Borrow _ ->
+                        (* if the argument supplied is an ident, we get its
+                            entry in the map *)
+                        match e with ->
+                        | SIdent arg_name -> 
+                        | _ -> l
+
+                      | _ -> l
+                    )
+                    [] args
+                in
+
+              | _ -> 
+                ident_assoc_lt_map := StringMap.add b.depth b.name !ident_assoc_lt_map
+            in
+            ret_vals
           | _ -> ret_vals)
         StringSet.empty
-        (StringMap.to_seq (StringMap.find p.sname graph))
+        (StringMap.to_seq graph_for_pipe)
     in
 
     let pos_ret_borrows_idxs =
