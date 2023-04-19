@@ -4,10 +4,13 @@
 Color_Off='\033[0m'
 BGreen='\033[1;32m'
 BRed='\033[1;31m'
+BGreenUnderlined='\033[4;32m'
+BRedUnderlined='\033[4;31m'
 BYellowUnderlined='\033[4;33m'
 
 # Bash is my religion.
 run_test () {
+    # num_failed=0
     in_file=$1
     out_file=$2
     tflag=$3
@@ -27,6 +30,7 @@ run_test () {
 
     if [ "$output" != "" ]; then
         echo -e "${in_file} ${BRed}failed...${Color_Off}"
+        num_failed=$((num_failed+1))
     else
         echo -e "${in_file} ${BGreen}passed!${Color_Off}"
         if [ ! -z $tmemcheck ] && [ "$tflag" = "-e" ]
@@ -79,16 +83,20 @@ then
     then
         in_file="./test_cases/${ttype}/${tname}.ppus"
         out_file="./test_cases/${ttype}/${tname}.out"
+        num_failed=0
 
         run_test $in_file $out_file ${test_flags[0]}
         exit 0
     fi
 fi
+
+num_total_tests=0
+num_total_failed=0
+
 for test in "${!test_dirs[@]}"; do
     test_dir=${test_dirs[$test]}
     test_flag=${test_flags[$test]}
 
-    
     positive_files=($(ls -d ./test_cases/${test_dir}/pos_*.ppus 2>/dev/null))
     positive_expected_output=($(ls -d ./test_cases/${test_dir}/pos_*.out 2>/dev/null))
 
@@ -97,6 +105,7 @@ for test in "${!test_dirs[@]}"; do
 
     num_tests=$(( ${#positive_files[@]} + ${#negative_files[@]} ))
     echo -e "${BYellowUnderlined}Running $num_tests ${test_dir} tests...${Color_Off}"
+    num_failed=0
 
     for i in "${!positive_files[@]}"; do
         run_test ${positive_files[$i]} ${positive_expected_output[$i]} \
@@ -109,4 +118,21 @@ for test in "${!test_dirs[@]}"; do
             ${test_flag}
     done
 
+    if [ "$num_failed" -eq 0 ]
+    then
+        echo -e "${BGreenUnderlined}All $num_tests ${test_dir} tests passed${Color_Off}\n"
+    else
+        echo -e "${BRedUnderlined} $((num_tests-num_failed)) "/" $num_tests ${test_dir} tests passed${Color_Off}\n"
+    fi
+
+    num_total_tests=$((num_total_tests+num_tests))
+    num_total_failed=$((num_total_failed+num_failed))
+
 done
+
+if [ "$num_total_failed" -eq 0 ]
+    then
+        echo -e "${BGreenUnderlined}All $num_total_tests tests passed${Color_Off}\n"
+    else
+        echo -e "${BRedUnderlined} $((num_total_tests-num_total_failed)) "/" $num_total_tests  tests passed${Color_Off}\n"
+    fi
