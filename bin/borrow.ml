@@ -1336,6 +1336,26 @@ let borrow_ck pipes builtin_name_map verbose =
 
         let combined = List.combine sorted borrowed_args_sorted in
 
+        let _ =
+          if List.length combined > 1 then
+            let _ =
+              List.fold_left
+                (fun idx ((_, _, n, lt), (_, n1, d)) ->
+                  if idx + 1 < List.length combined then
+                    let _, _, n', lt' = List.nth sorted (idx + 1) in
+                    let _, n1', d' = List.nth borrowed_args_sorted (idx + 1) in
+                    if (d = d' && lt <> lt') || (d <> d' && lt = lt') then
+                      make_err
+                        ("Declared lifetime/arg lifetime mismatch: in decl, "
+                       ^ n ^ " with " ^ n' ^ " and in args, " ^ n1 ^ " with "
+                       ^ n1')
+                    else idx + 1
+                  else idx)
+                0 combined
+            in
+            ()
+        in
+
         List.map
           (fun ((m, i1, _, _), (i2, n, d)) ->
             if i1 <> i2 then
