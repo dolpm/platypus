@@ -1,0 +1,12 @@
+pipe main [] |> unit {
+  mut [int * [int * int]] t = tuple(4, tuple(4, 5));
+  int x = 0;
+
+  &int deep = &x[1][1];
+  &int shallow = &t[0];
+
+  Printnl <| [deep];
+  Printnl <| [shallow];
+
+  |> ();
+}

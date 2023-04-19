@@ -277,7 +277,7 @@ let check (things, pipes) verbosity =
           let inner_typ =
             match ttyp with
             | Tuple inner_types -> List.nth inner_types idx
-            | _ -> make_err "Tuple access must be done on a tuple."
+            | _ -> make_err "tuple access must be done on a tuple."
           in
 
           let type_of_access =

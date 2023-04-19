@@ -1,0 +1,1 @@
+Fatal error: exception Failure("tuple indexing must be done on a borrow.")
