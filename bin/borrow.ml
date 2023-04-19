@@ -863,7 +863,7 @@ let borrow_ck pipes verbose =
     derived. once we have this set, we can take the rightmost (smallest) one
     and make sure it matches the return-type lifetime.
   *)
-  let validate_arg_lifetimes p =
+  let validate_arg_lifetimes p ret_v_map =
     let err_return_lifetime_no_match correct_lifetime =
       "lifetime of return value in " ^ p.sname
       ^ " must be the smallest (rightmost) lifetime of all possible returned \
@@ -883,12 +883,45 @@ let borrow_ck pipes verbose =
           match node with
           | PipeReturn pr -> (
               match pr.returned with
-              | _, SIdent n -> n :: ret_vals
+              | _, SIdent n ->
+                  (* TODO: what if n was assigned to the return value of a pipe *)
+                  StringSet.add n ret_vals
+              | _, SPipeIn (p_name, args) ->
+                  let idxs = StringMap.find p_name ret_v_map in
+                  let _, pos_returned_args =
+                    List.fold_left
+                      (fun (i, ret_vals) a ->
+                        ( i + 1,
+                          match a with
+                          | _, SIdent n ->
+                              if List.mem i idxs then StringSet.add n ret_vals
+                              else ret_vals
+                          | _ -> ret_vals ))
+                      (0, ret_vals) args
+                  in
+                  pos_returned_args
               | _ -> ret_vals)
           | _ -> ret_vals)
-        []
+        StringSet.empty
         (StringMap.to_seq (StringMap.find p.sname graph))
     in
+
+    let pos_ret_borrows_idxs =
+      match p.sreturn_type with
+      | Borrow _ | MutBorrow _ ->
+          List.rev
+            (snd
+               (List.fold_left
+                  (fun (idx, filtered_idxs) (_, _, formal_name) ->
+                    if StringSet.mem formal_name possible_ret_vars then
+                      (idx + 1, idx :: filtered_idxs)
+                    else (idx + 1, filtered_idxs))
+                  (0, []) p.sformals))
+      | _ -> []
+    in
+
+    (* convert ss to list *)
+    let possible_ret_vars = StringSet.elements possible_ret_vars in
 
     (* make sure dev isnt' overly verbose with lifetime decls *)
     (* a.k.a they aren't adding explicit lifetimes when not necessary *)
@@ -904,7 +937,7 @@ let borrow_ck pipes verbose =
     in
 
     if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
-    then ()
+    then pos_ret_borrows_idxs
     else
       let lt_of_return =
         match p.sreturn_type with
@@ -937,17 +970,21 @@ let borrow_ck pipes verbose =
       in
       if lt_of_return <> snd smallest_possible_lt then
         make_err (err_return_lifetime_no_match (snd smallest_possible_lt))
-      else ()
+      else pos_ret_borrows_idxs
   in
 
   let _ =
-    List.iter
-      (fun p ->
-        let _ = validate_arg_lifetimes p in
-        if verbose then
-          print_string
-            ("argument lifetime validation for " ^ p.sname ^ " passed!\n"))
-      pipes
+    List.fold_left
+      (fun ret_v_map p ->
+        (* returns list of possible returned args by idx (iff borrow) *)
+        let idxs = validate_arg_lifetimes p ret_v_map in
+        let _ =
+          if verbose then
+            print_string
+              ("argument lifetime validation for " ^ p.sname ^ " passed!\n")
+        in
+        StringMap.add p.sname idxs ret_v_map)
+      StringMap.empty pipes
   in
 
   let borrow_ck pipe =
