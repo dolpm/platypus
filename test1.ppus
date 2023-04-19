@@ -6,14 +6,14 @@ pipe inner |'a, 'b| [bass: &'a int, rock: &'b int] |> &'b int {
     |> rock;
 }
 
-pipe outer |'c, 'd| [mic: &'c int, treble: &'d int] |> &'d int {   
+pipe outer |'c| [mic: &'c int, treble: &'c int] |> &'c int {   
     &int storm = inner <| [mic, treble];
+    
     |> storm;
 }
 
 pipe main [] |> unit {
     int coffee = 0;
-
     {
         int black = 1;
         &int just_like_my_metal = outer <| [&coffee, &black];
