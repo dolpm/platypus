@@ -1326,12 +1326,27 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                (0, []) args)
         in
 
+        (* we only care about arguments that correspond to formals with lifetimes *)
+        let borrowed_args_corresponding_to_explicit_lts =
+          List.filter_map
+          (fun (i, n, d) -> 
+            let _,corresponding_formal_typ,_ = List.nth called_pipe.sformals i in
+            match corresponding_formal_typ with
+              | MutBorrow (_, lt) | Borrow (_,lt) ->
+                if lt = "'_" then None else Some (i,n,d)
+              | _ -> make_err ("when calling " ^ called_pipe.sname ^ ", arg " 
+                ^ n ^ " is a borrow but the matching formal is not. \ 
+                Shouldn't we have resolved this in semant?")
+          ) 
+          borrowed_args
+        in
+
         (* sort from smallest to largest depth (longest -> shortest lt) *)
         let borrowed_args_sorted =
           List.sort
             (fun (i1, _n1, d1) (i2, _n2, d2) ->
               if d1 = d2 then i1 - i2 else d1 - d2)
-            borrowed_args
+            borrowed_args_corresponding_to_explicit_lts
         in
 
         let _ =
