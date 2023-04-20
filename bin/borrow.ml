@@ -954,9 +954,22 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                               if List.mem i idxs then
                                 explore_assocs n (StringSet.add n ret_vals)
                               else ret_vals
-                          | _ -> ret_vals ))
+                          | _ ->
+                              if List.mem i idxs then
+                                make_err
+                                  ("argument " ^ string_of_s_expr a
+                                 ^ " that might be returned from " ^ p_name
+                                 ^ " doesn't outlive pipe " ^ p.sname
+                                 ^ " in pipe-out call")
+                              else ret_vals ))
                       (0, ret_vals) args
                   in
+
+                  let _ =
+                    print_endline
+                      (String.concat "," (StringSet.elements pos_returned_args))
+                  in
+
                   pos_returned_args
               | _ -> ret_vals)
           (* Also, populate the lt map as we go *)
@@ -1329,16 +1342,20 @@ let borrow_ck pipes built_in_pipe_decls verbose =
         (* we only care about arguments that correspond to formals with lifetimes *)
         let borrowed_args_corresponding_to_explicit_lts =
           List.filter_map
-          (fun (i, n, d) -> 
-            let _,corresponding_formal_typ,_ = List.nth called_pipe.sformals i in
-            match corresponding_formal_typ with
-              | MutBorrow (_, lt) | Borrow (_,lt) ->
-                if lt = "'_" then None else Some (i,n,d)
-              | _ -> make_err ("when calling " ^ called_pipe.sname ^ ", arg " 
-                ^ n ^ " is a borrow but the matching formal is not. \ 
-                Shouldn't we have resolved this in semant?")
-          ) 
-          borrowed_args
+            (fun (i, n, d) ->
+              let _, corresponding_formal_typ, _ =
+                List.nth called_pipe.sformals i
+              in
+              match corresponding_formal_typ with
+              | MutBorrow (_, lt) | Borrow (_, lt) ->
+                  if lt = "'_" then None else Some (i, n, d)
+              | _ ->
+                  make_err
+                    ("when calling " ^ called_pipe.sname ^ ", arg " ^ n
+                   ^ " is a borrow but the matching formal is not.  \n\
+                     \                Shouldn't we have resolved this in \
+                      semant?"))
+            borrowed_args
         in
 
         (* sort from smallest to largest depth (longest -> shortest lt) *)
