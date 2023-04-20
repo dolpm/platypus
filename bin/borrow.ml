@@ -965,11 +965,6 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                       (0, ret_vals) args
                   in
 
-                  let _ =
-                    print_endline
-                      (String.concat "," (StringSet.elements pos_returned_args))
-                  in
-
                   pos_returned_args
               | _ -> ret_vals)
           (* Also, populate the lt map as we go *)
