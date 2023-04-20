@@ -1,0 +1,13 @@
+pipe inner |'c| [mic: &'c int] |> &'c int {       
+    |> mic;
+}
+
+pipe main [] |> unit {
+    int black = 1337;
+    mut &int x = &black;
+    {
+        int white = 1430;
+        x = inner <| [&white];
+    }
+    |> ();
+}

@@ -61,7 +61,7 @@ type graph_node =
       value : s_expr;
     }
 
-let borrow_ck pipes builtin_name_map verbose =
+let borrow_ck pipes built_in_pipe_decls verbose =
   let _ = if verbose then print_string "generating graph!\n" else () in
 
   (* get data that is consistent across all node-types *)
@@ -944,6 +944,7 @@ let borrow_ck pipes builtin_name_map verbose =
                   explore_assocs n (StringSet.add n ret_vals)
               | _, SPipeIn (p_name, args) ->
                   let idxs = StringMap.find p_name ret_v_map in
+
                   let _, pos_returned_args =
                     List.fold_left
                       (fun (i, ret_vals) a ->
@@ -1122,9 +1123,14 @@ let borrow_ck pipes builtin_name_map verbose =
       (fun ret_v_map p ->
         (* returns list of possible returned args by idx (iff borrow) *)
         let idxs =
-          if not (StringMap.mem p.sname builtin_name_map) then
-            validate_arg_lifetimes p ret_v_map
-          else []
+          let pred =
+            match
+              List.find_opt (fun p' -> p'.name = p.sname) built_in_pipe_decls
+            with
+            | Some _ -> true
+            | None -> false
+          in
+          if not pred then validate_arg_lifetimes p ret_v_map else []
         in
         let _ =
           if verbose then
@@ -1360,7 +1366,7 @@ let borrow_ck pipes builtin_name_map verbose =
                     let _, n1', d' = List.nth borrowed_args_sorted (idx + 1) in
                     if d = d' && lt <> lt' then
                       make_err
-                        ("arguments" ^ n1 ^ " and " ^ n1'
+                        ("arguments " ^ n1 ^ " and " ^ n1'
                        ^ " passed into the pipe " ^ called_pipe.sname
                        ^ " have equivalent lifetimes, however, their lifetimes "
                        ^ lt ^ " and " ^ lt' ^ " differ.")

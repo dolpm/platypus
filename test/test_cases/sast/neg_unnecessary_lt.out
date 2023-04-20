@@ -1,0 +1,1 @@
+Fatal error: exception Failure("variable treble will not be returned from outer and thus its lifetime isn't required")

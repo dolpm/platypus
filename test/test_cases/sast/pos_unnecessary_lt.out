@@ -1,0 +1,33 @@
+pipe inner |'a, 'b| [bass: &'a int, rock: &'b int] |> &'b int {
+{(id: inner_with_args)
+{(id: inner_wrapper)
+  if ((bool : (int : @(&'a int : bass)) > (int : @(&'b int : rock))))
+  {(id: 5)
+    |> (&'a int : bass);
+  }
+  |> (&'b int : rock);
+}
+}
+}
+
+pipe outer |'c, 'd| [mic: &'c int, treble: &'d int] |> &'d int {
+{(id: outer_with_args)
+{(id: outer_wrapper)
+  &'_ int shinola = (&'_ int : inner <| [(&'_ int : mic), (&'_ int : treble)]);
+  |> (&'_ int : shinola);
+}
+}
+}
+
+pipe main [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
+  int coffee = (int : 0);
+{(id: 1)
+  int black = (int : 1);
+  &'_ int just_like_my_metal = (&'_ int : outer <| [(&'_ int : &(int : coffee)), (&'_ int : &(int : black))]);
+}
+  |> (unit : ());
+}
+}
+}

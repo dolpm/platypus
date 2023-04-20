@@ -1,0 +1,23 @@
+pipe inner |'a, 'b| [bass: &'a int, rock: &'b int] |> &'b int {   
+    if (@bass > @rock) {
+      |> bass;
+    }
+
+    |> rock;
+}
+
+pipe outer |'c| [mic: &'c int, treble : &'c int] |> &'c int {       
+    &int shinola = inner <| [mic, treble];
+    |> shinola;
+}
+
+pipe main [] |> unit {
+    int coffee = 0;
+    
+    {
+        int black = 1;
+        &int just_like_my_metal = outer <| [&black, &coffee];
+    }
+
+    |> ();
+}

@@ -1,21 +1,41 @@
-pipe inner |'a, 'b| [bass: &'a int, rock: &'b int] |> &'b int {   
-    if (@bass > @rock) {
-      |> bass;
+pipe talk_to_saul |'a, 'b| [ goodmans_cut : &'b int, legal_fees : &'a int ] |> &'b int {
+    if (@goodmans_cut > @legal_fees) {
+        Printnl <| ["Business is booming!"];
+        |> goodmans_cut;
     }
 
-    |> rock;
+    Printnl <| ["Guy's gotta eat... sorry fellas"];
+    |> legal_fees;
 }
 
-pipe outer |'c, 'd| [mic: &'c int, treble : &'d int] |> &'d int {       
-    &int shinola = inner <| [mic, treble];
-    |> shinola;
-}
+pipe heisenberg |'a, 'b, 'c| [methlymine : &'a int, ricin : &'c bool, pseudoephedrine : &'b int ] |> &'c int {
+    int desired_quantity_ml = 1500;
+
+    if (@methlymine + @pseudoephedrine < desired_quantity_ml) {
+        Printnl <| ["JESSE! We don't have enough to cook!"];
+        |> talk_to_saul <| [methlymine, pseudoephedrine];
+    } else {
+        Printnl <| ["Let's cook Jesse."];
+        if (@ricin) {
+            |> methlymine;
+        }
+
+        |> pseudoephedrine;
+    }
+}  
 
 pipe main [] |> unit {
-    int coffee = 0;
+    int madrigal_supplies = 1000;
     {
-        int black = 1;
-        &int just_like_my_metal = outer <| [&coffee, &black];
+        &int train_heist = &madrigal_supplies;
+        int pseudo_needed = 100;
+        {
+            &int from_the_hardware_store = &pseudo_needed;
+            bool tuco_angry = true;
+            &int blue_sky = heisenberg <| [train_heist, &tuco_angry, from_the_hardware_store];
+
+            Printnl <| [blue_sky];
+        }
     }
 
     |> ();

@@ -54,22 +54,23 @@ let check (things, pipes) verbosity =
 
   (* transform the built-in defn's into actual declaration types *)
   let built_in_pipe_decls =
-    let add_bind map (name, args, ret_ty) =
-      StringMap.add name
-        {
-          return_type = ret_ty;
-          name;
-          lifetimes = [];
-          formals = args;
-          body = [ PipeOut NoExpr ];
-        }
-        map
+    let add_bind l (name, args, ret_ty) =
+      l
+      @ [
+          {
+            return_type = ret_ty;
+            name;
+            lifetimes = [];
+            formals = args;
+            body = [ PipeOut NoExpr ];
+          };
+        ]
     in
-    List.fold_left add_bind StringMap.empty stdlib_pipe_decls
+    List.fold_left add_bind [] stdlib_pipe_decls
   in
 
   (* add pipe to map if no collision, else raise *)
-  let add_pipe map pdecl =
+  let add_pipe list pdecl =
     let built_in_err =
       "pipe " ^ pdecl.name ^ " may not be defined - it's built-in"
     and dup_err = "duplicate pipe " ^ pdecl.name
@@ -77,9 +78,17 @@ let check (things, pipes) verbosity =
     and n = pdecl.name in
     match pdecl with
     (* No duplicate functions or redefinitions of built-ins *)
-    | _ when StringMap.mem n built_in_pipe_decls -> make_err built_in_err
-    | _ when StringMap.mem n map -> make_err dup_err
-    | _ -> StringMap.add n pdecl map
+    | _
+      when match List.find_opt (fun p -> p.name = n) list with
+           | Some _ -> true
+           | None -> false ->
+        make_err built_in_err
+    | _
+      when match List.find_opt (fun p -> p.name = n) list with
+           | Some _ -> true
+           | None -> false ->
+        make_err dup_err
+    | _ -> list @ [ pdecl ]
   in
 
   (* add pipe declarations to a single symbol table *)
@@ -88,7 +97,7 @@ let check (things, pipes) verbosity =
 
   (* lookup pdecl *)
   let get_pipe s =
-    try StringMap.find s pipe_decls
+    try List.find (fun p -> p.name = s) pipe_decls
     with Not_found -> raise (Failure ("pipe \"" ^ s ^ "\" does not exist"))
   in
 
@@ -277,7 +286,7 @@ let check (things, pipes) verbosity =
           let inner_typ =
             match ttyp with
             | Tuple inner_types -> List.nth inner_types idx
-            | _ -> make_err "tuple access must be done on a tuple."
+            | _ -> make_err "Tuple access must be done on a tuple."
           in
 
           let type_of_access =
@@ -772,7 +781,13 @@ let check (things, pipes) verbosity =
               stmt2_returns )
     in
     let sbody =
-      if StringMap.mem p.name built_in_pipe_decls then []
+      if
+        match
+          List.find_opt (fun p' -> p'.name = p.name) built_in_pipe_decls
+        with
+        | Some _ -> true
+        | None -> false
+      then []
       else
         match check_stmt (Block p.body) symbols with
         | SBlock (sl, _sblock_id) -> sl
@@ -790,9 +805,7 @@ let check (things, pipes) verbosity =
     }
   in
 
-  let s_pipes_with_builtins =
-    List.map check_pipe (List.map snd (StringMap.bindings pipe_decls))
-  in
+  let s_pipes_with_builtins = List.map check_pipe pipe_decls in
 
   (* For the borrow checker, will not be included in final SAST *)
 
@@ -805,7 +818,13 @@ let check (things, pipes) verbosity =
   (* remove built-in pdecls before returing *)
   let s_pipes =
     List.filter
-      (fun p_decl -> not (StringMap.mem p_decl.sname built_in_pipe_decls))
+      (fun p_decl ->
+        not
+          (match
+             List.find_opt (fun p -> p.name = p_decl.sname) built_in_pipe_decls
+           with
+          | Some _ -> true
+          | None -> false))
       s_pipes_with_builtins
   in
 

@@ -1,0 +1,20 @@
+pipe inner |'c| [mic: &'c int] |> &'c int {
+{(id: inner_with_args)
+{(id: inner_wrapper)
+  |> (&'c int : mic);
+}
+}
+}
+
+pipe main [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
+  int black = (int : 1337);
+  mut &'_ int x = (&'_ int : &(int : black));
+{(id: 1)
+  x = (&'_ int : inner <| [(&'_ int : &(int : black))]);
+}
+  |> (unit : ());
+}
+}
+}
