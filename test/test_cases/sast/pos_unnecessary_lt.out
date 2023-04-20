@@ -2,7 +2,7 @@ pipe inner |'a, 'b| [bass: &'a int, rock: &'b int] |> &'b int {
 {(id: inner_with_args)
 {(id: inner_wrapper)
   if ((bool : (int : @(&'a int : bass)) > (int : @(&'b int : rock))))
-  {(id: 5)
+  {(id: 2)
     |> (&'a int : bass);
   }
   |> (&'b int : rock);
@@ -23,7 +23,7 @@ pipe main [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
   int coffee = (int : 0);
-{(id: 1)
+{(id: 5)
   int black = (int : 1);
   &'_ int just_like_my_metal = (&'_ int : outer <| [(&'_ int : &(int : coffee)), (&'_ int : &(int : black))]);
 }

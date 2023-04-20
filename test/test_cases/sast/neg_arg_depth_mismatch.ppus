@@ -1,14 +1,8 @@
-pipe inner |'a, 'b| [bass: &'a int, rock: &'b int] |> &'b int {   
-    if (@bass > @rock) {
-      |> bass;
+pipe outer |'c| [mic: &'c int, treble : &'c int] |> &'c int {    
+    if (true) {
+        |> mic;
     }
-
-    |> rock;
-}
-
-pipe outer |'c| [mic: &'c int, treble : &'c int] |> &'c int {       
-    &int shinola = inner <| [mic, treble];
-    |> shinola;
+    |> treble;
 }
 
 pipe main [] |> unit {

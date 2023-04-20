@@ -1,4 +1,4 @@
-pipe talk_to_saul |'a, 'b| [ goodmans_cut : &'b int, legal_fees : &'a int ] |> &'b int {
+pipe talk_to_saul |'a, 'b| [goodmans_cut: &'b int, legal_fees: &'a int] |> &'b int {
     if (@goodmans_cut > @legal_fees) {
         Printnl <| ["Business is booming!"];
         |> goodmans_cut;
@@ -8,9 +8,10 @@ pipe talk_to_saul |'a, 'b| [ goodmans_cut : &'b int, legal_fees : &'a int ] |> &
     |> legal_fees;
 }
 
-pipe heisenberg |'a, 'b, 'c| [methlymine : &'a int, ricin : &'c bool, pseudoephedrine : &'b int ] |> &'c int {
+pipe heisenberg |'a, 'b| [methlymine: &'a int, ricin : &bool, pseudoephedrine: &'b int] |> &'b int {
     int desired_quantity_ml = 1500;
 
+    int goodmans_cut = (desired_quantity_ml / 20) * 1000;
     if (@methlymine + @pseudoephedrine < desired_quantity_ml) {
         Printnl <| ["JESSE! We don't have enough to cook!"];
         |> talk_to_saul <| [methlymine, pseudoephedrine];

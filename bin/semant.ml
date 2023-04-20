@@ -93,7 +93,10 @@ let check (things, pipes) verbosity =
 
   (* add pipe declarations to a single symbol table *)
   (* checking for naming collisions *)
-  let pipe_decls = List.fold_left add_pipe built_in_pipe_decls pipes in
+  (* make sure user-defined ones go in top-down *)
+  let pipe_decls =
+    List.fold_left add_pipe built_in_pipe_decls (List.rev pipes)
+  in
 
   (* lookup pdecl *)
   let get_pipe s =
