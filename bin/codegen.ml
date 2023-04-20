@@ -1160,7 +1160,7 @@ let translate (things, pipes) ownership_map m_external =
             if not s_returns then
               let _ =
                 L.build_call stackrestore_func [| stackptr_prebody |] ""
-                  body_builder
+                  while_builder
               in
               add_terminal while_builder (L.build_br pred_bb)
             else ()

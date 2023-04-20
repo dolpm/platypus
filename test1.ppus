@@ -1,42 +1,22 @@
-pipe talk_to_saul |'a, 'b| [ goodmans_cut : &'b int, legal_fees : &'a int ] |> &'b int {
-    if (@goodmans_cut > @legal_fees) {
-        Printnl <| ["Business is booming!"];
-        |> goodmans_cut;
-    }
-
-    Printnl <| ["Guy's gotta eat... sorry fellas"];
-    |> legal_fees;
+pipe test |'a, 'b, 'c| [x: &'a int, y: &'b int, z: &'c int] |> &'c int {
+  if (@x == 2) {
+    |> x;
+  }
+  if (@y == 2) {
+    |> y;
+  }
+  |> z;
 }
 
-pipe heisenberg |'a, 'b, 'c| [methlymine : &'a int, ricin : &'c bool, pseudoephedrine : &'b int ] |> &'c int {
-    int desired_quantity_ml = 1500;
-
-    if (@methlymine + @pseudoephedrine < desired_quantity_ml) {
-        Printnl <| ["JESSE! We don't have enough to cook!"];
-        |> talk_to_saul <| [methlymine, pseudoephedrine];
-    } else {
-        Printnl <| ["Let's cook Jesse."];
-        if (@ricin) {
-            |> methlymine;
-        }
-
-        |> pseudoephedrine;
-    }
-}  
-
 pipe main [] |> unit {
-    int madrigal_supplies = 1000;
-    {
-        &int train_heist = &madrigal_supplies;
-        int pseudo_needed = 100;
-        {
-            &int from_the_hardware_store = &pseudo_needed;
-            bool tuco_angry = true;
-            &int blue_sky = heisenberg <| [train_heist, &tuco_angry, from_the_hardware_store];
-
-            Printnl <| [blue_sky];
-        }
+  mut int x = 4;
+  while (x < 5) {
+    x = x + 1;
+    int y = 4;
+    loop 0 -> 5 as z {
+      test <| [&x, &y, &z];
     }
-
-    |> ();
+    int w = 10;
+  }
+  |> ();
 }
