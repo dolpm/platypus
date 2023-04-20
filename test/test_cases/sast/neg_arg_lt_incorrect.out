@@ -1,1 +1,1 @@
-Fatal error: exception Failure("argument lifetimes in calls to test must match the explicitely defined lifetimes for that pipe definition.")
+Fatal error: exception Failure("argument lifetimes in calls to test must match the explicitly defined lifetimes for that pipe definition.")

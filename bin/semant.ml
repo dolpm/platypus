@@ -31,7 +31,7 @@ let check (things, pipes) verbosity =
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
         MutBorrow (Generic, "'_") );
       ( "Vector_get",
-        [ (false, Generic, "x"); (false, Int, "y") ],
+        [ (false, Borrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
         Borrow (Generic, "'_") );
       ( "Vector_update",
         [

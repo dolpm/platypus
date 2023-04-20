@@ -1,1 +1,1 @@
-Fatal error: exception Failure("lifetime of return value in test must be the smallest (rightmost) lifetime of all possible returned arguments: 'b")
+Fatal error: exception Failure("return value y has lifetime 'b, which is smaller than return lifetime 'a")
