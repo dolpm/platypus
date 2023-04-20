@@ -991,7 +991,9 @@ let borrow_ck pipes builtin_name_map verbose =
                                              ("in " ^ p.sname
                                             ^ ", when calling "
                                             ^ decl_of_called_pipe.sname
-                                            ^ ": arg has type " ^ (Ast.string_of_typ arg_ty_in_decl) ))
+                                            ^ ": arg has type "
+                                             ^ Ast.string_of_typ arg_ty_in_decl
+                                             ))
                                   in
 
                                   (* only care about borrows with explcit lifetimes
@@ -1242,7 +1244,15 @@ let borrow_ck pipes builtin_name_map verbose =
           match defn_node with
           | Some (Binding b) -> (
               match b.typ with
-              | MutBorrow _ | Borrow _ -> deepest_origin b.expr b.node_id
+              | MutBorrow _ | Borrow _ -> (
+                  let inner_defn_node, depth_of_inner_defn =
+                    deepest_origin b.expr b.node_id
+                  in
+                  match inner_defn_node with
+                  (* deepest origin could be a pipe arg that is a borrow *)
+                  (* which would cause this to be none *)
+                  | None -> (Some n, depth_of_defn)
+                  | _ -> (inner_defn_node, depth_of_inner_defn))
               | _ -> (Some n, depth_of_defn))
           | _ -> make_err "panic! not possible!")
       | _ -> (None, -1)

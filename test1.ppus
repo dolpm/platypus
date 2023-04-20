@@ -7,10 +7,7 @@ pipe inner |'a, 'b| [bass: &'a int, rock: &'b int] |> &'b int {
 }
 
 pipe outer |'c, 'd| [mic: &'c int, treble : &'d int] |> &'d int {       
-    int x = 4;
-
     &int shinola = inner <| [mic, treble];
-
     |> shinola;
 }
 
