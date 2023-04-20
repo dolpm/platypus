@@ -31,7 +31,7 @@ let check (things, pipes) verbosity =
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
         MutBorrow (Generic, "'_") );
       ( "Vector_get",
-        [ (false, Generic, "x"); (false, Int, "y") ],
+        [ (false, Borrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
         Borrow (Generic, "'_") );
       ( "Vector_update",
         [
@@ -648,6 +648,18 @@ let check (things, pipes) verbosity =
 
           let _, lt = type_of_identifier name symbols
           and rt, e' = expr e symbols in
+          (* Can assign an ident that is of type (mut)borrow to a value *)
+          let _ =
+            match rt with
+            | MutBorrow _ | Borrow _ -> (
+                match e' with
+                | SIdent n ->
+                    make_err
+                      ("cannot have ident" ^ n
+                     ^ " of type (mut)borrow on right-hand side of assignment")
+                | _ -> ())
+            | _ -> ()
+          in
           let err =
             "illegal assignment " ^ string_of_typ lt ^ " = " ^ string_of_typ rt
             ^ " in " ^ string_of_stmt ass 0
@@ -786,7 +798,9 @@ let check (things, pipes) verbosity =
 
   (* boolean denotes verbosity - set to true if you want to *)
   (* see generated graph nodes and fn tests *)
-  let node_ownership_map = borrow_ck s_pipes_with_builtins verbosity in
+  let node_ownership_map =
+    borrow_ck s_pipes_with_builtins built_in_pipe_decls verbosity
+  in
 
   (* remove built-in pdecls before returing *)
   let s_pipes =

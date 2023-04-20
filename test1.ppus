@@ -1,6 +1,22 @@
-pipe testing_derefs [the_original_god_on_the_mountain: &string] |> unit {
-    mut string new_val = @the_original_god_on_the_mountain;
-    new_val = "YOUR GOD IS NO MORE! MWHAHAHAHAHAHA *the mountains crumble*";
+pipe inner |'a, 'b| [bass: &'a int, rock: &'b int] |> &'b int {   
+    if (@bass > @rock) {
+      |> bass;
+    }
+
+    |> rock;
+}
+
+pipe outer |'c, 'd| [mic: &'c int, treble : &'d int] |> &'d int {       
+    &int shinola = inner <| [mic, treble];
+    |> shinola;
+}
+
+pipe main [] |> unit {
+    int coffee = 0;
+    {
+        int black = 1;
+        &int just_like_my_metal = outer <| [&coffee, &black];
+    }
 
     |> ();
 }

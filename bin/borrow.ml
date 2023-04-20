@@ -61,7 +61,7 @@ type graph_node =
       value : s_expr;
     }
 
-let borrow_ck pipes verbose =
+let borrow_ck pipes builtin_name_map verbose =
   let _ = if verbose then print_string "generating graph!\n" else () in
 
   (* get data that is consistent across all node-types *)
@@ -82,6 +82,23 @@ let borrow_ck pipes verbose =
       snd
         (List.fold_left
            (fun (num_child, graph) (is_mut, typ, name) ->
+             let depth =
+               match typ with
+               | MutBorrow (_, lt) | Borrow (_, lt) ->
+                   if lt = "'_" then 1
+                   else
+                     let idx_of_lt, _ =
+                       List.fold_left
+                         (fun (cur_idx, found) lt' ->
+                           if found then (cur_idx, found)
+                           else if lt = lt' then (cur_idx, true)
+                           else (cur_idx + 1, false))
+                         (0, false) pipe.slifetimes
+                     in
+                     -1 - (List.length pipe.slifetimes - idx_of_lt)
+               | _ -> 1
+             in
+
              let child_id = pipe.sname ^ "." ^ string_of_int num_child in
              ( num_child + 1,
                StringMap.add child_id
@@ -89,7 +106,7 @@ let borrow_ck pipes verbose =
                     {
                       parent = Some pipe.sname;
                       node_id = child_id;
-                      depth = 1;
+                      depth;
                       loop = None;
                       is_mut;
                       typ;
@@ -863,7 +880,7 @@ let borrow_ck pipes verbose =
     derived. once we have this set, we can take the rightmost (smallest) one
     and make sure it matches the return-type lifetime.
   *)
-  let validate_arg_lifetimes p =
+  let validate_arg_lifetimes p ret_v_map =
     let err_return_lifetime_no_match correct_lifetime =
       "lifetime of return value in " ^ p.sname
       ^ " must be the smallest (rightmost) lifetime of all possible returned \
@@ -875,6 +892,24 @@ let borrow_ck pipes verbose =
       "lifetime " ^ lt ^ " used but not defined in " ^ p.sname
     and make_err er = raise (Failure er) in
 
+    let graph_for_pipe = StringMap.find p.sname graph in
+
+    (* For each ident, if it is a borrow, what is it's lifetime? *)
+    (* TODO: add args to this map at the start *)
+    let ident_assoc_lt_map = ref StringMap.empty in
+
+    let rec explore_assocs (n : string) (set : StringSet.t) : StringSet.t =
+      if n = "_non_ident" || not (StringMap.mem n !ident_assoc_lt_map) then set
+      else
+        let _, _, assoc_idents = StringMap.find n !ident_assoc_lt_map in
+        let set = StringSet.add n set in
+        if List.length assoc_idents > 0 then
+          List.fold_left
+            (fun set ident -> explore_assocs ident set)
+            set assoc_idents
+        else set
+    in
+
     (* we are kinda gonna have to limit returned values to args *)
     (* vs. allowing re-bindings of refs of args to also be returned *)
     let possible_ret_vars =
@@ -883,12 +918,152 @@ let borrow_ck pipes verbose =
           match node with
           | PipeReturn pr -> (
               match pr.returned with
-              | _, SIdent n -> n :: ret_vals
+              | _, SIdent n ->
+                  let _ =
+                    match p.sreturn_type with
+                    | MutBorrow (_, lt) | Borrow (_, lt) ->
+                        (* get the depth of the argument whose lifetime is the return type lifetime *)
+                        let depth_of_ret_lt =
+                          let idx_of_lt, _ =
+                            List.fold_left
+                              (fun (cur_idx, found) lt' ->
+                                if found then (cur_idx, found)
+                                else if lt = lt' then (cur_idx, true)
+                                else (cur_idx + 1, false))
+                              (0, false) p.slifetimes
+                          in
+                          -1 - (List.length p.slifetimes - idx_of_lt)
+                        in
+                        let d, lt', _ = StringMap.find n !ident_assoc_lt_map in
+                        if d > depth_of_ret_lt then
+                          make_err
+                            ("return value " ^ n ^ " has lifetime " ^ lt'
+                           ^ ", which is smaller than return lifetime " ^ lt)
+                    | _ -> ()
+                  in
+                  explore_assocs n (StringSet.add n ret_vals)
+              | _, SPipeIn (p_name, args) ->
+                  let idxs = StringMap.find p_name ret_v_map in
+                  let _, pos_returned_args =
+                    List.fold_left
+                      (fun (i, ret_vals) a ->
+                        ( i + 1,
+                          match a with
+                          | _, SIdent n ->
+                              if List.mem i idxs then
+                                explore_assocs n (StringSet.add n ret_vals)
+                              else ret_vals
+                          | _ -> ret_vals ))
+                      (0, ret_vals) args
+                  in
+                  pos_returned_args
               | _ -> ret_vals)
+          (* Also, populate the lt map as we go *)
+          | Binding b ->
+              (* update map only if this binding is a borrow *)
+              let _ =
+                match b.typ with
+                | MutBorrow (_, lhs_lt) | Borrow (_, lhs_lt) -> (
+                    (* furthermore, need to set depth correctly based on rhs *)
+                    (* & x <| pipe_call (a1, a2, a3) *)
+                    match snd b.expr with
+                    | SPipeIn (pname, args) ->
+                        let decl_of_called_pipe =
+                          List.find (fun p -> p.sname = pname) pipes
+                        in
+
+                        let _, depths_of_args_w_lts, lts_of_args, ident_names =
+                          List.fold_left
+                            (fun (idx, depth_l, lt_l, n_l) (t, e) ->
+                              match t with
+                              | MutBorrow _ | Borrow _ ->
+                                  let _, arg_ty_in_decl, _ =
+                                    List.nth decl_of_called_pipe.sformals idx
+                                  in
+
+                                  let has_explicit_lt_in_decl =
+                                    match arg_ty_in_decl with
+                                    | Borrow (_, lt) | MutBorrow (_, lt) ->
+                                        lt <> "'_"
+                                    | _ ->
+                                        raise
+                                          (Failure
+                                             ("in " ^ p.sname
+                                            ^ ", when calling "
+                                            ^ decl_of_called_pipe.sname
+                                            ^ ": arg has type "
+                                             ^ Ast.string_of_typ arg_ty_in_decl
+                                             ))
+                                  in
+
+                                  (* only care about borrows with explcit lifetimes
+                                      in the declaration of called pipe *)
+                                  if has_explicit_lt_in_decl then
+                                    (* if the argument supplied is an ident,
+                                        we get its entry in the map *)
+                                    match e with
+                                    | SIdent arg_name ->
+                                        let arg_depth, arg_lt, _ =
+                                          StringMap.find arg_name
+                                            !ident_assoc_lt_map
+                                        in
+                                        ( idx + 1,
+                                          arg_depth :: depth_l,
+                                          arg_lt :: lt_l,
+                                          arg_name :: n_l )
+                                    | _ ->
+                                        ( idx + 1,
+                                          b.depth :: depth_l,
+                                          "'_" :: lt_l,
+                                          "_non_ident" :: n_l )
+                                  else (idx + 1, depth_l, lt_l, n_l)
+                              | _ -> (idx + 1, depth_l, lt_l, n_l))
+                            (0, [], [], []) args
+                        in
+
+                        let max_depth, lt_name_of_max_depth =
+                          if List.length lts_of_args > 0 then
+                            List.fold_left
+                              (fun (curr_max, max_name) (depth, name) ->
+                                if curr_max < depth then (depth, name)
+                                else (curr_max, max_name))
+                              ( List.nth depths_of_args_w_lts 0,
+                                List.nth lts_of_args 0 )
+                              (List.combine depths_of_args_w_lts lts_of_args)
+                          else (b.depth, lhs_lt)
+                        in
+                        ident_assoc_lt_map :=
+                          StringMap.add b.name
+                            (max_depth, lt_name_of_max_depth, ident_names)
+                            !ident_assoc_lt_map
+                    | _ ->
+                        ident_assoc_lt_map :=
+                          StringMap.add b.name (b.depth, lhs_lt, [])
+                            !ident_assoc_lt_map)
+                | _ -> ()
+              in
+              ret_vals
           | _ -> ret_vals)
-        []
-        (StringMap.to_seq (StringMap.find p.sname graph))
+        StringSet.empty
+        (StringMap.to_seq graph_for_pipe)
     in
+
+    let pos_ret_borrows_idxs =
+      match p.sreturn_type with
+      | Borrow _ | MutBorrow _ ->
+          List.rev
+            (snd
+               (List.fold_left
+                  (fun (idx, filtered_idxs) (_, _, formal_name) ->
+                    if StringSet.mem formal_name possible_ret_vars then
+                      (idx + 1, idx :: filtered_idxs)
+                    else (idx + 1, filtered_idxs))
+                  (0, []) p.sformals))
+      | _ -> []
+    in
+
+    (* convert ss to list *)
+    let possible_ret_vars = StringSet.elements possible_ret_vars in
 
     (* make sure dev isnt' overly verbose with lifetime decls *)
     (* a.k.a they aren't adding explicit lifetimes when not necessary *)
@@ -904,7 +1079,7 @@ let borrow_ck pipes verbose =
     in
 
     if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
-    then ()
+    then pos_ret_borrows_idxs
     else
       let lt_of_return =
         match p.sreturn_type with
@@ -918,7 +1093,9 @@ let borrow_ck pipes verbose =
           (fun (_, typ, n) ->
             if List.mem n possible_ret_vars then
               match typ with
-              | MutBorrow (_, lt) | Borrow (_, lt) -> Some lt
+              | MutBorrow _ | Borrow _ ->
+                  let _, lt, _ = StringMap.find n !ident_assoc_lt_map in
+                  Some lt
               | _ -> None
             else None)
           p.sformals
@@ -937,17 +1114,25 @@ let borrow_ck pipes verbose =
       in
       if lt_of_return <> snd smallest_possible_lt then
         make_err (err_return_lifetime_no_match (snd smallest_possible_lt))
-      else ()
+      else pos_ret_borrows_idxs
   in
 
   let _ =
-    List.iter
-      (fun p ->
-        let _ = validate_arg_lifetimes p in
-        if verbose then
-          print_string
-            ("argument lifetime validation for " ^ p.sname ^ " passed!\n"))
-      pipes
+    List.fold_left
+      (fun ret_v_map p ->
+        (* returns list of possible returned args by idx (iff borrow) *)
+        let idxs =
+          if not (StringMap.mem p.sname builtin_name_map) then
+            validate_arg_lifetimes p ret_v_map
+          else []
+        in
+        let _ =
+          if verbose then
+            print_string
+              ("argument lifetime validation for " ^ p.sname ^ " passed!\n")
+        in
+        StringMap.add p.sname idxs ret_v_map)
+      StringMap.empty pipes
   in
 
   let borrow_ck pipe =
@@ -969,10 +1154,6 @@ let borrow_ck pipes verbose =
          keyword."
     and err_reassign_of_borrowed v_name =
       "variable " ^ v_name ^ " can't be reassigned as it is already borrowed."
-    and err_explicit_arg_invalid called_pipe =
-      "argument lifetimes in calls to " ^ called_pipe
-      ^ " must match the explicitely defined lifetimes for that pipe \
-         definition."
     and err_binding_outlives_borrow =
       "the variable being bound is outlived"
       ^ " by the definition to which it is being bound."
@@ -1052,14 +1233,28 @@ let borrow_ck pipes verbose =
     in
 
     (* return the identifier and it's smallest lt (in depth) *)
-    let deepest_origin e cur_node_id =
+    let rec deepest_origin e cur_node_id =
       match e with
       (* check for args that are borrowed here *)
       | _ty, SUnop (MutRef, (_, SIdent n))
       | _ty, SUnop (Ref, (_, SIdent n))
-      | _ty, SIdent n ->
+      | _ty, SIdent n -> (
           (* return max depth of all possible origins *)
-          (Some n, snd (get_depth_of_defn cur_node_id n))
+          let defn_node, depth_of_defn = get_depth_of_defn cur_node_id n in
+          match defn_node with
+          | Some (Binding b) -> (
+              match b.typ with
+              | MutBorrow _ | Borrow _ -> (
+                  let inner_defn_node, depth_of_inner_defn =
+                    deepest_origin b.expr b.node_id
+                  in
+                  match inner_defn_node with
+                  (* deepest origin could be a pipe arg that is a borrow *)
+                  (* which would cause this to be none *)
+                  | None -> (Some n, depth_of_defn)
+                  | _ -> (inner_defn_node, depth_of_inner_defn))
+              | _ -> (Some n, depth_of_defn))
+          | _ -> make_err "panic! not possible!")
       | _ -> (None, -1)
     in
 
@@ -1101,6 +1296,7 @@ let borrow_ck pipes verbose =
 
         let _ =
           if verbose then
+            let _ = print_string "sorted: " in
             print_string
               (String.concat " | "
                  (List.map
@@ -1126,11 +1322,15 @@ let borrow_ck pipes verbose =
 
         (* sort from smallest to largest depth (longest -> shortest lt) *)
         let borrowed_args_sorted =
-          List.sort (fun (_i1, _n1, d1) (_i2, _n2, d2) -> d1 - d2) borrowed_args
+          List.sort
+            (fun (i1, _n1, d1) (i2, _n2, d2) ->
+              if d1 = d2 then i1 - i2 else d1 - d2)
+            borrowed_args
         in
 
         let _ =
           if verbose then
+            let _ = print_string "borrowed_args_sorted: " in
             print_string
               (String.concat " | "
                  (List.map
@@ -1140,12 +1340,41 @@ let borrow_ck pipes verbose =
               ^ "\n")
         in
 
+        let err_explicit_arg_invalid called_pipe =
+          "argument lifetimes in calls to " ^ called_pipe
+          ^ " must match the explicitly defined lifetimes for that pipe \
+             definition."
+        in
+
+        let combined = List.combine sorted borrowed_args_sorted in
+
+        (* check for mismatched lifetimes, i.e. if a function takes in a &'a, &'a borrows,
+           then args passed in should have same lifetime, i.e. same depth *)
         let _ =
-          List.iter
-            (fun ((_, i1, _, _), (i2, _, _)) ->
-              if i1 <> i2 then
-                make_err (err_explicit_arg_invalid called_pipe.sname))
-            (List.combine sorted borrowed_args_sorted)
+          if List.length combined > 1 then
+            let _ =
+              List.fold_left
+                (fun idx ((_, _, n, lt), (_, n1, d)) ->
+                  if idx + 1 < List.length combined then
+                    let _, _, n', lt' = List.nth sorted (idx + 1) in
+                    let _, n1', d' = List.nth borrowed_args_sorted (idx + 1) in
+                    if d = d' && lt <> lt' then
+                      make_err
+                        ("arguments" ^ n1 ^ " and " ^ n1'
+                       ^ " passed into the pipe " ^ called_pipe.sname
+                       ^ " have equivalent lifetimes, however, their lifetimes "
+                       ^ lt ^ " and " ^ lt' ^ " differ.")
+                    else if d <> d' && lt = lt' then
+                      make_err
+                        ("in declaration of " ^ called_pipe.sname ^ ", formals "
+                       ^ n ^ " and " ^ n' ^ " have the same lifetime " ^ lt
+                       ^ ", but arguments " ^ n1 ^ " and " ^ n1'
+                       ^ " have different depths.")
+                    else idx + 1
+                  else idx)
+                0 combined
+            in
+            ()
         in
 
         List.map
@@ -1153,7 +1382,7 @@ let borrow_ck pipes verbose =
             if i1 <> i2 then
               make_err (err_explicit_arg_invalid called_pipe.sname)
             else (m, n, d))
-          (List.combine sorted borrowed_args_sorted)
+          combined
     in
 
     (*
