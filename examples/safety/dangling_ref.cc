@@ -38,6 +38,7 @@ int main() {
       bool tuco_angry = true;
       int *blue_sky =
           heisenberg(train_heist, &tuco_angry, from_the_hardware_store);
+      talk_to_saul(train_heist, from_the_hardware_store);
       cout << *blue_sky << endl;
     }
   }
