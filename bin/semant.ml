@@ -704,8 +704,10 @@ let check (things, pipes) verbosity =
                   make_err
                     ("mutborrow " ^ name
                    ^ " must be dereferenced to be assigned to")
-            | _, Borrow _ ->
-                make_err ("immutable borrow " ^ name ^ " can never be reassigned")
+            | true, Borrow _ ->
+                if rb_is_mb then
+                  make_err ("deference of immutable borrow " ^ name ^ " can never be reassigned")
+                else (lt, false)
             | true, t -> (t, false)
             | _ ->
                 make_err
