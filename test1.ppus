@@ -13,9 +13,11 @@ pipe heisenberg |'a, 'b| [methlymine: &'a int, ricin : &bool, pseudoephedrine: &
 
     int goodmans_cut = (desired_quantity_ml / 20) * 1000;
     if (@methlymine + @pseudoephedrine < desired_quantity_ml) {
-        Printnl <| ["JESSE! We don't have enough to cook!"];
         &int gc = &goodmans_cut;
-        |> talk_to_saul <| [gc, pseudoephedrine];
+        &int tts = talk_to_saul <| [pseudoephedrine, methlymine];
+
+        Printnl <| ["JESSE! We don't have enough to cook!"];
+        |> tts;
     } else {
         Printnl <| ["Let's cook Jesse."];
         if (@ricin) {

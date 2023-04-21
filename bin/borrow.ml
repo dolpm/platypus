@@ -954,22 +954,17 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                               if List.mem i idxs then
                                 (* check if is an arg (i.e., will outlive pipe ) *)
                                 (* throw if not the case *)
-                                let found_arg =
-                                  List.find_opt
-                                    (fun (_, _, n') ->
-                                      if n' = n then true else false)
-                                    p.sformals
+                                let _, lt, _ =
+                                  StringMap.find n !ident_assoc_lt_map
                                 in
 
-                                match found_arg with
-                                | None ->
-                                    make_err
-                                      ("argument " ^ string_of_s_expr a
-                                     ^ " that might be returned from " ^ p_name
-                                     ^ " doesn't outlive pipe " ^ p.sname
-                                     ^ " in pipe-out call")
-                                | _ ->
-                                    explore_assocs n (StringSet.add n ret_vals)
+                                if lt = "'_" then
+                                  make_err
+                                    ("argument " ^ string_of_s_expr a
+                                   ^ " that might be returned from " ^ p_name
+                                   ^ " doesn't outlive pipe " ^ p.sname
+                                   ^ " in pipe-out call")
+                                else explore_assocs n (StringSet.add n ret_vals)
                               else ret_vals
                           | _ ->
                               if List.mem i idxs then
