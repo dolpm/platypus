@@ -691,7 +691,7 @@ let check (things, pipes) verbosity =
 
           (*
              make sure the left hand side is either a
-             1. mut ident
+             1. mut ident (that is not of type immutable borrow)
              2. mut borrow of an ident
           *)
           let is_mut, lt = type_of_identifier name symbols in
@@ -704,6 +704,8 @@ let check (things, pipes) verbosity =
                   make_err
                     ("mutborrow " ^ name
                    ^ " must be dereferenced to be assigned to")
+            | _, Borrow _ ->
+                make_err ("immutable borrow " ^ name ^ " can never be reassigned")
             | true, t -> (t, false)
             | _ ->
                 make_err

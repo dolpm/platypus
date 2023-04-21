@@ -1,46 +1,12 @@
-pipe talk_to_saul |'a, 'b| [goodmans_cut: &'b int, legal_fees: &'a int] |> &'b int {
-    if (@goodmans_cut > @legal_fees) {
-        Printnl <| ["Business is booming!"];
-        |> goodmans_cut;
-    }
-
-    Printnl <| ["Guy's gotta eat... sorry fellas"];
-    |> legal_fees;
-}
-
-pipe heisenberg |'a, 'b| [methlymine: &'a int, ricin : &bool, pseudoephedrine: &'b int] |> &'b int {
-    int desired_quantity_ml = 1500;
-
-    int goodmans_cut = (desired_quantity_ml / 20) * 1000;
-    if (@methlymine + @pseudoephedrine < desired_quantity_ml) {
-        &int gc = &goodmans_cut;
-        &int tts = talk_to_saul <| [gc, methlymine];
-
-        Printnl <| ["JESSE! We don't have enough to cook!"];
-        |> tts;
-    } else {
-        Printnl <| ["Let's cook Jesse."];
-        if (@ricin) {
-            |> methlymine;
-        }
-
-        |> pseudoephedrine;
-    }
-}  
-
 pipe main [] |> unit {
-    int madrigal_supplies = 1000;
-    {
-        &int train_heist = &madrigal_supplies;
-        int pseudo_needed = 100;
-        {
-            &int from_the_hardware_store = &pseudo_needed;
-            bool tuco_angry = true;
-            &int blue_sky = heisenberg <| [train_heist, &tuco_angry, from_the_hardware_store];
 
-            Printnl <| [blue_sky];
-        }
-    }
+    int sinbad = 10;
+    mut int popeye = 20;
+
+    mut &int olive = &sinbad;
+    &int spinach = &popeye;
+
+    olive = spinach;
 
     |> ();
 }
