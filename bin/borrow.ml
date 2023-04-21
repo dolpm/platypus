@@ -952,7 +952,8 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                           match a with
                           | _, SIdent n ->
                               if List.mem i idxs then
-                                (* check if is an arg (i.e., will outlive pipe ) *)
+                                (* check if lt is local tp the function *)
+                                (* (i.e., will outlive pipe )... *)
                                 (* throw if not the case *)
                                 let _, lt, _ =
                                   StringMap.find n !ident_assoc_lt_map
