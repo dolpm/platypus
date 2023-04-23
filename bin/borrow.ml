@@ -1614,11 +1614,11 @@ let borrow_ck pipes built_in_pipe_decls verbose =
             borrow_table'
           in
 
+          let borrow_table' = remove_borrows_for_binding borrow_table in
+
           match rb.expr with
           (* rebinding of some borrow to a new mutable borrow *)
           | _ty, SUnop (MutRef, (_ty2, SIdent n)) ->
-              let borrow_table' = remove_borrows_for_binding borrow_table in
-
               let has_b_map_entry = StringMap.mem n borrow_table' in
               if has_b_map_entry then make_err (err_mut_borrow_after_borrow n)
               else
@@ -1634,8 +1634,6 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                     borrow_table'
               (* rebinding of some borrow to a new immutable borrow *)
           | _ty, SUnop (Ref, (_ty2, SIdent n)) ->
-              let borrow_table' = remove_borrows_for_binding borrow_table in
-
               let has_b_map_entry = StringMap.mem n borrow_table' in
               if has_b_map_entry then
                 let is_mut, bs = StringMap.find n borrow_table' in
@@ -1658,8 +1656,6 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                     (true, [ (rb.node_id, b_origin_depth) ])
                     borrow_table'
           | _ty, SPipeIn (p_name, args) ->
-              let borrow_table' = remove_borrows_for_binding borrow_table in
-
               (* validate all arguments that may borrow things *)
               (* but don't worry about the resulting borrow table *)
               (* as they will be dropped after the call *)
@@ -1709,7 +1705,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
               in
 
               borrow_table'
-          | e -> ck_expr borrow_table rb.node_id cur_depth e)
+          | e -> ck_expr borrow_table' rb.node_id cur_depth e)
       | PipeCall pc ->
           (* validate all arguments that may borrow things *)
           (* but these shouldn't be held past this validation *)
