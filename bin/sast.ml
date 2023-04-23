@@ -156,4 +156,4 @@ let string_of_spdecl pdecl =
 
 let string_of_sprogram (things, funcs) =
   String.concat "\n" (List.map string_of_tdecl (List.rev things))
-  ^ String.concat "\n" (List.map string_of_spdecl (List.rev funcs))
+  ^ String.concat "\n" (List.map string_of_spdecl funcs)

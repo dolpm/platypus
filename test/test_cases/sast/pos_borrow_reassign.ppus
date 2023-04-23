@@ -1,0 +1,15 @@
+pipe main [] |> unit {
+
+    int sinbad = 10;
+    mut int spinach = 20;
+
+    &int olive = &sinbad;
+    mut &int popeye = &spinach;
+
+    popeye = olive;
+
+    ~&int sailboat = ~&spinach;
+
+
+    |> ();
+}

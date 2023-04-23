@@ -1,0 +1,10 @@
+pipe main [] |> unit {
+
+    int millie_bobbie_brown = 11;
+    int david_harbour = 20;
+
+    ~&int finn_wolfhard = ~&millie_bobbie_brown;
+    finn_wolfhard = ~&david_harbour;
+
+    |> ();
+}

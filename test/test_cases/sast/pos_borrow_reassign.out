@@ -1,0 +1,13 @@
+pipe main [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
+  int sinbad = (int : 10);
+  mut int spinach = (int : 20);
+  &'_ int olive = (&'_ int : &(int : sinbad));
+  mut &'_ int popeye = (&'_ int : &(int : spinach));
+  popeye = (&'_ int : olive);
+  mut ~&'_ int sailboat = (~&'_ int : ~&(int : spinach));
+  |> (unit : ());
+}
+}
+}

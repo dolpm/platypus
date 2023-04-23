@@ -93,7 +93,10 @@ let check (things, pipes) verbosity =
 
   (* add pipe declarations to a single symbol table *)
   (* checking for naming collisions *)
-  let pipe_decls = List.fold_left add_pipe built_in_pipe_decls pipes in
+  (* make sure user-defined ones go in top-down *)
+  let pipe_decls =
+    List.fold_left add_pipe built_in_pipe_decls (List.rev pipes)
+  in
 
   (* lookup pdecl *)
   let get_pipe s =
@@ -688,7 +691,7 @@ let check (things, pipes) verbosity =
 
           (*
              make sure the left hand side is either a
-             1. mut ident
+             1. mut ident (that is not of type immutable borrow)
              2. mut borrow of an ident
           *)
           let is_mut, lt = type_of_identifier name symbols in
@@ -701,6 +704,10 @@ let check (things, pipes) verbosity =
                   make_err
                     ("mutborrow " ^ name
                    ^ " must be dereferenced to be assigned to")
+            | true, Borrow _ ->
+                if rb_is_mb then
+                  make_err ("deference of immutable borrow " ^ name ^ " can never be reassigned")
+                else (lt, false)
             | true, t -> (t, false)
             | _ ->
                 make_err

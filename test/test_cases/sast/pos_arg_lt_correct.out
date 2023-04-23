@@ -2,11 +2,11 @@ pipe test |'a, 'b, 'c| [x: &'a int, y: &'b int, z: &'c int] |> &'c int {
 {(id: test_with_args)
 {(id: test_wrapper)
   if ((bool : (int : @(&'a int : x)) == (int : 2)))
-  {(id: 5)
+  {(id: 2)
     |> (&'a int : x);
   }
   if ((bool : (int : @(&'b int : y)) == (int : 2)))
-  {(id: 7)
+  {(id: 4)
     |> (&'b int : y);
   }
   |> (&'c int : z);
@@ -19,9 +19,9 @@ pipe main [] |> unit {
 {(id: main_wrapper)
   int x = (int : 4);
   while (bool : (int : x) < (int : 5))
-  {(id: 1)
+  {(id: 6)
     int y = (int : 4);
-    loop (int : 0) -> (int : 5) as (z,(int : 1))    {(id: 2)
+    loop (int : 0) -> (int : 5) as (z,(int : 1))    {(id: 7)
       (&'_ int : test <| [(&'_ int : &(int : x)), (&'_ int : &(int : y)), (&'_ int : &(int : z))]);
     }
   }
