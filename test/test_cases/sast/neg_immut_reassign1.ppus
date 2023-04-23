@@ -4,7 +4,7 @@ pipe main [] |> unit {
 
     &int chris_moltisanti = &tony_soprano;
 
-    chris_moltisanti = 12;
+    @chris_moltisanti = 12;
 
     |> ();
 }
