@@ -1,10 +1,7 @@
 pipe main [] |> unit {
-
-    int tony_soprano = 15;
-
-    &int chris_moltisanti = &tony_soprano;
-
-    chris_moltisanti = 12;
-
-    |> ();
+  mut str s = Str_new <| ["hello, world"];
+  char x = '\n';
+  Str_push <| [~&s, x];
+  Print <| [&s];
+  |> ();
 }

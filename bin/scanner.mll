@@ -80,6 +80,11 @@ rule token = parse
   | "true"   { BOOLLIT(true)  }
   | "false"  { BOOLLIT(false) }
   | '\x27' character '\x27' as lxm { CHARLIT(String.get lxm 1) }
+  | '\x27' ("\\n"|"\\r") '\x27' as lxm { CHARLIT(match (String.sub lxm 1 ((String.length lxm) - 2)) with
+                                                  | "\\n" -> '\n' 
+                                                  | "\\r" -> '\r' 
+                                                  | _ -> raise (Failure("panic! impossible")))
+                                       }
   | number as lxm { INTLIT(int_of_string lxm) }
   | number '.'  digit* as lxm { FLOATLIT(lxm) }
   | '\x27' ident  as lxm { LIFETIME(lxm) }
