@@ -1,7 +1,9 @@
+thing MyThing <| {
+  im_a_bool: bool
+}
+
 pipe main [] |> unit {
-  mut str s = Str_new <| ["hello, world"];
-  char x = '\n';
-  Str_push <| [~&s, x];
-  Print <| [&s];
+  [MyThing * int] t = tuple(MyThing { im_a_bool: true }, 10);
+  Printnl <| [&t[0][im_a_bool]];
   |> ();
 }
