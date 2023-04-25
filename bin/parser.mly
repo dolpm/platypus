@@ -105,7 +105,7 @@ stmt_list:
 
 stmt:
   | expr SEMI                               { Expr $1               }
-  | RPIPE expr_opt SEMI                     { PipeOut $2            }
+  | RPIPE expr SEMI                     { PipeOut $2            }
   | LBRACE stmt_list RBRACE                 { Block(List.rev $2)    }
   | IF LPAREN expr RPAREN stmt %prec NOELSE { If($3, $5, Block([])) }
   | IF LPAREN expr RPAREN stmt ELSE stmt    { If($3, $5, $7)        }
@@ -120,10 +120,6 @@ stmt:
   /* when assigning to mutborrow, deref is required */
   | DEREF IDENT EQUAL expr SEMI   { ReAssign(true, $2, $4)         }
   | IDENT EQUAL expr SEMI   { ReAssign(false, $1, $3)         }
-
-expr_opt:
-  | { NoExpr }
-  | expr { $1 }
 
 thing_child_assn_list:
   | IDENT COLON expr                              { [($1, $3)] }
