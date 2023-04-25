@@ -46,7 +46,7 @@ Rust, the largest presence in this domain, is a low-level systems language that 
 #
 
 #### code samples
-check out some algorithm implementations [here](https://github.com/dolpm/platypus/tree/main/examples)!
+check out some examples [here](https://github.com/dolpm/platypus/tree/main/examples)!
 
 #
 
