@@ -32,12 +32,15 @@ Rust, the largest presence in this domain, is a low-level systems language that 
 
 #### optional flags
 ```-k``` &rarr; persist intermediary files (```*.o```, ```*.bc```) generated during compilation
+
 **usage:** ```./platypus -c -k ./test/test_cases/compile/pos_hello_world.ppus```
 
 ```-v``` &rarr; enable verbose compilation output
+
 **usage:** ```./platypus -c -v ./test/test_cases/compile/pos_hello_world.ppus```
 
 ```-o``` &rarr; enable compiler optimizations
+
 **usage:** ```./platypus -c -o ./test/test_cases/compile/pos_hello_world.ppus```
 
 #
