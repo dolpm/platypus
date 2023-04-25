@@ -3,12 +3,14 @@ using namespace std;
 
 int *talk_to_saul(int *goodmans_cut, int *legal_fees) {
   if (*goodmans_cut > *legal_fees) {
-    cout << "JESSE! We don't have enough to cook!" << endl;
+    cout << "Business is booming!" << endl;
     return goodmans_cut;
   }
   cout << "Guy's gotta eat... sorry fellas" << endl;
   return legal_fees;
 }
+
+void silly_function_to_overwrite_stack() { return; }
 
 int *heisenberg(int *methlymine, bool *ricin, int *pseudoephedrine) {
   int desired_quantity_ml = 1500;
@@ -38,8 +40,16 @@ int main() {
       bool tuco_angry = true;
       int *blue_sky =
           heisenberg(train_heist, &tuco_angry, from_the_hardware_store);
-      talk_to_saul(train_heist, from_the_hardware_store);
-      cout << *blue_sky << endl;
+
+      silly_function_to_overwrite_stack();
+
+      if (*blue_sky != 75000) {
+        cout << "Oh no! Undefined behaviour! ";
+      } else {
+        cout << "All looks good! ";
+      }
+
+      cout << "expected: 75000, recieved: " << *blue_sky << endl;
     }
   }
   return 0;
