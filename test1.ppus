@@ -1,9 +1,20 @@
-thing MyThing <| {
-  im_a_bool: bool
-}
-
 pipe main [] |> unit {
-  [MyThing * int] t = tuple(MyThing { im_a_bool: true }, 10);
-  Printnl <| [&t[0][im_a_bool]];
+  mut vector[int] foo = Vector_new <| [];
+  loop 0->20 as i {
+    Vector_push <| [~&foo, %i];
+  }
+
+  int len = Vector_length <| [&foo];
+  ~&int last = Vector_get_mut <| [~&foo, len - 1];
+
+  Printnl <| [last];
+
+
+  loop 0->18 as i {
+    Vector_pop <| [~&foo];
+  }
+
+  Printnl <| [last];
+
   |> ();
 }
