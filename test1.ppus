@@ -1,9 +1,9 @@
-thing MyThing <| {
-  im_a_bool: bool
+pipe strudel |'a, 'b| [apple : &'a int, orange : &'b int] |> &'b int {
+    int bint = 5;
+    &'b int grape = &bint;
+    |> grape;
 }
 
-pipe main [] |> unit {
-  [MyThing * int] t = tuple(MyThing { im_a_bool: true }, 10);
-  Printnl <| [&t[0][im_a_bool]];
+pipe main [] |> unit {  
   |> ();
 }
