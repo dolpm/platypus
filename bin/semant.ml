@@ -669,6 +669,18 @@ let check (things, pipes) verbosity =
 
           let _, lt = type_of_identifier name symbols
           and rt, e' = expr e symbols in
+          (* If assigning to a borrow mutborrow, 
+            don't allow explicit lifetimes*)
+          let _ = 
+            match lt with 
+            | MutBorrow (_,lifetime) | Borrow (_,lifetime) ->
+              if lifetime <> "'_" then
+                make_err ("Cannot define explicit lifetime " ^ lifetime ^
+                  " in assignment of " ^ name ^ ". Explicit lifetimes are only \
+                    permitted for function arguments and return types.")
+            | _ -> ()
+          in
+
           (* Can assign an ident that is of type (mut)borrow to a value *)
           let _ =
             match rt with

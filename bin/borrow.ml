@@ -679,6 +679,12 @@ let borrow_ck pipes built_in_pipe_decls verbose =
               names
           in
 
+          let active_refs =
+            match b.expr with
+            | MutBorrow _, _ | Borrow _, _ -> StringSet.add b.name active_refs
+            | _ -> active_refs
+          in
+
           (* if ownership of another var given to new binding *)
           (* remove the original from the table *)
           (* and validate that rhs is in same loop *)

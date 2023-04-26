@@ -1,14 +1,18 @@
 pipe main [] |> unit {
   mut vector[int] foo = Vector_new <| [];
-  Vector_push <| [~&foo, 1];
-  Vector_push <| [~&foo, 2];
-  Vector_push <| [~&foo, 3];
+  loop 0->20 as i {
+    Vector_push <| [~&foo, %i];
+  }
+
+  int len = Vector_length <| [&foo];
+  ~&int last = Vector_get_mut <| [~&foo, len - 1];
+
+  Printnl <| [last];
 
 
-
-  ~&int last = Vector_get_mut <| [~&foo, 2];
-
-  Vector_pop <| [~&foo];
+  loop 0->18 as i {
+    Vector_pop <| [~&foo];
+  }
 
   Printnl <| [last];
 
