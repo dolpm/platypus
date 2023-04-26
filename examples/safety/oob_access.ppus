@@ -1,0 +1,21 @@
+pipe main [] |> unit {
+  mut vector[int] foo = Vector_new <| [];
+  loop 0->20 as i {
+    Vector_push <| [~&foo, %i];
+  }
+
+  int len = Vector_length <| [&foo];
+  ~&int last = Vector_get_mut <| [~&foo, len - 1];
+
+  Printnl <| [last];
+
+  /* pop off elements to shrink vecbuf */
+  loop 0->18 as i {
+    Vector_pop <| [~&foo];
+  }
+
+  /* shouldn't point to valid memory -- not possible! */
+  Printnl <| [last];
+
+  |> ();
+}
