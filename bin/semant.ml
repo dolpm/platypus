@@ -11,42 +11,51 @@ let check (things, pipes) verbosity =
   let stdlib_pipe_decls =
     [
       (* print *)
-      ("Print", [ (false, Generic, "x") ], Unit);
-      ("Printnl", [ (false, Generic, "x") ], Unit);
+      ("Print", [], [ (false, Generic, "x") ], Unit);
+      ("Printnl", [], [ (false, Generic, "x") ], Unit);
       (* rng *)
-      ("Rng_init", [ (false, Int, "x") ], Unit);
-      ("Rng_generate", [ (false, Int, "x"); (false, Int, "y") ], Int);
+      ("Rng_init", [], [ (false, Int, "x") ], Unit);
+      ("Rng_generate", [], [ (false, Int, "x"); (false, Int, "y") ], Int);
       (* panic *)
-      ("Panic", [ (false, Generic, "x") ], Unit);
+      ("Panic", [], [ (false, Generic, "x") ], Unit);
       (* boxes *)
-      ("Box_new", [ (true, Generic, "x") ], Box Generic);
-      ("Box_unbox", [ (false, Generic, "x") ], Borrow (Generic, "'_"));
+      ("Box_new", [], [ (true, Generic, "x") ], Box Generic);
+      ( "Box_unbox",
+        [ "'a" ],
+        [ (false, Borrow (Box Generic, "'a"), "x") ],
+        Borrow (Generic, "'a") );
       ( "Box_unbox_mut",
-        [ (true, MutBorrow (Box Generic, "'_"), "x") ],
-        MutBorrow (Generic, "'_") );
+        [ "'a" ],
+        [ (true, MutBorrow (Box Generic, "'a"), "x") ],
+        MutBorrow (Generic, "'a") );
       (* vec *)
-      ("Vector_length", [ (false, Generic, "x") ], Int);
-      ("Vector_new", [], Vector Generic);
+      ("Vector_length", [], [ (false, Generic, "x") ], Int);
+      ("Vector_new", [], [], Vector Generic);
       ( "Vector_get_mut",
-        [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
-        MutBorrow (Generic, "'_") );
+        [ "'a" ],
+        [ (true, MutBorrow (Vector Generic, "'a"), "x"); (false, Int, "y") ],
+        MutBorrow (Generic, "'a") );
       ( "Vector_get",
-        [ (false, Borrow (Vector Generic, "'_"), "x"); (false, Int, "y") ],
-        Borrow (Generic, "'_") );
+        [ "'a" ],
+        [ (false, Borrow (Vector Generic, "'a"), "x"); (false, Int, "y") ],
+        Borrow (Generic, "'a") );
       ( "Vector_update",
+        [],
         [
           (true, MutBorrow (Vector Generic, "'_"), "x");
           (false, Int, "z");
           (false, Generic, "y");
         ],
-        Borrow (Generic, "'_") );
+        Unit );
       ( "Vector_push",
+        [],
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
         Unit );
-      ("Vector_pop", [ (true, MutBorrow (Vector Generic, "'_"), "x") ], Unit);
+      ("Vector_pop", [], [ (true, MutBorrow (Vector Generic, "'_"), "x") ], Unit);
       (* str *)
-      ("Str_new", [ (false, String, "x") ], Str);
+      ("Str_new", [], [ (false, String, "x") ], Str);
       ( "Str_push",
+        [],
         [ (true, MutBorrow (Str, "'_"), "x"); (false, Char, "y") ],
         Unit );
     ]
@@ -54,13 +63,13 @@ let check (things, pipes) verbosity =
 
   (* transform the built-in defn's into actual declaration types *)
   let built_in_pipe_decls =
-    let add_bind l (name, args, ret_ty) =
+    let add_bind l (name, lts, args, ret_ty) =
       l
       @ [
           {
             return_type = ret_ty;
             name;
-            lifetimes = [];
+            lifetimes = lts;
             formals = args;
             body = [ PipeOut NoExpr ];
           };
@@ -706,7 +715,9 @@ let check (things, pipes) verbosity =
                    ^ " must be dereferenced to be assigned to")
             | true, Borrow _ ->
                 if rb_is_mb then
-                  make_err ("deference of immutable borrow " ^ name ^ " can never be reassigned")
+                  make_err
+                    ("deference of immutable borrow " ^ name
+                   ^ " can never be reassigned")
                 else (lt, false)
             | true, t -> (t, false)
             | _ ->
