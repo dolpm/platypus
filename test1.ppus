@@ -1,24 +1,12 @@
-pipe test |'a, 'b| [x: &'a int, y: &'b int, z: &'a int] |> &'b int {
-  if (@x == 2) {
-    |> x;
-  }
-  if (@y == 2) {
-    |> y;
-  }
-  |> z;
+pipe test |'a| [poop: ~&'a int] |> ~&'a int {
+  |> poop;
 }
 
 pipe main [] |> unit {
-  int x = 4;
-  while (x < 5) {
-    if (x == 2) {
-      &int z = &x;
-      int y = 4;
-      mut &int w = &y;
-      loop 0 -> 5 as xyz {
-        w = (test <| [&x, &y, z]);
-      }
-    }
-  }
+  mut int t = 4;
+
+  & int y = &t;
+
+  ~& int caterpie = test <| [~&t];
   |> ();
 }

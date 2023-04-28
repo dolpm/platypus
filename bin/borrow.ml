@@ -1311,9 +1311,10 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                   in
 
                   let _ =
-                    print_endline
-                      ("origin_set of " ^ b.name ^ ": "
-                      ^ String.concat "," (StringSet.elements b_origin_set))
+                    if verbose then
+                      print_endline
+                        ("origin_set of " ^ b.name ^ ": "
+                        ^ String.concat "," (StringSet.elements b_origin_set))
                   in
 
                   StringMap.add b.name b_origin_set data'
@@ -1571,7 +1572,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
           (fun ((m, i1, _, _), (i2, n, d)) ->
             if i1 <> i2 then
               make_err (err_explicit_arg_invalid called_pipe.sname)
-            else (m, n, d))
+            else (m, n, d, i1))
           combined
     in
 
@@ -1680,20 +1681,35 @@ let borrow_ck pipes built_in_pipe_decls verbose =
               (* pipe declaration (iff return type is a borrow) *)
               let borrowed_args = validate_p_call_args p_name args b.node_id in
 
+              let sexprs_of_borrowed_args =
+                List.rev
+                  (List.fold_left
+                     (fun l (_m, _n, _d, i) -> List.nth args i :: l)
+                     [] borrowed_args)
+              in
+
               (* get max depth of all the args *)
               (* until which we will hold these borrows *)
               let max_arg_depth =
                 List.fold_left
-                  (fun m (_, _, d) -> if d > m then d else m)
+                  (fun m (_, _, d, _i) -> if d > m then d else m)
                   0 borrowed_args
               in
 
               let borrow_table' =
-                List.fold_left
-                  (fun borrow_table (m, n, _d) ->
+                List.fold_left2
+                  (fun borrow_table (m, n, _d, _i) sex ->
                     if StringMap.mem n borrow_table then
                       let is_mut, borrows = StringMap.find n borrow_table in
-                      if is_mut then make_err (err_borrow_after_mut_borrow n)
+                      if is_mut then
+                        match sex with
+                        | _, SIdent _ ->
+                            StringMap.add n
+                              (true, (b.node_id, max_arg_depth) :: borrows)
+                              borrow_table
+                        | _ ->
+                            make_err
+                              ("HEHEDARUMA " ^ err_borrow_after_mut_borrow n)
                       else if m then make_err (err_mut_borrow_after_borrow n)
                       else
                         StringMap.add n
@@ -1704,7 +1720,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                       StringMap.add n
                         (m, [ (b.node_id, max_arg_depth) ])
                         borrow_table)
-                  borrow_table borrowed_args
+                  borrow_table borrowed_args sexprs_of_borrowed_args
               in
 
               borrow_table'
@@ -1823,7 +1839,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
               (* until which we will hold these borrows *)
               let max_arg_depth =
                 List.fold_left
-                  (fun m (_, _, d) -> if d > m then d else m)
+                  (fun m (_, _, d, _i) -> if d > m then d else m)
                   0 borrowed_args
               in
 
@@ -1834,7 +1850,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
 
               let borrow_table' =
                 List.fold_left
-                  (fun borrow_table (m, n, _d) ->
+                  (fun borrow_table (m, n, _d, _i) ->
                     (* binding outlives borrow... unsafe! *)
                     if StringMap.mem n borrow_table then
                       let is_mut, borrows = StringMap.find n borrow_table in
