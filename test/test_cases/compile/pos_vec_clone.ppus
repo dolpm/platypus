@@ -25,8 +25,7 @@ pipe main [] |> unit {
     mut vector[vector[int]] y = %x;
 
     {
-        ~&vector[int] y_inner_setter = Vector_get_mut <| [~&y, 0];
-        ~&int y_setter = Vector_get_mut <| [y_inner_setter, 0];
+        ~&int y_setter = Vector_get_mut <| [Vector_get_mut <| [~&y, 0], 0];
         @y_setter = 4028;
     }
 

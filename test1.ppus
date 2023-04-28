@@ -1,20 +1,19 @@
+pipe test |'a| [x: ~&'a int] |> ~&'a int {
+  |> x;
+}
+
 pipe main [] |> unit {
-  mut vector[int] foo = Vector_new <| [];
-  loop 0->20 as i {
-    Vector_push <| [~&foo, %i];
+  mut int x = 4;
+  ~& int y = ~&x;
+  {
+    ~& int z = test <| [y];
+
+    @z = 10;    
+    y
   }
+  
 
-  int len = Vector_length <| [&foo];
-  ~&int last = Vector_get_mut <| [~&foo, len - 1];
-
-  Printnl <| [last];
-
-
-  loop 0->18 as i {
-    Vector_pop <| [~&foo];
-  }
-
-  Printnl <| [last];
+  Printnl <| [];
 
   |> ();
 }

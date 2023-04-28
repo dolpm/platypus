@@ -99,6 +99,10 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                | _ -> 1
              in
 
+             let is_mut_borrow =
+               match typ with MutBorrow _ -> true | _ -> false
+             in
+
              let child_id = pipe.sname ^ "." ^ string_of_int num_child in
              ( num_child + 1,
                StringMap.add child_id
@@ -108,7 +112,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                       node_id = child_id;
                       depth;
                       loop = None;
-                      is_mut;
+                      is_mut = is_mut || is_mut_borrow;
                       typ;
                       name;
                       expr = (typ, SNoexpr);
@@ -612,6 +616,80 @@ let borrow_ck pipes built_in_pipe_decls verbose =
     in
     inner sex []
   in
+
+
+  let get_depth_of_defn graph_for_pipe (node : string) (ident_name : string) :
+  graph_node option * int =
+let rec inner (current_node : string option) (ident_name : string) :
+    graph_node option * int =
+  match current_node with
+  | None -> (None, 0)
+  | Some current_node -> (
+      let current_node = StringMap.find current_node graph_for_pipe in
+      match current_node with
+      | Lifetime l -> (
+          let found =
+            List.find_opt
+              (fun c ->
+                (* todo: do rebindings matter here? *)
+                let c = StringMap.find c graph_for_pipe in
+                match c with
+                | Binding b -> if b.name = ident_name then true else false
+                | _ -> false)
+              l.children
+          in
+          match found with
+          | Some fc ->
+              let fc' = StringMap.find fc graph_for_pipe in
+              let _, _, depth, _ = node_common_data fc' in
+              (Some fc', depth)
+          | _ -> inner l.parent ident_name)
+      | n ->
+          let parent, _, _, _ = node_common_data n in
+          inner parent ident_name)
+      in
+      inner (Some node) ident_name
+      in
+
+      let deepest_origin pipe e cur_node_id =
+        let graph_for_pipe = StringMap.find pipe.sname graph in
+      (* return the identifier and it's smallest lt (in depth) *)
+      let rec deepest_origin_inner e cur_node_id =
+        match e with
+        (* check for args that are borrowed here *)
+        | _ty, SUnop (MutRef, (_, SIdent n))
+        | _ty, SUnop (Ref, (_, SIdent n))
+        | _ty, SIdent n -> (
+            (* return max depth of all possible origins *)
+            let defn_node, depth_of_defn = get_depth_of_defn graph_for_pipe cur_node_id n  in
+            match defn_node with
+            | Some (Binding b) -> (
+                match b.typ with
+                | MutBorrow _ | Borrow _ -> (
+                    let inner_defn_node, depth_of_inner_defn =
+                      deepest_origin_inner b.expr b.node_id
+                    in
+                    match inner_defn_node with
+                    (* deepest origin could be a pipe arg that is a borrow *)
+                    (* which would cause this to be none *)
+                    | None -> (Some n, depth_of_defn)
+                    | _ -> (inner_defn_node, depth_of_inner_defn))
+                | _ -> (Some n, depth_of_defn))
+            | _ -> raise (Failure "panic! not possible!"))
+        | _ty, SPipeIn (_p_name, args) ->
+            List.fold_left
+              (fun (max_node, max_depth) cur_arg ->
+                let n, d = deepest_origin_inner cur_arg cur_node_id in
+                match n with
+                | None -> (max_node, max_depth)
+                | Some n ->
+                    if d > max_depth then (Some n, d) else (max_node, max_depth))
+              (None, -1 - List.length pipe.slifetimes)
+              args
+        | _ -> (None, -1)
+      in
+      deepest_origin_inner e cur_node_id
+    in
 
   let ownership_ck pipe =
     let graph_for_pipe = StringMap.find pipe.sname graph in
@@ -1159,11 +1237,58 @@ let borrow_ck pipes built_in_pipe_decls verbose =
           in
           if not pred then validate_arg_lifetimes p ret_v_map else []
         in
+
         let _ =
           if verbose then
             print_string
               ("argument lifetime validation for " ^ p.sname ^ " passed!\n")
         in
+
+        let graph_for_pipe = StringMap.find p.sname graph in
+
+
+
+        (* each entry in data is: variable_name -> set of possible mutborrow origins *)
+        let rec traverse_child c (data : StringSet.t StringMap.t) =
+          match c with
+          | Lifetime l -> (
+            let _data_inner =
+              List.fold_left
+              (fun data_inner c_inner -> traverse_child (StringMap.find c_inner graph_for_pipe) data_inner)
+              data l.children
+            in
+            data
+          )
+          | PipeCall pc ->
+            let called_pipe = StringMap.find pc.pipe_name pipes in 
+            match called_pipe.sreturn_type with
+            | MutBorrow _ -> 
+                let ret_args_idxs = StringMap.find pc.pipe_name ret_v_map in 
+                let ret_args = 
+                  List.fold_right
+                    (fun l idx ->
+                      (List.nth pc.args idx) :: l
+                    )
+                    [] ret_args_idxs
+                in
+                let data' = 
+                  List.fold_left
+                    (fun d arg ->
+                      let origin_set = StringMap.find arg data in
+                      StringMap.filter (fun _v_name oset -> 
+                         not (StringSet.subset origin_set oset)
+                      ) d
+                    )
+                    data ret_args
+                
+            | _ -> data
+             
+          | _ -> raise (Failure "panic! not done")
+        in
+        let _ =
+          traverse_child (StringMap.find p.sname graph_for_pipe)
+        in
+
         StringMap.add p.sname idxs ret_v_map)
       StringMap.empty pipes
   in
@@ -1192,41 +1317,9 @@ let borrow_ck pipes built_in_pipe_decls verbose =
       ^ " by the definition to which it is being bound."
     and make_err er = raise (Failure er) in
 
-    let get_depth_of_defn (node : string) (ident_name : string) :
-        graph_node option * int =
-      let rec inner (current_node : string option) (ident_name : string) :
-          graph_node option * int =
-        match current_node with
-        | None -> (None, 0)
-        | Some current_node -> (
-            let current_node = StringMap.find current_node graph_for_pipe in
-            match current_node with
-            | Lifetime l -> (
-                let found =
-                  List.find_opt
-                    (fun c ->
-                      (* todo: do rebindings matter here? *)
-                      let c = StringMap.find c graph_for_pipe in
-                      match c with
-                      | Binding b -> if b.name = ident_name then true else false
-                      | _ -> false)
-                    l.children
-                in
-                match found with
-                | Some fc ->
-                    let fc' = StringMap.find fc graph_for_pipe in
-                    let _, _, depth, _ = node_common_data fc' in
-                    (Some fc', depth)
-                | _ -> inner l.parent ident_name)
-            | n ->
-                let parent, _, _, _ = node_common_data n in
-                inner parent ident_name)
-      in
-      inner (Some node) ident_name
-    in
 
     let assert_binding_mutable (node_id : string) (name : string) : unit =
-      let node_opt, _ = get_depth_of_defn node_id name in
+      let node_opt, _ = get_depth_of_defn graph_for_pipe node_id name in
       let node =
         match node_opt with None -> make_err "swedish panic!" | Some v -> v
       in
@@ -1263,32 +1356,6 @@ let borrow_ck pipes built_in_pipe_decls verbose =
           borrow_table borrows_in_expr
       in
       borrow_table'
-    in
-
-    (* return the identifier and it's smallest lt (in depth) *)
-    let rec deepest_origin e cur_node_id =
-      match e with
-      (* check for args that are borrowed here *)
-      | _ty, SUnop (MutRef, (_, SIdent n))
-      | _ty, SUnop (Ref, (_, SIdent n))
-      | _ty, SIdent n -> (
-          (* return max depth of all possible origins *)
-          let defn_node, depth_of_defn = get_depth_of_defn cur_node_id n in
-          match defn_node with
-          | Some (Binding b) -> (
-              match b.typ with
-              | MutBorrow _ | Borrow _ -> (
-                  let inner_defn_node, depth_of_inner_defn =
-                    deepest_origin b.expr b.node_id
-                  in
-                  match inner_defn_node with
-                  (* deepest origin could be a pipe arg that is a borrow *)
-                  (* which would cause this to be none *)
-                  | None -> (Some n, depth_of_defn)
-                  | _ -> (inner_defn_node, depth_of_inner_defn))
-              | _ -> (Some n, depth_of_defn))
-          | _ -> make_err "panic! not possible!")
-      | _ -> (None, -1)
     in
 
     let validate_p_call_args called_name args cur_node_id =
@@ -1329,7 +1396,6 @@ let borrow_ck pipes built_in_pipe_decls verbose =
 
         let _ =
           if verbose then
-            let _ = print_string "sorted: " in
             print_string
               (String.concat " | "
                  (List.map
@@ -1344,7 +1410,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
           snd
             (List.fold_left
                (fun (i, args) arg ->
-                 let n, deepest = deepest_origin arg cur_node_id in
+                 let n, deepest = deepest_origin pipe arg cur_node_id in
                  match n with
                  | None -> (i + 1, args)
                  | Some n ->
@@ -1382,7 +1448,9 @@ let borrow_ck pipes built_in_pipe_decls verbose =
 
         let _ =
           if verbose then
-            let _ = print_string "borrowed_args_sorted: " in
+            let _ =
+              print_string (called_pipe.sname ^ " borrowed_args_sorted: ")
+            in
             print_string
               (String.concat " | "
                  (List.map
@@ -1576,7 +1644,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
       | Rebinding rb -> (
           (* make sure original binding is mutable *)
           let origin_node, origin_depth =
-            get_depth_of_defn rb.node_id rb.name
+            get_depth_of_defn graph_for_pipe rb.node_id rb.name
           in
           let _ =
             match origin_node with
@@ -1629,7 +1697,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
               if has_b_map_entry then make_err (err_mut_borrow_after_borrow n)
               else
                 (* get the origin depth of the new borrow, add it *)
-                let _, b_origin_depth = get_depth_of_defn rb.node_id rb.name in
+                let _, b_origin_depth = get_depth_of_defn graph_for_pipe rb.node_id rb.name in
                 (* binding outlives borrow... unsafe! *)
                 if b_origin_depth > origin_depth then
                   make_err err_binding_outlives_borrow
@@ -1646,14 +1714,14 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                 if is_mut then make_err (err_borrow_after_mut_borrow n)
                 else
                   let _, b_origin_depth =
-                    get_depth_of_defn rb.node_id rb.name
+                    get_depth_of_defn graph_for_pipe rb.node_id rb.name
                   in
                   StringMap.add n
                     (false, (rb.node_id, b_origin_depth) :: bs)
                     borrow_table'
               else
                 (* get the origin depth of the new borrow, add it *)
-                let _, b_origin_depth = get_depth_of_defn rb.node_id rb.name in
+                let _, b_origin_depth = get_depth_of_defn get_depth_of_defn rb.node_id rb.name in
                 (* binding outlives borrow... unsafe! *)
                 if b_origin_depth > origin_depth then
                   make_err err_binding_outlives_borrow
