@@ -938,10 +938,14 @@ let borrow_ck pipes built_in_pipe_decls verbose =
 
   (* find borrows in an expression *)
   (* returns (name, is_mut) list *)
-  let find_borrows (sex : s_expr) : (string * bool) list =
+  let find_borrows (sex : s_expr) borrow_table : (string * bool) list =
     let rec inner ((_t, e) : s_expr) (borrows : (string * bool) list) :
         (string * bool) list =
       match e with
+      | SIdent n ->
+          if StringMap.mem n borrow_table then
+            (n, fst (StringMap.find n borrow_table)) :: borrows
+          else []
       | SUnop (Ref, (_typ, SIdent v)) -> (v, false) :: borrows
       | SUnop (MutRef, (_typ, SIdent v)) -> (v, true) :: borrows
       | SThingAccess (_, s, _) -> inner s borrows
@@ -1294,19 +1298,30 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                         List.nth args idx :: l)
                       ret_args_idxs []
                   in
+                  let rec accumulate_origins (sex : s_expr) (oset : StringSet.t)
+                      (d : StringSet.t StringMap.t) :
+                      StringSet.t StringMap.t * StringSet.t =
+                    match sex with
+                    | MutBorrow _, SIdent n ->
+                        let oset_of_n = StringMap.find n data in
+                        (* remove mutborrow that will be overwritten by this binding *)
+                        let d' = StringMap.remove n d in
+                        (d', StringSet.union oset oset_of_n)
+                    | _, SUnop (MutRef, (_ty, SIdent o)) ->
+                        (d, StringSet.add o oset)
+                    | _, SPipeIn (_, args) ->
+                        List.fold_left
+                          (fun (d, oset) se -> accumulate_origins se oset d)
+                          (d, oset) args
+                    | _ -> (d, oset)
+                  in
+
                   (* get the origins of our new mutborrow, the one created by this binding *)
                   (* only care about updating data map if arg is an ident *)
                   (* also remove mutborrows whose priority will be taken by this one *)
                   let data', b_origin_set =
                     List.fold_left
-                      (fun (d, oset) (_ty, arg) ->
-                        match arg with
-                        | SIdent n ->
-                            let oset_of_n = StringMap.find n data in
-                            (* remove mutborrow that will be overwritten by this binding *)
-                            let d' = StringMap.remove n d in
-                            (d', StringSet.union oset oset_of_n)
-                        | _ -> (d, oset))
+                      (fun (d, oset) arg -> accumulate_origins arg oset d)
                       (data, StringSet.empty) ret_args
                   in
 
@@ -1409,7 +1424,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
     (* all additions will be at the current depth because *)
     (* it is just an expression that will be instantly evaluated *)
     let ck_expr borrow_table node_id cur_depth e =
-      let borrows_in_expr = find_borrows e in
+      let borrows_in_expr = find_borrows e borrow_table in
       let borrow_table' =
         List.fold_left
           (fun borrow_table (n, is_mut) ->
@@ -1626,13 +1641,14 @@ let borrow_ck pipes built_in_pipe_decls verbose =
               (fun _k (is_mut, borrows) ->
                 let borrows' =
                   List.filter
-                    (fun (_nid, max_depth) -> max_depth < cur_depth)
+                    (fun (_nid, max_depth) -> max_depth <= cur_depth)
                     borrows
                 in
                 if List.length borrows' = 0 then None
                 else Some (is_mut, borrows'))
               borrow_table'
           in
+
           borrow_table'
       | Binding b -> (
           (* we don't need to handle idents because *)
@@ -1703,13 +1719,13 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                       let is_mut, borrows = StringMap.find n borrow_table in
                       if is_mut then
                         match sex with
-                        | _, SIdent _ ->
+                        | _, SUnop (Ref, _) | _, SUnop (MutRef, _) ->
+                            make_err
+                              ("HEHEDARUMA " ^ err_borrow_after_mut_borrow n)
+                        | _ ->
                             StringMap.add n
                               (true, (b.node_id, max_arg_depth) :: borrows)
                               borrow_table
-                        | _ ->
-                            make_err
-                              ("HEHEDARUMA " ^ err_borrow_after_mut_borrow n)
                       else if m then make_err (err_mut_borrow_after_borrow n)
                       else
                         StringMap.add n

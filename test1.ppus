@@ -1,12 +1,17 @@
-pipe test |'a| [poop: ~&'a int] |> ~&'a int {
+pipe test |'a| [poop: ~&'a int, doop: ~& int ] |> ~&'a int {
   |> poop;
 }
 
 pipe main [] |> unit {
   mut int t = 4;
+  mut int p = 6;
 
-  & int y = &t;
+  ~&int y = ~&t;
 
-  ~& int caterpie = test <| [~&t];
+  {
+    ~& int caterpie = test <| [y, y];
+  }
+
+
   |> ();
 }
