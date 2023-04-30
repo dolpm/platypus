@@ -1,5 +1,5 @@
-pipe test |'a| [poop: ~&'a int, doop: ~& int ] |> ~&'a int {
-  |> poop;
+pipe test |'a| [help: ~&'a int, doop: ~& int ] |> ~&'a int {
+  |> help;
 }
 
 pipe main [] |> unit {
