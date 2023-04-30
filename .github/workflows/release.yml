@@ -20,30 +20,37 @@ jobs:
       - name: Checkout tree
         uses: actions/checkout@v3
 
-      - name: Retrieve new lists of system packages
-        run: apt-get -yq update
-
-      - name: Upgrade system packages
-        run: apt-get -y upgrade
 
       - name: Install system packages
-        run: apt-get -yq --no-install-suggests --no-install-recommends install m4 make gcc mercurial patch rsync sudo unzip llvm-14 llvm-14-dev clang-14 libclang-14-dev valgrind ca-certificates pkg-config menhir curl git bubblewrap
+        run:  |
+          apt-get -yq update && \
+          apt-get -y upgrade && \
+          apt-get -yq --no-install-suggests --no-install-recommends install \
+          ocaml \
+          menhir \
+          llvm-14 \
+          llvm-14-dev \
+          m4 \
+          clang-14 \
+          git \
+          libclang-14-dev \
+          ca-certificates \
+          pkg-config \
+          opam \
+          valgrind \
+          make
 
       - name: Link clang bin
         run: ln -s /usr/bin/clang-14 /usr/bin/clang
 
-      - name: Set-up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
-        with:
-          ocaml-compiler: ${{ matrix.ocaml-compiler }}
-          cache-prefix: v1-${{ matrix.container }}
-          opam-disable-sandboxing: true
+      - name: Opam init
+        run: opam init --disable-sandboxing
 
       - name: Install deps
-        run: make install
+        run: eval $(opam env) && make install
 
       - name: Build binary
-        run: make
+        run: eval $(opam env) && make
 
       - name: Upload the artifacts
         uses: skx/github-action-publish-binaries@master
