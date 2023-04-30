@@ -28,7 +28,7 @@ jobs:
           apt-get -yq update && \
           apt-get -y upgrade && \
           apt-get -yq --no-install-suggests --no-install-recommends install \
-          ocaml\
+          ocaml \
           menhir \
           llvm-14 \
           llvm-14-dev \
