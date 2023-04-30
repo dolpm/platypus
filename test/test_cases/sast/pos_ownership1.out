@@ -11,13 +11,13 @@ pipe main [] |> unit {
 {(id: main_wrapper)
   int x = (int : 4);
   int z = (int : 4);
-{(id: 2)
+{(id: 4)
   int y = (int : x);
   while (bool : (int : y) < (int : 4))
-  {(id: 3)
-  {(id: 4)
-    int w = (int : 8);
   {(id: 5)
+  {(id: 6)
+    int w = (int : 8);
+  {(id: 7)
     int a = (int : w);
     (unit : test <| [(int : a)]);
   }

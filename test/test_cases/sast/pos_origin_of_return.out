@@ -11,7 +11,7 @@ pipe main [] |> unit {
 {(id: main_wrapper)
   int black = (int : 1337);
   mut &'_ int x = (&'_ int : &(int : black));
-{(id: 2)
+{(id: 4)
   x = (&'_ int : inner <| [(&'_ int : &(int : black))]);
 }
   |> (unit : ());

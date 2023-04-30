@@ -11,33 +11,41 @@ let check (things, pipes) verbosity =
   let stdlib_pipe_decls =
     [
       (* print *)
-      ("Print", [], [ (false, Generic, "x") ], Unit);
-      ("Printnl", [], [ (false, Generic, "x") ], Unit);
+      ("Print", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Unit);
+      ("Printnl", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Unit);
       (* rng *)
-      ("Rng_init", [], [ (false, Int, "x") ], Unit);
-      ("Rng_generate", [], [ (false, Int, "x"); (false, Int, "y") ], Int);
+      ("Rng_init", [], [ (false, Int, "x") ], [ PipeOut NoExpr ], Unit);
+      ( "Rng_generate",
+        [],
+        [ (false, Int, "x"); (false, Int, "y") ],
+        [ PipeOut NoExpr ],
+        Int );
       (* panic *)
-      ("Panic", [], [ (false, Generic, "x") ], Unit);
+      ("Panic", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Unit);
       (* boxes *)
-      ("Box_new", [], [ (true, Generic, "x") ], Box Generic);
+      ("Box_new", [], [ (true, Generic, "x") ], [ PipeOut NoExpr ], Box Generic);
       ( "Box_unbox",
         [ "'a" ],
         [ (false, Borrow (Box Generic, "'a"), "x") ],
+        [ PipeOut NoExpr ],
         Borrow (Generic, "'a") );
       ( "Box_unbox_mut",
         [ "'a" ],
         [ (true, MutBorrow (Box Generic, "'a"), "x") ],
+        [ PipeOut (Ident "x") ],
         MutBorrow (Generic, "'a") );
       (* vec *)
-      ("Vector_length", [], [ (false, Generic, "x") ], Int);
-      ("Vector_new", [], [], Vector Generic);
+      ("Vector_length", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Int);
+      ("Vector_new", [], [], [ PipeOut NoExpr ], Vector Generic);
       ( "Vector_get_mut",
         [ "'a" ],
         [ (true, MutBorrow (Vector Generic, "'a"), "x"); (false, Int, "y") ],
+        [ PipeOut (Ident "x") ],
         MutBorrow (Generic, "'a") );
       ( "Vector_get",
         [ "'a" ],
         [ (false, Borrow (Vector Generic, "'a"), "x"); (false, Int, "y") ],
+        [ PipeOut NoExpr ],
         Borrow (Generic, "'a") );
       ( "Vector_update",
         [],
@@ -46,33 +54,34 @@ let check (things, pipes) verbosity =
           (false, Int, "z");
           (false, Generic, "y");
         ],
+        [ PipeOut NoExpr ],
         Unit );
       ( "Vector_push",
         [],
         [ (true, MutBorrow (Vector Generic, "'_"), "x"); (false, Generic, "y") ],
+        [ PipeOut NoExpr ],
         Unit );
-      ("Vector_pop", [], [ (true, MutBorrow (Vector Generic, "'_"), "x") ], Unit);
+      ( "Vector_pop",
+        [],
+        [ (true, MutBorrow (Vector Generic, "'_"), "x") ],
+        [ PipeOut NoExpr ],
+        Unit );
       (* str *)
-      ("Str_new", [], [ (false, String, "x") ], Str);
+      ("Str_new", [], [ (false, String, "x") ], [ PipeOut NoExpr ], Str);
       ( "Str_push",
         [],
         [ (true, MutBorrow (Str, "'_"), "x"); (false, Char, "y") ],
+        [ PipeOut NoExpr ],
         Unit );
     ]
   in
 
   (* transform the built-in defn's into actual declaration types *)
   let built_in_pipe_decls =
-    let add_bind l (name, lts, args, ret_ty) =
+    let add_bind l (name, lts, args, body, ret_ty) =
       l
       @ [
-          {
-            return_type = ret_ty;
-            name;
-            lifetimes = lts;
-            formals = args;
-            body = [ PipeOut NoExpr ];
-          };
+          { return_type = ret_ty; name; lifetimes = lts; formals = args; body };
         ]
     in
     List.fold_left add_bind [] stdlib_pipe_decls
@@ -669,15 +678,17 @@ let check (things, pipes) verbosity =
 
           let _, lt = type_of_identifier name symbols
           and rt, e' = expr e symbols in
-          (* If assigning to a borrow mutborrow, 
-            don't allow explicit lifetimes*)
-          let _ = 
-            match lt with 
-            | MutBorrow (_,lifetime) | Borrow (_,lifetime) ->
-              if lifetime <> "'_" then
-                make_err ("Cannot define explicit lifetime " ^ lifetime ^
-                  " in assignment of " ^ name ^ ". Explicit lifetimes are only \
-                    permitted for function arguments and return types.")
+          (* If assigning to a borrow mutborrow,
+             don't allow explicit lifetimes*)
+          let _ =
+            match lt with
+            | MutBorrow (_, lifetime) | Borrow (_, lifetime) ->
+                if lifetime <> "'_" then
+                  make_err
+                    ("Cannot define explicit lifetime " ^ lifetime
+                   ^ " in assignment of " ^ name
+                   ^ ". Explicit lifetimes are only permitted for function \
+                      arguments and return types.")
             | _ -> ()
           in
 
@@ -815,7 +826,8 @@ let check (things, pipes) verbosity =
         match
           List.find_opt (fun p' -> p'.name = p.name) built_in_pipe_decls
         with
-        | Some _ -> true
+        | Some _ -> (
+            match p.return_type with MutBorrow _ -> false | _ -> true)
         | None -> false
       then []
       else

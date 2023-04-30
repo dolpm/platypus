@@ -1283,8 +1283,15 @@ let borrow_ck pipes built_in_pipe_decls verbose =
           | Some _ -> true
           | None -> false
         in
+
+        let ret_ty_is_mutborrow =
+          match p.sreturn_type with MutBorrow _ -> true | _ -> false
+        in
+        
         let idxs =
-          if not is_builtin then validate_arg_lifetimes p ret_v_map else []
+          if (not is_builtin) || (is_builtin && ret_ty_is_mutborrow) then 
+            validate_arg_lifetimes p ret_v_map
+          else []
         in
 
         let _ =

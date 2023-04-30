@@ -2,7 +2,7 @@ pipe main [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
   int x = (int : 4);
-{(id: 1)
+{(id: 3)
   int y = (int : x);
 }
   |> (unit : ());

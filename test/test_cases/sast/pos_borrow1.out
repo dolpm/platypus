@@ -2,7 +2,7 @@ pipe main [] |> unit {
 {(id: main_with_args)
 {(id: main_wrapper)
   mut int x = (int : 4);
-{(id: 1)
+{(id: 3)
   mut ~&'_ int z = (~&'_ int : ~&(int : x));
 }
   &'_ int y = (&'_ int : &(int : x));

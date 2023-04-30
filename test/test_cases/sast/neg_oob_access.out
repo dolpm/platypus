@@ -1,0 +1,1 @@
+Fatal error: exception Failure("Mutable reference foo cannot be used until its alias last has fallen out of scope.")

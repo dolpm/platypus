@@ -1,1 +1,0 @@
-Fatal error: exception Failure("variable foo can't be borrowed after it has already been mutably borrowed.")
