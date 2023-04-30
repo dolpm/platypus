@@ -54,9 +54,12 @@ jobs:
       - name: Build binary
         run: eval $(opam env) && make
 
-      - name: Upload the artifacts
-        uses: skx/github-action-publish-binaries@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
         with:
-          args: 'platypus'
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: platypus
+          asset_name: platypus
+          tag: ${{ github.ref }}
+          overwrite: true
+          body: "platypus compiler binary"
