@@ -2,10 +2,12 @@
 all : platypus.native
 
 docker.build :
-	docker build -q -t ghcr.io/dolpm/platypus:latest .
+	@docker volume prune -f
+	docker build --no-cache -q -t ghcr.io/dolpm/platypus:latest .
+	@docker image prune -f
 
 docker.run :
-	docker run --rm -it -v pwd:/app/ -w=/app/ ghcr.io/dolpm/platypus:latest
+	docker run --rm -it -v platypus:/app/ -w=/app/ ghcr.io/dolpm/platypus:latest
 
 docker.push : 
 	docker push ghcr.io/dolpm/platypus:latest

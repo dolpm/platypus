@@ -27,6 +27,4 @@ WORKDIR /app
 RUN make install
 RUN opam env >> /root/.bashrc
 
-# ENTRYPOINT ["opam", "exec", "--"]
-
 CMD ["bash"]
