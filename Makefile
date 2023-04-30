@@ -1,14 +1,23 @@
 .PHONY : all
 all : platypus.native
 
+docker.build :
+	docker build -q -t ghcr.io/dolpm/platypus:latest .
+
+docker.run :
+	docker run --rm -it -v pwd:/app/ -w=/app/ ghcr.io/dolpm/platypus:latest
+
+docker.push : 
+	docker push ghcr.io/dolpm/platypus:latest
+
 install : 
-	opam install dune
-	opam install llvm=14.0.6
-	opam install ctypes-foreign
+	opam install --confirm-level=unsafe-yes dune
+	opam install --confirm-level=unsafe-yes llvm=14.0.6
+	opam install --confirm-level=unsafe-yes ctypes-foreign
 
 platypus.native : clean
-	opam exec -- dune build
-	cp ./_build/install/default/bin/platypus ./
+	@dune build
+	@cp ./_build/install/default/bin/platypus ./
 
 # TESTING RULE USAGE
 #	to run entire test suite: make test
@@ -24,14 +33,14 @@ test : export ttype = ${type}
 test : export tname = ${name}
 test : export tmemcheck = ${memcheck}
 test : platypus.native
-	opam exec -- dune test
+	@dune test
 
 zip : clean
-	zip -r rodrigo_and_friends.zip . -x ".*"
+	@zip -r rodrigo_and_friends.zip . -x ".*"
 
 .PHONY : clean
 clean :
-	dune clean
-	find . -maxdepth 1 -type f -perm -ugo=x -delete
-	rm -rf *.bc *.o
-	rm -rf ./rodrigo_and_friends.zip
+	@dune clean
+	@find . -maxdepth 1 -type f -perm -ugo=x -delete
+	@rm -rf *.bc *.o
+	@rm -rf ./rodrigo_and_friends.zip

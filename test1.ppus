@@ -1,19 +1,14 @@
-pipe test |'a| [help: ~&'a int, doop: ~& int ] |> ~&'a int {
-  |> help;
-}
-
 pipe main [] |> unit {
-  mut int t = 4;
-  mut int p = 6;
+  mut vector[int] battleaxe = Vector_new <| [];
 
-  mut int u = 7;
+  ~&vector[int] chupacabra = ~&battleaxe;
 
-  ~&int y = ~&t;
-  ~&int z = ~&p;
-  
-  ~& int caterpie = test <| [test <| [~&u, z], y];
+  ~&int value = Vector_get_mut <| [chupacabra, 0];
 
-  ~&u;
+  chupacabra;
+
+  ~&int value1 = Vector_get_mut <| [chupacabra, 0];
+
 
   |> ();
 }
