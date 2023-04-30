@@ -30,11 +30,11 @@ jobs:
       - name: Install system packages
         run: >
           apt-get -yq --no-install-suggests --no-install-recommends install
-              bubblewrap curl darcs gcc git
               m4 make mercurial patch rsync
               sudo unzip llvm-14 llvm-14-dev
               clang-14 libclang-14-dev valgrind
               ca-certificates pkg-config menhir
+              curl git
 
       - name: Link clang bin
         run: ln -s /usr/bin/clang-14 /usr/bin/clang
