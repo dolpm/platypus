@@ -8,7 +8,7 @@ jobs:
       fail-fast: false
       matrix:
         container:
-          - ubuntu:latest
+          - ubuntu:22.04
         ocaml-compiler:
           - "4.14.1"
 
@@ -33,7 +33,7 @@ jobs:
               sudo unzip llvm-14 llvm-14-dev
               clang-14 libclang-14-dev valgrind
               ca-certificates pkg-config menhir
-              curl git
+              curl git bubblewrap
 
       - name: Link clang bin
         run: ln -s /usr/bin/clang-14 /usr/bin/clang
