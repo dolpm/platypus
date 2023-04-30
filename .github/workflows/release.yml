@@ -2,54 +2,56 @@ on:
   push:
     branches: [ main ]
 
-strategy:
-  fail-fast: false
-  matrix:
-    container:
-      - debian:latest
-      - ubuntu:latest
-    ocaml-compiler:
-      - "4.14.1"
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - debian:latest
+          - ubuntu:latest
+        ocaml-compiler:
+          - "4.14.1"
 
-container: ${{ matrix.container }}
+    container: ${{ matrix.container }}
 
-runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-steps:
-  - name: Checkout tree
-    uses: actions/checkout@v3
+    steps:
+      - name: Checkout tree
+        uses: actions/checkout@v3
 
-  - name: Retrieve new lists of system packages
-    run: apt-get -yq update
+      - name: Retrieve new lists of system packages
+        run: apt-get -yq update
 
-  - name: Upgrade system packages
-    run: apt-get -y upgrade
+      - name: Upgrade system packages
+        run: apt-get -y upgrade
 
-  - name: Install system packages
-    run: >
-      apt-get -yq --no-install-suggests --no-install-recommends install
-          bubblewrap curl darcs gcc git
-          m4 make mercurial patch rsync
-          sudo unzip llvm-14 llvm-14-dev
-          clang-14 libclang-14-dev valgrind
-          ca-certificates pkg-config menhir
+      - name: Install system packages
+        run: >
+          apt-get -yq --no-install-suggests --no-install-recommends install
+              bubblewrap curl darcs gcc git
+              m4 make mercurial patch rsync
+              sudo unzip llvm-14 llvm-14-dev
+              clang-14 libclang-14-dev valgrind
+              ca-certificates pkg-config menhir
 
-  - name: Link clang bin
-    run: ln -s /usr/bin/clang-14 /usr/bin/clang
+      - name: Link clang bin
+        run: ln -s /usr/bin/clang-14 /usr/bin/clang
 
-  - name: Set-up OCaml ${{ matrix.ocaml-compiler }}
-    uses: ocaml/setup-ocaml@v2
-    with:
-      ocaml-compiler: ${{ matrix.ocaml-compiler }}
-      cache-prefix: v1-${{ matrix.container }}
-      opam-disable-sandboxing: true
+      - name: Set-up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+          cache-prefix: v1-${{ matrix.container }}
+          opam-disable-sandboxing: true
 
-  - name: Build binary
-    run: make
+      - name: Build binary
+        run: make
 
-  - name: Upload the artifacts
-    uses: skx/github-action-publish-binaries@master
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    with:
-      args: 'platypus'
+      - name: Upload the artifacts
+        uses: skx/github-action-publish-binaries@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: 'platypus'
