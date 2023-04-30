@@ -28,7 +28,7 @@ jobs:
           apt-get -yq update && \
           apt-get -y upgrade && \
           apt-get -yq --no-install-suggests --no-install-recommends install \
-          ocaml=4.14.1 \
+          ocaml\
           menhir \
           llvm-14 \
           llvm-14-dev \
@@ -38,7 +38,7 @@ jobs:
           libclang-14-dev \
           ca-certificates \
           pkg-config \
-          opam=2.1.4 \
+          opam \
           valgrind \
           make
 
