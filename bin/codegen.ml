@@ -85,6 +85,13 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "printf" printf_t the_module
   in
 
+  let sprintf_t : L.lltype =
+    L.var_arg_function_type i32_t [| L.pointer_type i8_t ; L.pointer_type i8_t |]
+  in
+  let sprintf_func : L.llvalue =
+    L.declare_function "sprintf" sprintf_t the_module
+  in  
+
   let memcpy_t : L.lltype =
     L.function_type unit_t
       [| L.pointer_type i8_t; L.pointer_type i8_t; L.i64_type context |]
@@ -1033,8 +1040,29 @@ let translate (things, pipes) ownership_map m_external =
           | _ -> L.build_sitofp e' float_t "casted_to_float" builder)
       | SPipeIn ("Str", [ (t,e) ]) -> (
           (* alloca a i8 array of length 24 *)
+          (* https://stackoverflow.com/questions/1701055/what-is-the-maximum-length-in-chars-needed-to-represent-any-double-value *)
+          let e' = expr builder (t,e) in
+          let dest_array = L.build_array_alloca i8_t (L.const_int i32_t 24) "dog_thresher" builder in
+          let dest_ptr = L.build_gep dest_array [| L.const_int i32_t 0 |] "tongue_of_steel" builder in
           (* match on t to sprintf with correct format string into array *)
+          let _ = 
+            match t with 
+            (* TODO print char as char instead of ASCII and bool as 'true' or 'false' instead of 1 or 0 *)
+            (* do we need to build a fucking if statement here?! for bool to string I mean. *)
+            | Int | Bool | Char ->
+                L.build_call sprintf_func
+                  [| dest_ptr; nonewline_int_format_str; e' |]
+                  "sprintf" builder
+            | Float ->
+                L.build_call sprintf_func
+                  [| dest_ptr; nonewline_float_format_str; e' |]
+                  "sprintf" builder
+            | _ -> raise (Failure ("unexpected type " ^ A.string_of_typ t ^ " in Str cast pipe"))
+          in
           (* call Str_new, passing in i8 array *)
+          L.build_call str_new_func
+            [| dest_ptr |]
+            "wrath_of_george" builder
         )
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in

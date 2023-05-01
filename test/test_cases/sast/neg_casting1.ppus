@@ -1,0 +1,6 @@
+pipe main [] |> unit {
+  str x = Str_new <| ["I LOVE TUFTS <3 <3"];
+  float y = Float <| [x];
+
+  |> ();
+}
