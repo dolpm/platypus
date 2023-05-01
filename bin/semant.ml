@@ -3,7 +3,7 @@ open Sast
 open Borrow
 module StringMap = Map.Make (String)
 
-let check (things, pipes) verbosity =
+let check (_opens, things, pipes) verbosity =
   let cur_sblock_id = ref 0 in
 
   (* built in pipe definitions *)

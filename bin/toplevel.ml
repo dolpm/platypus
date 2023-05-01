@@ -1,3 +1,5 @@
+module StringSet = Set.Make (String)
+
 type action = Ast | Sast | LLVM_IR | Compile | Exec
 
 let () =
@@ -43,6 +45,23 @@ let () =
       (Llvm.MemoryBuffer.of_string Builtins.as_llvm_ir)
   in
   let _ = Llvm_analysis.assert_valid_module m_external in
+
+  (* resolve imports *)
+  let ast =
+    let _all_imports = ref StringSet.empty
+    and imports_yet_to_traverse =
+      ref
+        (StringSet.of_list
+           (let root_imports, _, _ = ast in
+            root_imports))
+    in
+    let _ =
+      while StringSet.cardinal !imports_yet_to_traverse > 0 do
+        ()
+      done
+    in
+    ast
+  in
 
   match !action with
   | Ast -> print_string (Ast.string_of_program ast)

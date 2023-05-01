@@ -91,7 +91,7 @@ type pipe_declaration = {
 }
 
 (* type program = defined_type list * pipe_declaration list *)
-type program = thing_declaration list * pipe_declaration list
+type program = string list * thing_declaration list * pipe_declaration list
 
 (* Pretty-printing functions *)
 
@@ -231,6 +231,9 @@ let string_of_pdecl pdecl =
   ^ String.concat "" (List.map (fun s -> string_of_stmt s 1) pdecl.body)
   ^ "}\n"
 
-let string_of_program (things, funcs) =
-  String.concat "\n" (List.map string_of_tdecl (List.rev things))
+let string_of_open o = "open " ^ o ^ "\n"
+
+let string_of_program (opens, things, funcs) =
+  String.concat "\n" (List.map string_of_open (List.rev opens))
+  ^ String.concat "\n" (List.map string_of_tdecl (List.rev things))
   ^ String.concat "\n" (List.map string_of_pdecl (List.rev funcs))

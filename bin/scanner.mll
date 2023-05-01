@@ -54,6 +54,8 @@ rule token = parse
 
   | '!'      { NOT }
 
+  | "open"   { OPEN }
+
   | "as"     { AS }
   | "pipe"   { PIPE }
 

@@ -2,7 +2,7 @@
 
 %token SEMI RANGE COLON DOT LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE CONCAT ASSIGN REASSIGN LPIPE RPIPE MUT EQUAL
 %token NOT EQ NEQ LT LEQ GT GEQ AND OR DEREF BORROW MUTBORROW THING CLONE 
-%token IF ELSE NOELSE WHILE CHAR INT STRING STR BOOL FLOAT TUPLE UNIT BOX VECTOR LOOP AS PIPE
+%token IF ELSE NOELSE WHILE CHAR INT STRING STR BOOL FLOAT TUPLE UNIT BOX VECTOR LOOP AS PIPE OPEN
 %token <int> INTLIT
 %token <char> CHARLIT
 %token <bool> BOOLLIT
@@ -56,9 +56,22 @@ typ_list:
   | typ_list TIMES typ { $3 :: $1 }
 
 decls:
- | { ([], [])                             } 
- | decls tdecl { (($2 :: fst $1), snd $1) }
- | decls pdecl { (fst $1, ($2 :: snd $1)) }
+ | { ([], [], [])                         } 
+ | decls odecl {
+    let (os, ts, ps) = $1 in
+    (($2 :: os), ts, ps)
+ }
+ | decls tdecl { 
+    let (os, ts, ps) = $1 in
+    (os, ($2 :: ts), ps)
+ }
+ | decls pdecl { 
+    let (os, ts, ps) = $1 in
+    (os, ts, ($2 :: ps))
+ }
+
+odecl: 
+  OPEN IDENT SEMI { $2 }
 
 pdecl:
   PIPE IDENT
