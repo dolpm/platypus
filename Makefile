@@ -1,7 +1,7 @@
 .PHONY : all
 all : platypus.native
 
-docker.build :
+docker.build : clean
 	@docker volume prune -f
 	docker build --no-cache -q -t ghcr.io/dolpm/platypus:latest .
 	@docker image prune -f
