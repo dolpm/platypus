@@ -11,7 +11,5 @@ pipe main [] |> unit {
 
   float centipede = Float <| [Int <| [c]];
 
-  Printnl <| [centipede];
-
   |> ();
 }

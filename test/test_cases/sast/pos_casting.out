@@ -1,0 +1,14 @@
+pipe main [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
+  int x = (int : -(int : 5));
+  float y = (float : Float <| [(int : (int : -(int : x)) + (int : 5))]);
+  int z = (int : Int <| [(float : y)]);
+  bool t = (bool : true);
+  int p = (int : Int <| [(bool : t)]);
+  char c = (char : 'C');
+  float centipede = (float : Float <| [(int : Int <| [(char : c)])]);
+  |> (unit : ());
+}
+}
+}

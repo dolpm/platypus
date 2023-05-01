@@ -7,7 +7,7 @@ let check (things, pipes) verbosity =
   let cur_sblock_id = ref 0 in
 
   (* built in pipe definitions *)
-  (* (name, [param(is_mut, type, name)], ret_type) *)
+  (* (name, lifetime, [param(is_mut, type, name)], body, ret_type) *)
   let stdlib_pipe_decls =
     [
       (* print *)
@@ -73,6 +73,9 @@ let check (things, pipes) verbosity =
         [ (true, MutBorrow (Str, "'_"), "x"); (false, Char, "y") ],
         [ PipeOut NoExpr ],
         Unit );
+      (* type casting *)
+      ("Int", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Int );
+      ("Float", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Float );
     ]
   in
 
@@ -562,6 +565,14 @@ let check (things, pipes) verbosity =
               | "Vector_push" -> (
                   match first_arg_type with
                   | MutBorrow (Vector _t, _lt) -> Unit
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Int" -> (
+                  match first_arg_type with
+                  | Int | Bool | Char | Float -> Int
+                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+              | "Float" -> (
+                  match first_arg_type with
+                  | Int | Bool | Char | Float -> Float
                   | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
               | _ -> pd.return_type
             in

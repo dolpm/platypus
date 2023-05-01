@@ -1021,6 +1021,16 @@ let translate (things, pipes) ownership_map m_external =
               expr builder c;
             |]
             "" builder
+      | SPipeIn ("Int", [ (t,e) ]) -> (
+          let e' = expr builder (t,e) in
+          match t with 
+          | Float -> L.build_fptosi e' i32_t "casted_to_int" builder
+          | _ -> L.build_intcast e' i32_t "casted_to_int" builder)
+      | SPipeIn ("Float", [ (t,e) ]) -> (
+          let e' = expr builder (t,e) in
+          match t with
+          | Float -> e'
+          | _ -> L.build_sitofp e' float_t "casted_to_float" builder)
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in
