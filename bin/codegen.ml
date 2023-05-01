@@ -1031,6 +1031,11 @@ let translate (things, pipes) ownership_map m_external =
           match t with
           | Float -> e'
           | _ -> L.build_sitofp e' float_t "casted_to_float" builder)
+      | SPipeIn ("Str", [ (t,e) ]) -> (
+          (* alloca a i8 array of length 24 *)
+          (* match on t to sprintf with correct format string into array *)
+          (* call Str_new, passing in i8 array *)
+        )
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in

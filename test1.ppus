@@ -1,8 +1,13 @@
 pipe main [] |> unit {
   int x = -5;
-  float y = Float <| [-x+5];
+  float y = Float <| [-x-500];
   
-  int z = Int <| [y];
+  int z = Int <| [%y];
+
+  Printnl <| [x];
+  Printnl <| [y];
+  Printnl <| [z];
+
 
   bool t = true;
   int p = Int <| [t];
