@@ -1138,7 +1138,21 @@ let borrow_ck pipes built_in_pipe_decls verbose =
             match v with
             | Rebinding rb -> (
                 match rb.expr with
-                | _, SIdent n -> StringMap.remove n symbol_table
+                (* don't need to worry about ownership transfer if it is a borrow *)
+                | MutBorrow _, _ | Borrow _ , _ -> symbol_table 
+                | _, SIdent n ->
+                    let n_node =
+                      StringMap.find (StringMap.find n symbol_table) graph
+                    in
+                    let _, _, _, n_loop = node_common_data n_node in
+                    let _ =
+                      if rb.loop <> n_loop then
+                        raise
+                          (Failure
+                             ("ownership of " ^ n
+                            ^ " could be taken in a previous loop iteration"))
+                    in
+                    StringMap.remove n symbol_table
                 | _ -> symbol_table)
             | _ -> symbol_table
           in
