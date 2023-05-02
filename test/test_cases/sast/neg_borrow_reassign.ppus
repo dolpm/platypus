@@ -1,0 +1,14 @@
+pipe main [] |> unit {
+    int w = 5;
+    mut &int a = &w;
+    {
+        int x = 4;
+        {
+            &int y = &x;
+            a = y;
+        }
+    }
+    
+
+    |> ();
+}
