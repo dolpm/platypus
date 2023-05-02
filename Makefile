@@ -12,6 +12,9 @@ docker.run :
 docker.push : 
 	docker push ghcr.io/dolpm/platypus:latest
 
+docker.pull : 
+	docker pull ghcr.io/dolpm/platypus:latest
+
 install : 
 	opam install --confirm-level=unsafe-yes dune
 	opam install --confirm-level=unsafe-yes llvm=14.0.6
