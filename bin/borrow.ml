@@ -1133,7 +1133,17 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                 then make_err (err_gave_ownership n))
               names
           in
-          (symbol_table, active_refs, graph)
+
+          let symbol_table' =
+            match v with
+            | Rebinding rb -> (
+                match rb.expr with
+                | _, SIdent n -> StringMap.remove n symbol_table
+                | _ -> symbol_table)
+            | _ -> symbol_table
+          in
+
+          (symbol_table', active_refs, graph)
     in
 
     check_children pipe.sname StringMap.empty StringSet.empty graph_for_pipe
@@ -1287,9 +1297,9 @@ let borrow_ck pipes built_in_pipe_decls verbose =
         let ret_ty_is_mutborrow =
           match p.sreturn_type with MutBorrow _ -> true | _ -> false
         in
-        
+
         let idxs =
-          if (not is_builtin) || (is_builtin && ret_ty_is_mutborrow) then 
+          if (not is_builtin) || (is_builtin && ret_ty_is_mutborrow) then
             validate_arg_lifetimes p ret_v_map
           else []
         in
