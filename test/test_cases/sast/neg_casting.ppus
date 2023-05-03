@@ -1,0 +1,6 @@
+pipe main [] |> unit {
+  int x = -5;
+  int y = Float <| [x-500];
+  
+  |> ();
+}

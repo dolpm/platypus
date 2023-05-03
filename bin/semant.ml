@@ -7,7 +7,7 @@ let check (things, pipes) verbosity =
   let cur_sblock_id = ref 0 in
 
   (* built in pipe definitions *)
-  (* (name, [param(is_mut, type, name)], ret_type) *)
+  (* (name, lifetime, [param(is_mut, type, name)], body, ret_type) *)
   let stdlib_pipe_decls =
     [
       (* print *)
@@ -73,6 +73,10 @@ let check (things, pipes) verbosity =
         [ (true, MutBorrow (Str, "'_"), "x"); (false, Char, "y") ],
         [ PipeOut NoExpr ],
         Unit );
+      (* type casting *)
+      ("Int", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Int);
+      ("Float", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Float);
+      ("Str", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Str);
     ]
   in
 
@@ -522,47 +526,127 @@ let check (things, pipes) verbosity =
                   | Borrow (t, _) | MutBorrow (t, _) -> (
                       match t with
                       | Int | Bool | Float | String | Str -> Unit
-                      | _ -> raise (Failure ("unexpected arg type in " ^ pname))
-                      )
+                      | _ ->
+                          raise
+                            (Failure
+                               ("unexpected arg type "
+                               ^ string_of_typ first_arg_type
+                               ^ " in " ^ pname)))
                   | Int | Bool | Float | String -> Unit
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Box_new" -> Box first_arg_type
               | "Box_unbox" -> (
                   match first_arg_type with
                   | Borrow (Box t, lt) -> Borrow (t, lt)
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Box_unbox_mut" -> (
                   match first_arg_type with
                   | MutBorrow (Box t, lt) -> MutBorrow (t, lt)
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_length" -> (
                   match first_arg_type with
                   | Borrow (Vector _t, _lt) -> Int
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_get" -> (
                   match first_arg_type with
                   | Borrow (Vector t, lt) -> Borrow (t, lt)
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_update" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, _lt) ->
                       let t3 = fst (List.nth args' 2) in
                       if t3 <> t then
-                        raise (Failure ("unexpected arg type in " ^ pname))
+                        raise
+                          (Failure
+                             ("unexpected arg type "
+                             ^ string_of_typ first_arg_type
+                             ^ " in " ^ pname))
                       else Unit
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_get_mut" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_pop" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, _) -> t
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_push" -> (
                   match first_arg_type with
                   | MutBorrow (Vector _t, _lt) -> Unit
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
+              | "Int" -> (
+                  match first_arg_type with
+                  | Int | Bool | Char | Float -> Int
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
+              | "Float" -> (
+                  match first_arg_type with
+                  | Int | Bool | Char | Float -> Float
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
+              | "Str" -> (
+                  match first_arg_type with
+                  | Int | Bool | Char | Float -> Str
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | _ -> pd.return_type
             in
             let ret_type =
