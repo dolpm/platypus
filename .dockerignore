@@ -28,8 +28,12 @@ setup.log
 # Local OPAM switch
 _opam/
 
-# Platypus
+# platypus
 platypus
 **/.DS_Store
 rodrigo_and_friends.zip
 test1.ppus
+.github/
+
+# git
+**/.git

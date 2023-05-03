@@ -1,0 +1,1 @@
+Fatal error: exception Failure("Immutable borrow (&'_ int : y) has larger lifetime than a, so a cannot be rebound.")

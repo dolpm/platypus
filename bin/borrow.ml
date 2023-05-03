@@ -1133,7 +1133,31 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                 then make_err (err_gave_ownership n))
               names
           in
-          (symbol_table, active_refs, graph)
+
+          let symbol_table' =
+            match v with
+            | Rebinding rb -> (
+                match rb.expr with
+                (* don't need to worry about ownership transfer if it is a borrow *)
+                | MutBorrow _, _ | Borrow _, _ -> symbol_table
+                | _, SIdent n ->
+                    let n_node =
+                      StringMap.find (StringMap.find n symbol_table) graph
+                    in
+                    let _, _, _, n_loop = node_common_data n_node in
+                    let _ =
+                      if rb.loop <> n_loop then
+                        raise
+                          (Failure
+                             ("ownership of " ^ n
+                            ^ " could be taken in a previous loop iteration"))
+                    in
+                    StringMap.remove n symbol_table
+                | _ -> symbol_table)
+            | _ -> symbol_table
+          in
+
+          (symbol_table', active_refs, graph)
     in
 
     check_children pipe.sname StringMap.empty StringSet.empty graph_for_pipe
@@ -1287,9 +1311,9 @@ let borrow_ck pipes built_in_pipe_decls verbose =
         let ret_ty_is_mutborrow =
           match p.sreturn_type with MutBorrow _ -> true | _ -> false
         in
-        
+
         let idxs =
-          if (not is_builtin) || (is_builtin && ret_ty_is_mutborrow) then 
+          if (not is_builtin) || (is_builtin && ret_ty_is_mutborrow) then
             validate_arg_lifetimes p ret_v_map
           else []
         in
@@ -1817,8 +1841,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                       if is_mut then
                         match sex with
                         | _, SUnop (Ref, _) | _, SUnop (MutRef, _) ->
-                            make_err
-                              ("HEHEDARUMA " ^ err_borrow_after_mut_borrow n)
+                            make_err (err_borrow_after_mut_borrow n)
                         | _ ->
                             StringMap.add n
                               (true, (b.node_id, max_arg_depth) :: borrows)
@@ -1845,6 +1868,21 @@ let borrow_ck pipes built_in_pipe_decls verbose =
           let origin_node, origin_depth =
             get_depth_of_defn graph_for_pipe rb.node_id rb.name
           in
+
+          let _ =
+            match rb.expr with
+            | Borrow _, SUnop (_, (_, SIdent n)) | Borrow _, SIdent n ->
+                let _origin_of_n, origin_depth_of_n =
+                  get_depth_of_defn graph_for_pipe rb.node_id n
+                in
+                if origin_depth_of_n > origin_depth then
+                  make_err
+                    ("Immutable borrow " ^ string_of_s_expr rb.expr
+                   ^ " has larger lifetime than " ^ rb.name ^ ", so " ^ rb.name
+                   ^ " cannot be rebound.")
+            | _ -> ()
+          in
+
           let _ =
             match origin_node with
             | Some (Binding b) ->

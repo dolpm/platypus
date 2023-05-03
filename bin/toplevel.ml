@@ -89,7 +89,7 @@ let () =
               in
               let _ =
                 Llvm_passmgr_builder.populate_lto_pass_manager lto_passmgr
-                  ~internalize:false ~run_inliner:false pm_builder
+                  ~internalize:true ~run_inliner:true pm_builder
               in
 
               (* run the optimizations *)

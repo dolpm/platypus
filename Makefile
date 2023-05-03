@@ -1,7 +1,7 @@
 .PHONY : all
 all : platypus.native
 
-docker.build :
+docker.build : clean
 	@docker volume prune -f
 	docker build --no-cache -q -t ghcr.io/dolpm/platypus:latest .
 	@docker image prune -f
@@ -11,6 +11,9 @@ docker.run :
 
 docker.push : 
 	docker push ghcr.io/dolpm/platypus:latest
+
+docker.pull : 
+	docker pull ghcr.io/dolpm/platypus:latest
 
 install : 
 	opam install --confirm-level=unsafe-yes dune

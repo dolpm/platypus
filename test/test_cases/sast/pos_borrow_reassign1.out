@@ -1,0 +1,13 @@
+pipe main [] |> unit {
+{(id: main_with_args)
+{(id: main_wrapper)
+  int w = (int : 5);
+  int x = (int : 4);
+  mut &'_ int a = (&'_ int : &(int : w));
+{(id: 3)
+  a = (&'_ int : &(int : x));
+}
+  |> (unit : ());
+}
+}
+}

@@ -1,0 +1,11 @@
+pipe main [] |> unit {
+    int x = 4;
+    loop 0->4 as i {
+        mut int y = 0;
+        Printnl <| ["gotta go fast!"];
+        y = x;
+    }
+    
+
+    |> ();
+}
