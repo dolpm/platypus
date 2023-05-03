@@ -26,5 +26,9 @@ pipe main [] |> unit {
 
   Printnl <| [&astaghfirullah];
 
+  bool seeta_meeta_thrigma = false;
+  str booled_up = Str <| [!seeta_meeta_thrigma];
+  Printnl <| [&booled_up];
+
   |> ();
 }
