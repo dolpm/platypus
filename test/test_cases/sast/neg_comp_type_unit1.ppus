@@ -1,5 +1,4 @@
 pipe main [] |> unit {
-  vector[unit] yume_nikki = Vector_new <| [];
   box[unit] corpse_party = Vector_new <| [];
   |> ();
 }

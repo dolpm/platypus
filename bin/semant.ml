@@ -145,7 +145,7 @@ let check (things, pipes) verbosity =
 
   (* make sure there aren't any duplicate bindings in functions *)
   let check_bindings to_check =
-    let name_compare (_, _, n1) (_, _, n2) = compare n1 n2 in
+    let name_compare (_, _, n1) (_, _, n2) = compare n1 n2 in 
     let check_it checked binding =
       let _, _, n1 = binding in
       let dup_err = "duplicate binding: " ^ n1 in
@@ -166,6 +166,11 @@ let check (things, pipes) verbosity =
         List.iter
           (fun (_, typ, _) ->
             match typ with
+            | Unit ->
+              raise (Failure
+                     ("Illegal type! Thing " ^ t.tname
+                    ^ " contains a unit type. Thing delcarations can't \
+                       contain units."))
             | Borrow _ | MutBorrow _ ->
                 raise
                   (Failure
@@ -188,6 +193,11 @@ let check (things, pipes) verbosity =
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let rec check_assign lvaluet rvaluet err =
       match (lvaluet, rvaluet) with
+       Vector Unit, _
+      | Box Unit, _
+      | _, Vector Unit
+      | _, Box Unit ->
+          raise (Failure "Illegal type. Composite types can't contain units.")
       (* make sure can't put borrows in boxes/vecs *)
       | Vector (MutBorrow _), _
       | Vector (Borrow _), _
@@ -208,7 +218,14 @@ let check (things, pipes) verbosity =
           MutBorrow (check_assign lt rt err, l1)
       | Borrow (lt, l1), Borrow (rt, _l2) -> Borrow (check_assign lt rt err, l1)
       | Tuple tl1, Tuple tl2 ->
-          Tuple (List.map2 (fun t1 t2 -> check_assign t1 t2 err) tl1 tl2)
+          Tuple 
+          (List.map2 
+            (fun t1 t2 -> 
+              match t1,t2 with
+              | Unit,_ | _,Unit ->
+                 raise (Failure "Illegal type. Tuples cannot contain units.")
+              | _ -> check_assign t1 t2 err) 
+          tl1 tl2)
       | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
@@ -500,6 +517,7 @@ let check (things, pipes) verbosity =
                     | _ -> accum_t)
                   Generic pd.formals args_checked
               in
+
               let rec generic_sub_helper ft =
                 match ft with
                 | Generic -> generic_type
