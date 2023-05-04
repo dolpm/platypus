@@ -1,4 +1,4 @@
-(* Dylan M. | Ronit S. | Tony H. | Abe P. | Rodrigo C. *)
+/* Dylan M. | Ronit S. | Tony H. | Abe P. | Rodrigo C. */
 %{ open Ast %}
 
 %token SEMI RANGE COLON DOT LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET COMMA PLUS MINUS TIMES DIVIDE CONCAT ASSIGN REASSIGN LPIPE RPIPE MUT EQUAL
