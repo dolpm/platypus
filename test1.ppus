@@ -1,27 +1,13 @@
-thing MyThing <| {
-    im_an_int : int,
-    im_a_bool : bool
-}
-
 pipe main [] |> unit {
-    mut MyThing t = MyThing {
-      im_an_int: 1,
-      im_a_bool: true
-    };
+  int i = 0;
+  
+  if (i > 5) {
+    Printnl <| [i + 1];
+  } else {    
+    Printnl <| [i];
+  }
 
-    {
-        /* immutably borrowing a thing member */
-        &bool b = &t[im_a_bool];
-    }
+  Printnl <| [i]; 
 
-    {
-        /* mutably borrowing a thing member */
-        ~&bool b = ~&t[im_a_bool];
-        /* updating the member */
-        @b = false;
-
-        Printnl <| [%@b];
-    }
-
-    |> ();
+  |> ();
 }
