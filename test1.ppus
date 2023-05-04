@@ -1,13 +1,76 @@
+/* Inspired by: https://leetcode.com/problems/number-of-islands/solutions/3388095/python-solution-beating-100/ */
+
+/* some background: i found this solution that doesn't use a queue to solve this question 
+    roadblocks on lines 15 and 31
+*/
+
+pipe dfs [grid: ~&vector[vector[int]], i: int, j: int, n: int, m: int] |> unit {
+    
+    ~&int ele_at_ij = Vector_get_mut <| [Vector_get_mut <| [grid, %i], %j];
+
+    if (%i < 0 or %j < 0 or %i >= %m or %j >= %n or @ele_at_ij == 0) {
+        |> ();
+    }
+
+    @ele_at_ij = 0;
+
+    dfs <| [grid, i - 1, %j, %n, %m];
+    dfs <| [grid, i + 1, %j, %n, %m];
+    dfs <| [grid, %i, j - 1, %n, %m];
+    dfs <| [grid, %i, j + 1, %n, %m];
+    
+
+    |> ();
+}
+
+pipe num_islands [grid: ~&vector[vector[int]], n: int, m: int] |> int {
+    /* identify islands to run dfs searches */
+    mut int res = 0;
+
+    loop 0->(n - 1) as i {
+        loop 0->(m - 1) as j {
+            /* 
+              the borrow here is making it impossible to call dfs. when does the variable expire?
+              i tried placing the dfs at a few different locations and it didn't work 
+            */
+            int ele_at_ij = %@(Vector_get_mut <| [Vector_get_mut <| [grid, %i], %j]);
+            if (ele_at_ij == 1) {
+                dfs <| [grid, %i, %j, %n, %m];
+            }
+        }
+    }
+
+    |> res;
+}
+
 pipe main [] |> unit {
-  int i = 0;
+    /* init input grid
+       1, 1, 0, 0
+       1, 1, 0, 0
+       0, 0, 1, 1
+       1, 0, 1, 1      */
+
+    int num_rows = 4;
+    int num_cols = 4;
+
+    mut vector[vector[int]] grid = Vector_new <| [];
+    loop 0->(num_rows - 1) as i {
+        mut vector[int] new_row = Vector_new <| [];
+        loop 0->(num_cols - 1) as j {
+            if ((i < 2 and j < 2) or (i > 1 and j > 1)) {
+                Vector_push <| [~&new_row, 1];
+            } else {
+                Vector_push <| [~&new_row, 0];
+            }
+            Print <| [Vector_get <| [&new_row, %j]];
+            Print <| [" "];
+        }
+        Vector_push <| [~&grid, new_row];
+        Printnl <| [""];
+    }
+
+    str output = Str_new <| ["There are "] ^ Str <| [num_islands <| [~&grid, num_rows, num_cols]] ^ Str_new <| [" islands."];
+    Printnl <| [&output];
   
-  if (i > 5) {
-    Printnl <| [i + 1];
-  } else {    
-    Printnl <| [i];
-  }
-
-  Printnl <| [i]; 
-
-  |> ();
+    |> ();
 }
