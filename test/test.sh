@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Dylan M. | Ronit S. | Tony H.
+
 # Terminal output colors
 Color_Off='\033[0m'
 BGreen='\033[1;32m'
