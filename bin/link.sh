@@ -4,4 +4,3 @@ $(echo "let as_llvm_ir = {|")
 $(cat $1)
 EOF
 echo "|}" >> $1
-# grep -v '^target ' $1 > tmpfile.ml && mv tmpfile.ml $1
