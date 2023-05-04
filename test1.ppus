@@ -1,5 +1,27 @@
+thing MyThing <| {
+    im_an_int : int,
+    im_a_bool : bool
+}
+
 pipe main [] |> unit {
-  vector[unit] yume_nikki = Vector_new <| [];
-  box[unit] corpse_party = Vector_new <| [];
-  |> ();
+    mut MyThing t = MyThing {
+      im_an_int: 1,
+      im_a_bool: true
+    };
+
+    {
+        /* immutably borrowing a thing member */
+        &bool b = &t[im_a_bool];
+    }
+
+    {
+        /* mutably borrowing a thing member */
+        ~&bool b = ~&t[im_a_bool];
+        /* updating the member */
+        @b = false;
+
+        Printnl <| [%@b];
+    }
+
+    |> ();
 }

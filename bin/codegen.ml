@@ -190,11 +190,7 @@ let translate (things, pipes) ownership_map m_external =
     and nonewline_float_format_str =
       L.build_global_stringptr "%g" "fmt_float_nnl" builder
     and newline_str = L.build_global_stringptr "%s\n" "fmt_str_nl" builder
-    and newline_int_format_str =
-      L.build_global_stringptr "%d\n" "fmt_int_nl" builder
-    and newline_float_format_str =
-      L.build_global_stringptr "%g\n" "fmt_float_nl" builder
-    in
+    and empty_str = L.build_global_stringptr "" "empty_str" builder in
 
     let variables =
       let add_formal m (_is_mut, t, n) p =
@@ -628,6 +624,64 @@ let translate (things, pipes) ownership_map m_external =
       free_inner typ llvalue builder
     in
 
+    let rec print_helper (t : A.defined_type) arg builder =
+      match t with
+      | Borrow (t, _) | MutBorrow (t, _) -> (
+          let loaded_arg = L.build_load arg "print_arg" builder in
+          match t with
+          | Int | Bool | Float | String -> print_helper t loaded_arg builder
+          | Str ->
+              L.build_call printf_func
+                [| nonewline_str; loaded_arg |]
+                "printf" builder
+          | _ -> raise (Failure "panic! invalid print arg type!"))
+      | Int ->
+          L.build_call printf_func
+            [| nonewline_int_format_str; arg |]
+            "printf" builder
+      | Bool ->
+          let pred =
+            L.build_icmp L.Icmp.Eq (L.const_int i1_t 1) arg "tmp" builder
+          in
+          let then_bb = L.append_block context "then" the_pipe in
+          let else_bb = L.append_block context "else" the_pipe in
+          let merge_bb = L.append_block context "merge" the_pipe in
+
+          let bool_string = L.build_alloca string_t "the_boiler_room" builder in
+
+          let _ = L.build_cond_br pred then_bb else_bb builder in
+          let branch_instr = L.build_br merge_bb in
+
+          (* do then block *)
+          let _ = L.position_at_end then_bb builder in
+          let true_global =
+            L.build_global_stringptr "true" "true_str" builder
+          in
+          let _ = L.build_store true_global bool_string builder in
+          let _ = add_terminal builder branch_instr in
+
+          (* do else block *)
+          let _ = L.position_at_end else_bb builder in
+          let false_global =
+            L.build_global_stringptr "false" "false_str" builder
+          in
+          let _ = L.build_store false_global bool_string builder in
+          let _ = add_terminal builder branch_instr in
+
+          let _ = L.position_at_end merge_bb builder in
+
+          L.build_call printf_func
+            [| L.build_load bool_string "smorgasbord" builder; arg |]
+            "printf" builder
+      | Float ->
+          L.build_call printf_func
+            [| nonewline_float_format_str; arg |]
+            "printf" builder
+      | String ->
+          L.build_call printf_func [| nonewline_str; arg |] "printf" builder
+      | _ -> raise (Failure "panic! invalid print arg type!")
+    in
+
     let rec expr (builder : L.llbuilder) ((t, e) : s_expr) : L.llvalue =
       match e with
       | SIntLiteral i -> L.const_int i32_t i
@@ -831,138 +885,13 @@ let translate (things, pipes) ownership_map m_external =
           in
           let _ = expr builder (Unit, SPipeIn ("Printnl", [ msg ])) in
           L.build_call panic_func [| L.const_int i32_t 1 |] "" builder
-      | SPipeIn ("Print", [ (t, sx) ]) -> (
+      | SPipeIn ("Print", [ (t, sx) ]) ->
           let arg = expr builder (t, sx) in
-          match t with
-          | Borrow (t, _) | MutBorrow (t, _) -> (
-              let loaded_arg = L.build_load arg "print arg" builder in
-              match t with
-              | Int | Bool ->
-                  L.build_call printf_func
-                    [| nonewline_int_format_str; loaded_arg |]
-                    "printf" builder
-              | Float ->
-                  L.build_call printf_func
-                    [| nonewline_float_format_str; loaded_arg |]
-                    "printf" builder
-              | String | Str ->
-                  L.build_call printf_func
-                    [| nonewline_str; loaded_arg |]
-                    "printf" builder
-              | _ -> raise (Failure "panic! invalid arg type!"))
-          | Int ->
-              L.build_call printf_func
-                [| nonewline_int_format_str; arg |]
-                "printf" builder
-          | Bool ->
-              let pred =
-                L.build_icmp L.Icmp.Eq (L.const_int i1_t 1) arg "tmp" builder
-              in
-              let then_bb = L.append_block context "then" the_pipe in
-              let else_bb = L.append_block context "else" the_pipe in
-              let merge_bb = L.append_block context "merge" the_pipe in
-
-              let bool_string =
-                L.build_alloca string_t "the_boiler_room" builder
-              in
-
-              let _ = L.build_cond_br pred then_bb else_bb builder in
-              let branch_instr = L.build_br merge_bb in
-
-              (* do then block *)
-              let _ = L.position_at_end then_bb builder in
-              let true_global =
-                L.build_global_stringptr "true" "true_str" builder
-              in
-              let _ = L.build_store true_global bool_string builder in
-              let _ = add_terminal builder branch_instr in
-
-              (* do else block *)
-              let _ = L.position_at_end else_bb builder in
-              let false_global =
-                L.build_global_stringptr "false" "false_str" builder
-              in
-              let _ = L.build_store false_global bool_string builder in
-              let _ = add_terminal builder branch_instr in
-
-              let _ = L.position_at_end merge_bb builder in
-
-              L.build_call printf_func
-                [| L.build_load bool_string "smorgasbord" builder; arg |]
-                "printf" builder
-          | Float ->
-              L.build_call printf_func
-                [| nonewline_float_format_str; arg |]
-                "printf" builder
-          | String ->
-              L.build_call printf_func [| nonewline_str; arg |] "printf" builder
-          | _ -> raise (Failure "panic! invalid printnl arg type!"))
-      | SPipeIn ("Printnl", [ (t, sx) ]) -> (
+          print_helper t arg builder
+      | SPipeIn ("Printnl", [ (t, sx) ]) ->
           let arg = expr builder (t, sx) in
-          match t with
-          | Borrow (t, _) | MutBorrow (t, _) -> (
-              let loaded_arg = L.build_load arg "printnl arg" builder in
-              match t with
-              | Int | Bool ->
-                  L.build_call printf_func
-                    [| newline_int_format_str; loaded_arg |]
-                    "printf" builder
-              | Float ->
-                  L.build_call printf_func
-                    [| newline_float_format_str; loaded_arg |]
-                    "printf" builder
-              | String | Str ->
-                  L.build_call printf_func
-                    [| newline_str; loaded_arg |]
-                    "printf" builder
-              | _ -> raise (Failure "panic! invalid arg type!"))
-          | Int ->
-              L.build_call printf_func
-                [| newline_int_format_str; arg |]
-                "printf" builder
-          | Bool ->
-              let pred =
-                L.build_icmp L.Icmp.Eq (L.const_int i1_t 1) arg "tmp" builder
-              in
-              let then_bb = L.append_block context "then" the_pipe in
-              let else_bb = L.append_block context "else" the_pipe in
-              let merge_bb = L.append_block context "merge" the_pipe in
-
-              let bool_string =
-                L.build_alloca string_t "the_boiler_room" builder
-              in
-
-              let _ = L.build_cond_br pred then_bb else_bb builder in
-              let branch_instr = L.build_br merge_bb in
-
-              (* do then block *)
-              let _ = L.position_at_end then_bb builder in
-              let true_global_newline =
-                L.build_global_stringptr "true\n" "true_str_nl" builder
-              in
-              let _ = L.build_store true_global_newline bool_string builder in
-              let _ = add_terminal builder branch_instr in
-
-              (* do else block *)
-              let _ = L.position_at_end else_bb builder in
-              let false_global_newline =
-                L.build_global_stringptr "false\n" "false_str_nl" builder
-              in
-              let _ = L.build_store false_global_newline bool_string builder in
-              let _ = add_terminal builder branch_instr in
-
-              let _ = L.position_at_end merge_bb builder in
-
-              L.build_call printf_func
-                [| L.build_load bool_string "smorgasbord" builder; arg |]
-                "printf" builder
-          | Float ->
-              L.build_call printf_func
-                [| newline_float_format_str; arg |]
-                "printf" builder
-          | String ->
-              L.build_call printf_func [| newline_str; arg |] "printf" builder
-          | _ -> raise (Failure "panic! invalid printnl arg type!"))
+          let _ = print_helper t arg builder in
+          L.build_call printf_func [| newline_str; empty_str |] "printf" builder
       | SPipeIn ("Rng_init", [ seed ]) ->
           L.build_call rng_init_func [| expr builder seed |] "" builder
       | SPipeIn ("Rng_generate", [ min; max ]) ->
