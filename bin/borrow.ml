@@ -1971,7 +1971,9 @@ let borrow_ck pipes built_in_pipe_decls verbose =
               borrow_table'
           (* TODO: IDENT THAT IS A REF *)
           (* if the rhs is an arbitrary expr, check for borrows *)
-          | e -> ck_expr borrow_table b.node_id cur_depth e)
+          | e ->
+              let _ = ck_expr borrow_table b.node_id cur_depth e in
+              borrow_table)
       | Rebinding rb -> (
           (* make sure original binding is mutable *)
           let origin_node, origin_depth =
