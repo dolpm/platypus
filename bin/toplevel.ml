@@ -109,7 +109,7 @@ let () =
               let _ =
                 Sys.command
                   ("llc -filetype=obj " ^ !f_name ^ ".bc -o  " ^ !f_name
-                 ^ ".o && clang  " ^ !f_name ^ ".o -o " ^ !f_name)
+                 ^ ".o && clang -no-pie " ^ !f_name ^ ".o -o " ^ !f_name)
               in
               (* clean up tmp files if -k not present *)
               if not !keep then

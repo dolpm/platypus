@@ -1026,7 +1026,7 @@ let translate (things, pipes) ownership_map m_external =
       | SPipeIn ("Str_push", [ str; c ]) ->
           L.build_call str_push_func
             [|
-              L.build_load (expr builder str) "loaded_str" builder;
+              expr builder str;
               expr builder c;
             |]
             "" builder
