@@ -1,0 +1,216 @@
+/* Inspired by: https://leetcode.com/problems/number-of-islands/solutions/3388095/python-solution-beating-100/ */
+
+pipe dfs [grid: ~&vector[vector[int]], i: int, j: int, n: int, m: int] |> unit {
+    if (%i < 0 or %j < 0 or %i >= %n or %j >= %m) {
+        |> ();
+    } else {
+        if (%@(Vector_get_mut <| [Vector_get_mut <| [grid, %i], %j]) == 0) {
+            |> ();
+        }
+    }
+
+    ~&int ele_at_ij = Vector_get_mut <| [Vector_get_mut <| [grid, %i], %j];
+    @ele_at_ij = 0;
+
+    dfs <| [grid, i - 1, %j, %n, %m];
+    dfs <| [grid, i + 1, %j, %n, %m];
+    dfs <| [grid, %i, j - 1, %n, %m];
+    dfs <| [grid, %i, j + 1, %n, %m];
+    
+
+    |> ();
+}
+
+pipe num_islands [grid: ~&vector[vector[int]], n: int, m: int] |> int {
+    if (n==0 or m==0) {
+        |> 0;
+    }
+    
+    mut int res = 0;
+
+    loop 0->(n - 1) as i {
+        loop 0->(m - 1) as j {
+            /* identify islands to run dfs searches */
+            if (%@(Vector_get_mut <| [Vector_get_mut <| [grid, %i], %j]) == 1) {
+                res = res + 1;
+                dfs <| [grid, %i, %j, %n, %m];
+            }
+        }
+    }
+    
+    |> res;
+}
+
+pipe print_matrix [grid: ~&vector[vector[int]], n: int, m: int] |> unit {
+    loop 0->(n - 1) as i {
+        loop 0->(m - 1) as j {
+            Print <| [Vector_get_mut <| [Vector_get_mut <| [grid, %i], %j]];
+            Print <| [" "];
+        }
+        Printnl <| [""];
+    }
+    |> ();
+}
+
+pipe test1 [] |> unit {
+    /* 
+       test input grid
+       1, 1, 0, 0
+       1, 1, 0, 0
+       0, 0, 1, 1
+       1, 0, 1, 1      
+    */
+
+    int num_rows = 4;
+    int num_cols = 4;
+
+    mut vector[vector[int]] grid = Vector_new <| [];
+    loop 0->(num_rows - 1) as i {
+        mut vector[int] new_row = Vector_new <| [];
+        loop 0->(num_cols - 1) as j {
+            if ((i < 2 and j < 2) or (i > 1 and j > 1)) {
+                Vector_push <| [~&new_row, 1];
+            } else {
+                Vector_push <| [~&new_row, 0];
+            }
+        }
+        Vector_push <| [~&grid, new_row];
+    }
+
+    print_matrix <| [~&grid, %num_rows, %num_cols];
+
+    int num = num_islands <| [~&grid, num_rows, num_cols];
+    str output = Str_new <| ["There are "] ^ Str <| [num] ^ Str_new <| [" islands."];
+    Printnl <| [&output];
+    Printnl <| [""];
+
+    |> ();
+}
+
+pipe test2 [] |> unit {
+    /* 
+       test input grid
+       1, 1, 0, 0, 0
+       1, 1, 0, 0, 0
+       0, 0, 1, 0, 0
+       0, 0, 0, 1, 1   
+    */
+
+    int num_rows = 4;
+    int num_cols = 5;
+
+    mut vector[vector[int]] grid = Vector_new <| [];
+
+    mut vector[int] row_1 = Vector_new <| [];
+    Vector_push <| [~&row_1, 1];
+    Vector_push <| [~&row_1, 1];
+    Vector_push <| [~&row_1, 0];
+    Vector_push <| [~&row_1, 0];
+    Vector_push <| [~&row_1, 0];
+    Vector_push <| [~&grid, row_1];
+
+    mut vector[int] row_2 = Vector_new <| [];
+    Vector_push <| [~&row_2, 1];
+    Vector_push <| [~&row_2, 1];
+    Vector_push <| [~&row_2, 0];
+    Vector_push <| [~&row_2, 0];
+    Vector_push <| [~&row_2, 0];
+    Vector_push <| [~&grid, row_2];
+
+    mut vector[int] row_3 = Vector_new <| [];
+    Vector_push <| [~&row_3, 0];
+    Vector_push <| [~&row_3, 0];
+    Vector_push <| [~&row_3, 1];
+    Vector_push <| [~&row_3, 0];
+    Vector_push <| [~&row_3, 0];
+    Vector_push <| [~&grid, row_3];
+    
+    mut vector[int] row_4 = Vector_new <| [];
+    Vector_push <| [~&row_4, 0];
+    Vector_push <| [~&row_4, 0];
+    Vector_push <| [~&row_4, 0];
+    Vector_push <| [~&row_4, 1];
+    Vector_push <| [~&row_4, 1];
+    Vector_push <| [~&grid, row_4];
+
+    print_matrix <| [~&grid, %num_rows, %num_cols];
+
+    int num = num_islands <| [~&grid, num_rows, num_cols];
+    str output = Str_new <| ["There are "] ^ Str <| [num] ^ Str_new <| [" islands."];
+    Printnl <| [&output];
+    Printnl <| [""];
+
+    |> ();
+}
+
+pipe test3 [] |> unit {
+    /* 
+       test input grid
+       1, 1, 1, 1, 0
+       1, 1, 0, 1, 0
+       1, 1, 0, 0, 0
+       0, 0, 0, 0, 0   
+    */
+
+    int num_rows = 4;
+    int num_cols = 5;
+
+    mut vector[vector[int]] grid = Vector_new <| [];
+
+    mut vector[int] row_1 = Vector_new <| [];
+    Vector_push <| [~&row_1, 1];
+    Vector_push <| [~&row_1, 1];
+    Vector_push <| [~&row_1, 1];
+    Vector_push <| [~&row_1, 1];
+    Vector_push <| [~&row_1, 0];
+    Vector_push <| [~&grid, row_1];
+
+    mut vector[int] row_2 = Vector_new <| [];
+    Vector_push <| [~&row_2, 1];
+    Vector_push <| [~&row_2, 1];
+    Vector_push <| [~&row_2, 0];
+    Vector_push <| [~&row_2, 1];
+    Vector_push <| [~&row_2, 0];
+    Vector_push <| [~&grid, row_2];
+
+    mut vector[int] row_3 = Vector_new <| [];
+    Vector_push <| [~&row_3, 1];
+    Vector_push <| [~&row_3, 1];
+    Vector_push <| [~&row_3, 0];
+    Vector_push <| [~&row_3, 0];
+    Vector_push <| [~&row_3, 0];
+    Vector_push <| [~&grid, row_3];
+    
+    mut vector[int] row_4 = Vector_new <| [];
+    Vector_push <| [~&row_4, 0];
+    Vector_push <| [~&row_4, 0];
+    Vector_push <| [~&row_4, 0];
+    Vector_push <| [~&row_4, 0];
+    Vector_push <| [~&row_4, 0];
+    Vector_push <| [~&grid, row_4];
+
+    print_matrix <| [~&grid, %num_rows, %num_cols];
+
+    int num = num_islands <| [~&grid, num_rows, num_cols];
+    mut str output = Str_new <| [""];
+    if (num != 1) {
+        output = Str_new <| ["There are "] ^ Str <| [num] ^ Str_new <| [" islands."];
+    } else {
+        output = Str_new <| ["There is "] ^ Str <| [num] ^ Str_new <| [" island."];
+    }
+    Printnl <| [&output];
+    Printnl <| [""];
+
+    |> ();
+}
+
+pipe main [] |> unit {
+    Printnl <| ["Running test 1:"];
+    test1 <| [];
+    Printnl <| ["Running test 2:"];
+    test2 <| [];
+    Printnl <| ["Running test 3:"];
+    test3 <| [];
+  
+    |> ();
+}
