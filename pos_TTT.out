@@ -1,0 +1,73 @@
+PLAYER 1 Turn
+Printing the Board: 
+1 | 0 | 0 |  
+-----------
+0 | 0 | 0 |  
+-----------
+0 | 0 | 0 |  
+-----------
+Player 2 Turn
+Printing the Board: 
+1 | 0 | 0 |  
+-----------
+0 | 0 | 2 |  
+-----------
+0 | 0 | 0 |  
+-----------
+PLAYER 1 Turn
+Printing the Board: 
+1 | 0 | 0 |  
+-----------
+1 | 0 | 2 |  
+-----------
+0 | 0 | 0 |  
+-----------
+Player 2 Turn
+Printing the Board: 
+1 | 0 | 0 |  
+-----------
+1 | 0 | 2 |  
+-----------
+2 | 0 | 0 |  
+-----------
+PLAYER 1 Turn
+Printing the Board: 
+1 | 0 | 1 |  
+-----------
+1 | 0 | 2 |  
+-----------
+2 | 0 | 0 |  
+-----------
+Player 2 Turn
+Printing the Board: 
+1 | 0 | 1 |  
+-----------
+1 | 2 | 2 |  
+-----------
+2 | 0 | 0 |  
+-----------
+PLAYER 1 Turn
+Printing the Board: 
+1 | 0 | 1 |  
+-----------
+1 | 2 | 2 |  
+-----------
+2 | 1 | 0 |  
+-----------
+Player 2 Turn
+Printing the Board: 
+1 | 0 | 1 |  
+-----------
+1 | 2 | 2 |  
+-----------
+2 | 1 | 2 |  
+-----------
+PLAYER 1 Turn
+Printing the Board: 
+1 | 1 | 1 |  
+-----------
+1 | 2 | 2 |  
+-----------
+2 | 1 | 2 |  
+-----------
+Congrats Player 1!!! You win!
