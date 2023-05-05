@@ -1,0 +1,156 @@
+thing board <| {
+    mat: vector[vector[int]],
+    counter: int
+}
+
+
+pipe print_board [arr: &vector[vector[int]]] |> unit {
+    /* loop through the array */
+    Printnl <| [" ----BOARD---- "];
+    loop 0 -> 2 as i {
+        /* grab the current row */
+        &vector[int] row = Vector_get <| [arr, %i];
+
+        /* print all values of the row */
+        loop 0 -> 2 as j {
+            Print <| [" "];
+            Print <| [Vector_get <| [row, %j]];
+            Print <| [" | "];
+        }
+
+        Printnl <| [" "];
+        Printnl <| ["--------------"];
+    }
+
+
+    |> ();
+}
+
+
+pipe checkWin [arr: &vector[vector[int]]] |> bool {
+    /* check for horizontal wins */
+    loop 0 -> 2 as i {
+        mut &vector[int] Row = Vector_get <| [arr, %i];
+        &int left = Vector_get <| [Row, 0];
+        &int mid = Vector_get <| [Row, 1];
+        &int right = Vector_get <| [Row, 2];
+
+        /* check if all are the same */
+        if ((@left == @mid) and (@mid == @right) and (@left == @right) and (@left != 0)) {
+            |> true;
+        }
+    }
+
+    /*check for vertical win */
+    &vector[int] top = Vector_get <| [arr, 0];
+    &vector[int] mid = Vector_get <| [arr, 1];
+    &vector[int] bot = Vector_get <| [arr, 2];
+    loop 0 -> 2 as i {
+        &int topVal = Vector_get <| [top, %i];
+        &int midVal = Vector_get <| [mid, %i];
+        &int botVal = Vector_get <| [bot, %i];
+        if ((@topVal == @midVal) and (@topVal == @botVal) and (@midVal == @botVal) and (@topVal != 0)) {
+            |> true;
+        }
+    }
+
+    /* check for diagonal Win */
+    &int topL = Vector_get <| [top, 0];
+    &int midV = Vector_get <| [mid, 1];
+    &int botR = Vector_get <| [bot, 2];
+    if ((@topL == @midV) and (@midV == @botR) and (@botR == @topL) and (@midV != 0)) {
+        |> true;
+    }
+
+    if ((@Vector_get <| [top, 2] == @midV) and (@Vector_get <| [top, 2] == @Vector_get <| [bot, 0]) and
+         (@midV == @Vector_get <| [bot, 0]) and (@midV != 0)) {
+        |> true;
+    }
+    |> false;
+}
+
+
+pipe main [] |> unit {
+    mut vector[vector[int]] t = Vector_new <| [];
+
+    /* initialize all vector to 0 */
+    loop 0 -> 2 as i {
+
+        /* make inner vectors with 0s */
+        mut vector[int] inner = Vector_new <| [];
+
+        /* fill the inner vector with 0s */
+        loop 0 -> 2 as j {
+            Vector_push <| [~&inner, 0];
+        }
+
+        /* push the row into the 2D vector */
+        Vector_push <| [~&t, inner];
+    }
+
+    mut board game = board {
+        mat: t,
+        counter: 0
+    };
+
+    Rng_init <| [-1];
+
+    mut bool game_over = false;
+    ~&bool gameEnder = ~&game_over;
+    mut bool player_turn = true;
+    mut int count = 0;
+    mut bool win = false;
+
+    while (!(@gameEnder) ) {
+
+        /* Generate a random number */
+        /* check that the spot is available */
+        mut int place = Rng_generate <| [0, 8];
+        mut int row = %place / 3;
+        mut int col = %place - (%row * 3);
+
+        while (@(Vector_get <| [Vector_get <| [&game[mat], %row], %col]) != 0) {
+            place = Rng_generate <| [0, 8];
+            row = %place / 3;
+            col = %place - (%row * 3);
+        }
+
+        if (player_turn == true) {
+            Printnl <| ["PLAYER 1 Turn"];
+            Vector_update <|[Vector_get_mut <| [~&game[mat], %row], %col, 1];
+        } else {
+            Printnl <| ["Player 2 Turn"];
+            Vector_update <|[Vector_get_mut <| [~&game[mat], %row], %col, 2];
+        }
+
+        count = %count + 1;
+
+        print_board <| [&game[mat]];
+
+        /* get another random integer */
+        @player_turn = !player_turn;
+
+        /* update the gameEnder boolean */
+        if (checkWin <| [&game[mat]]) {
+            win = true;
+            @gameEnder = true;
+        } 
+
+        if (count == 9) {
+            @gameEnder = true;
+        }
+
+    }
+        if (win) {
+            if (player_turn) {
+                Printnl <| ["Congrats Player 2!!! You win!"];
+            } else {
+                Printnl <| ["Congrats Player 1!!! You win!"];
+            }
+        } else {
+            Printnl <| ["It's A TIE"];
+        }
+    
+
+    |> ();
+}
