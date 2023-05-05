@@ -108,11 +108,11 @@ char *Str_concat(char *s1, char *s2)
   return result;
 }
 
-void Str_push(char *s, char c)
+void Str_push(char **s, char c)
 {
-  s = (char *)realloc(s, (strlen(s + 1) + 1) * sizeof(char));
+  *s = (char *)realloc(*s, (strlen(*s) + 2) * sizeof(char));
   assert(s != NULL);
-  strncat(s, &c, 1);
+  strncat(*s, &c, 1);
   return;
 }
 
