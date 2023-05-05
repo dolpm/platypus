@@ -1,0 +1,54 @@
+pipe main [] |> unit {
+    Printnl <| ["Valid Parentheses"];
+
+    mut vector[char] input = Vector_new <| [];
+    Vector_push <| [~&input, '('];
+    Vector_push <| [~&input, '{'];
+    Vector_push <| [~&input, '['];
+    Vector_push <| [~&input, ']'];
+    Vector_push <| [~&input, '}'];
+    Vector_push <| [~&input, ')'];
+    
+    mut vector[char] stack = Vector_new <| [];
+
+    int len_input = Vector_length <| [&input];
+    loop 0 -> len_input-1 as i {
+        Printnl <| [&i];
+
+        char curr = %@(Vector_get <| [&input, i]);
+        if (curr == '(' or curr == '{' or curr == '[') {
+            Vector_push <| [~&stack, %curr];
+        } else {
+            int s_len = Vector_length <| [&stack];
+            if (s_len == 0) {
+                Printnl <| ["ERROR-0"];
+                |> ();
+            }
+
+            char popped = %@(Vector_get <| [&stack, %s_len-1]);
+            if (curr == ')' and popped != '(') {
+                Printnl <| ["ERROR-1"];
+                |> ();
+            }
+            if (curr == '}' and popped != '{') {
+                Printnl <| ["ERROR-2"];
+                |> ();
+            }
+            if (curr == ']' and popped != '[') {
+                Printnl <| ["ERROR-3"];
+                |> ();
+            }
+
+            Vector_pop <| [~&stack];
+        }
+    }
+
+    int s_len = Vector_length <| [&stack];
+    
+    if (s_len != 0) {
+        Printnl <| ["ERROR4"];
+        |> ();
+    }
+
+    |> ();
+}
