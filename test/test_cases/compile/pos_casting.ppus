@@ -8,6 +8,7 @@ pipe main [] |> unit {
   Printnl <| [y];
   Printnl <| [z];
 
+
   bool t = true;
   int p = Int <| [t];
 
@@ -24,6 +25,10 @@ pipe main [] |> unit {
   str astaghfirullah = yamother ^ i_thought_about_a_cloud;
 
   Printnl <| [&astaghfirullah];
+
+  bool seeta_meeta_thrigma = false;
+  str booled_up = Str <| [!seeta_meeta_thrigma];
+  Printnl <| [&booled_up];
 
   |> ();
 }
