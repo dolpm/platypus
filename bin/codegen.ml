@@ -140,7 +140,7 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "Str_concat" str_concat_t the_module
   in
 
-  let str_push_t = L.function_type unit_t [| string_t; i8_t |] in
+  let str_push_t = L.function_type unit_t [| L.pointer_type string_t; i8_t |] in
   let str_push_func = L.declare_function "Str_push" str_push_t the_module in
 
   let str_compare_t = L.function_type i1_t [| string_t; string_t |] in
