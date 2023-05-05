@@ -797,12 +797,37 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                           -1 - (List.length p.slifetimes - idx_of_lt)
                         in
                         let d, lt', _ = StringMap.find n !ident_assoc_lt_map in
+                        let _ =
+                          if lt = "'_" then
+                            raise
+                              (Failure
+                                 ("return type "
+                                 ^ string_of_typ p.sreturn_type
+                                 ^ " of pipe " ^ p.sname
+                                 ^ " has unspecified lifetime; when a pipe \
+                                    returns a reference, it must have explicit \
+                                    lifetimes."))
+                        in
                         if d > depth_of_ret_lt then
-                          raise
-                            (Failure
-                               ("return value " ^ n ^ " has lifetime " ^ lt'
-                              ^ ", which is smaller than return lifetime " ^ lt
-                               ))
+                          let lt_in_def =
+                            List.find_opt (fun plt -> lt' = plt) p.slifetimes
+                          in
+                          if
+                            (match lt_in_def with
+                            | None -> true
+                            | Some _ -> false)
+                            && lt' <> "'_"
+                          then
+                            raise
+                              (Failure
+                                 ("lifetime " ^ lt' ^ " used but not defined in "
+                                ^ p.sname))
+                          else
+                            raise
+                              (Failure
+                                 ("return value " ^ n ^ " has lifetime " ^ lt'
+                                ^ ", which is smaller than return lifetime "
+                                ^ lt))
                     | _ -> ()
                   in
                   explore_assocs n (StringSet.add n ret_vals)
@@ -1333,47 +1358,58 @@ let borrow_ck pipes built_in_pipe_decls verbose =
       "lifetime " ^ lt ^ " used but not defined in " ^ p.sname
     and make_err er = raise (Failure er) in
 
-    (* we are kinda gonna have to limit returned values to args *)
-    (* vs. allowing re-bindings of refs of args to also be returned *)
-    let possible_ret_vars, ident_assoc_lt_map =
-      get_possible_ret_args p ret_v_map
-    in
-
-    let pos_ret_borrows_idxs =
-      match p.sreturn_type with
-      | Borrow _ | MutBorrow _ ->
-          List.rev
-            (snd
-               (List.fold_left
-                  (fun (idx, filtered_idxs) (_, _, formal_name) ->
-                    if List.mem formal_name possible_ret_vars then
-                      (idx + 1, idx :: filtered_idxs)
-                    else (idx + 1, filtered_idxs))
-                  (0, []) p.sformals))
-      | _ -> []
-    in
-
-    (* make sure dev isnt' overly verbose with lifetime decls *)
-    (* a.k.a they aren't adding explicit lifetimes when not necessary *)
-    let _ =
-      List.iter
-        (fun (_, typ, n) ->
-          if not (List.mem n possible_ret_vars) then
-            match typ with
+    if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
+    then
+      let _ =
+        List.iter
+          (fun (_, t, n) ->
+            match t with
             | MutBorrow (_, lt) | Borrow (_, lt) ->
                 if lt <> "'_" then make_err (err_unnecessary_lifetime n)
             | _ -> ())
-        p.sformals
-    in
+          p.sformals
+      in
 
-    if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
-    then pos_ret_borrows_idxs
+      []
     else
       let lt_of_return =
         match p.sreturn_type with
         | MutBorrow (_, lt) | Borrow (_, lt) -> lt
         | _ ->
             make_err "if returning a borrow, it must have an explicit lifetime"
+      in
+
+      (* we are kinda gonna have to limit returned values to args *)
+      (* vs. allowing re-bindings of refs of args to also be returned *)
+      let possible_ret_vars, ident_assoc_lt_map =
+        get_possible_ret_args p ret_v_map
+      in
+
+      (* make sure dev isnt' overly verbose with lifetime decls *)
+      (* a.k.a they aren't adding explicit lifetimes when not necessary *)
+      let _ =
+        List.iter
+          (fun (_, typ, n) ->
+            if not (List.mem n possible_ret_vars) then
+              match typ with
+              | MutBorrow (_, lt) | Borrow (_, lt) ->
+                  if lt <> "'_" then make_err (err_unnecessary_lifetime n)
+              | _ -> ())
+          p.sformals
+      in
+
+      let pos_ret_borrows_idxs =
+        match p.sreturn_type with
+        | Borrow _ | MutBorrow _ ->
+            List.rev
+              (snd
+                 (List.fold_left
+                    (fun (idx, filtered_idxs) (_, _, formal_name) ->
+                      if List.mem formal_name possible_ret_vars then
+                        (idx + 1, idx :: filtered_idxs)
+                      else (idx + 1, filtered_idxs))
+                    (0, []) p.sformals))
+        | _ -> []
       in
 
       let possible_lts =
