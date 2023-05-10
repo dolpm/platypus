@@ -1,3 +1,4 @@
+/* Dylan M. | Ronit S. */
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,12 +21,14 @@ struct Vector *Vector_new()
   l->capacity = 10;
   l->length = 0;
   l->list = malloc(l->capacity * sizeof(void *));
+  assert(l->list != NULL);
 
   return l;
 }
 
 void *Vector_get(struct Vector *v, int index)
 {
+  assert(index >= 0);
   assert(index < v->length);
   return *(void **)(v->list + (index * sizeof(void *)));
 }
@@ -46,12 +49,14 @@ void Vector_grow(struct Vector *v)
 {
   v->capacity = v->capacity * 2;
   v->list = realloc(v->list, v->capacity * sizeof(void *));
+  assert(v->list != NULL);
 }
 
 void Vector_shrink(struct Vector *v)
 {
   v->capacity = v->capacity / 2;
   v->list = realloc(v->list, v->capacity * sizeof(void *));
+  assert(v->list != NULL);
 }
 
 void Vector_push(struct Vector *v, void **new_value)
@@ -86,6 +91,7 @@ void Vector_pop(struct Vector *v)
 void *Str_new(char *s)
 {
   char *result = (char *)malloc(strlen(s) + 1);
+  assert(result != NULL);
   strcpy(result, s);
 
   return (void *)result;
@@ -94,6 +100,7 @@ void *Str_new(char *s)
 char *Str_concat(char *s1, char *s2)
 {
   char *result = (char *)malloc(strlen(s1) + strlen(s2) + 1);
+  assert(result != NULL);
 
   strcpy(result, s1);
   strcat(result, s2);
@@ -101,9 +108,11 @@ char *Str_concat(char *s1, char *s2)
   return result;
 }
 
-void Str_push(char *s, char c)
+void Str_push(char **s, char c)
 {
-  strncat(s, &c, 1);
+  *s = (char *)realloc(*s, (strlen(*s) + 2) * sizeof(char));
+  assert(s != NULL);
+  strncat(*s, &c, 1);
   return;
 }
 
@@ -114,7 +123,9 @@ int Str_compare(char *s1, char *s2)
 
 char *Str_clone(char *s)
 {
-  return strdup(s);
+  char *duped = strdup(s);
+  assert(duped != NULL);
+  return duped;
 }
 
 /* RNG (ISO C99 spec) */

@@ -20,6 +20,7 @@ RUN apt-get -yq update && \
     make
 
 RUN ln -s /usr/bin/clang-14 /usr/bin/clang
+RUN ln -s /usr/bin/llc-14 /usr/bin/llc
 RUN opam init --disable-sandboxing
 
 WORKDIR /app

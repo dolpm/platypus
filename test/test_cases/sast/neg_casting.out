@@ -1,0 +1,1 @@
+Fatal error: exception Failure("illegal assignment int = float in int y = Float <| [x - 500];\n")

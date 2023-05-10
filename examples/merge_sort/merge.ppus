@@ -92,7 +92,7 @@ pipe main [] |> unit {
   Rng_init <| [-1];
 
   int len = 10;
-  mut vector[int] nums = create_vec_of_size <| [%len];
+  mut vector[int] nums = create_vec_of_size <| [len];
 
   Print <| ["Before: "];
   print_vec <| [&nums];

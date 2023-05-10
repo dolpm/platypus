@@ -1,0 +1,11 @@
+pipe main [] |> unit {
+    mut box[int] x = Box_new <| [4];
+    {
+        box[int] y = Box_new <| [5];
+        x = y;
+
+        y;
+    }
+
+    |> ();
+}

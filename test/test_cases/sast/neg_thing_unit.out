@@ -1,0 +1,1 @@
+Fatal error: exception Failure("Illegal type! Thing MyThing contains a unit type. Thing delcarations can't contain units.")

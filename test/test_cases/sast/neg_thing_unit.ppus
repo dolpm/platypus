@@ -1,0 +1,7 @@
+thing MyThing <| {
+  field : unit
+}
+
+pipe main [] |> unit {
+  |> ();
+}

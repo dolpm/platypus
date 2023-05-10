@@ -43,12 +43,6 @@ int main() {
 
       silly_function_to_overwrite_stack();
 
-      if (*blue_sky != 75000) {
-        cout << "Oh no! Undefined behaviour! ";
-      } else {
-        cout << "All looks good! ";
-      }
-
       cout << "expected: 75000, recieved: " << *blue_sky << endl;
     }
   }

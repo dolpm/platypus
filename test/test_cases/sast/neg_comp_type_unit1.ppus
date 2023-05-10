@@ -1,0 +1,4 @@
+pipe main [] |> unit {
+  box[unit] corpse_party = Vector_new <| [];
+  |> ();
+}

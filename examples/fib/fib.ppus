@@ -7,11 +7,6 @@ pipe fib [i: int] |> int {
 
 pipe main [] |> unit {
   int value = 30;
-  int result = fib <| [%value];
-
-  Print <| ["result of fib on input "];
-  Print <| [value];
-  Print <| [": "];
-  
+  int result = fib <| [%value];  
   |> Printnl <| [result];
 }

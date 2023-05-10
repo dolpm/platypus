@@ -1,0 +1,15 @@
+pipe main [] |> unit {
+  int x = -5;
+  float y = Float <| [-x+5];
+  
+  int z = Int <| [y];
+
+  bool t = true;
+  int p = Int <| [t];
+
+  char c = 'C';
+
+  float centipede = Float <| [Int <| [c]];
+
+  |> ();
+}

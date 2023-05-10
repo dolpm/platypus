@@ -1,3 +1,4 @@
+(* Dylan M. | Ronit S. | Tony H. | Rodrigo C. *)
 module L = Llvm
 module A = Ast
 open Sast
@@ -85,6 +86,13 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "printf" printf_t the_module
   in
 
+  let sprintf_t : L.lltype =
+    L.var_arg_function_type i32_t [| L.pointer_type i8_t; L.pointer_type i8_t |]
+  in
+  let sprintf_func : L.llvalue =
+    L.declare_function "sprintf" sprintf_t the_module
+  in
+
   let memcpy_t : L.lltype =
     L.function_type unit_t
       [| L.pointer_type i8_t; L.pointer_type i8_t; L.i64_type context |]
@@ -132,7 +140,7 @@ let translate (things, pipes) ownership_map m_external =
     L.declare_function "Str_concat" str_concat_t the_module
   in
 
-  let str_push_t = L.function_type unit_t [| string_t; i8_t |] in
+  let str_push_t = L.function_type unit_t [| L.pointer_type string_t; i8_t |] in
   let str_push_func = L.declare_function "Str_push" str_push_t the_module in
 
   let str_compare_t = L.function_type i1_t [| string_t; string_t |] in
@@ -178,14 +186,12 @@ let translate (things, pipes) ownership_map m_external =
     let nonewline_str = L.build_global_stringptr "%s" "fmt_str_nnl" builder
     and nonewline_int_format_str =
       L.build_global_stringptr "%d" "fmt_int_nnl" builder
+    and nonewline_char_format_str =
+      L.build_global_stringptr "%c" "fmt_char_nnl" builder
     and nonewline_float_format_str =
       L.build_global_stringptr "%g" "fmt_float_nnl" builder
     and newline_str = L.build_global_stringptr "%s\n" "fmt_str_nl" builder
-    and newline_int_format_str =
-      L.build_global_stringptr "%d\n" "fmt_int_nl" builder
-    and newline_float_format_str =
-      L.build_global_stringptr "%g\n" "fmt_float_nl" builder
-    in
+    and empty_str = L.build_global_stringptr "" "empty_str" builder in
 
     let variables =
       let add_formal m (_is_mut, t, n) p =
@@ -619,6 +625,64 @@ let translate (things, pipes) ownership_map m_external =
       free_inner typ llvalue builder
     in
 
+    let rec print_helper (t : A.defined_type) arg builder =
+      match t with
+      | Borrow (t, _) | MutBorrow (t, _) -> (
+          let loaded_arg = L.build_load arg "print_arg" builder in
+          match t with
+          | Int | Bool | Float | String -> print_helper t loaded_arg builder
+          | Str ->
+              L.build_call printf_func
+                [| nonewline_str; loaded_arg |]
+                "printf" builder
+          | _ -> raise (Failure "panic! invalid print arg type!"))
+      | Int ->
+          L.build_call printf_func
+            [| nonewline_int_format_str; arg |]
+            "printf" builder
+      | Bool ->
+          let pred =
+            L.build_icmp L.Icmp.Eq (L.const_int i1_t 1) arg "tmp" builder
+          in
+          let then_bb = L.append_block context "then" the_pipe in
+          let else_bb = L.append_block context "else" the_pipe in
+          let merge_bb = L.append_block context "merge" the_pipe in
+
+          let bool_string = L.build_alloca string_t "the_boiler_room" builder in
+
+          let _ = L.build_cond_br pred then_bb else_bb builder in
+          let branch_instr = L.build_br merge_bb in
+
+          (* do then block *)
+          let _ = L.position_at_end then_bb builder in
+          let true_global =
+            L.build_global_stringptr "true" "true_str" builder
+          in
+          let _ = L.build_store true_global bool_string builder in
+          let _ = add_terminal builder branch_instr in
+
+          (* do else block *)
+          let _ = L.position_at_end else_bb builder in
+          let false_global =
+            L.build_global_stringptr "false" "false_str" builder
+          in
+          let _ = L.build_store false_global bool_string builder in
+          let _ = add_terminal builder branch_instr in
+
+          let _ = L.position_at_end merge_bb builder in
+
+          L.build_call printf_func
+            [| L.build_load bool_string "smorgasbord" builder; arg |]
+            "printf" builder
+      | Float ->
+          L.build_call printf_func
+            [| nonewline_float_format_str; arg |]
+            "printf" builder
+      | String ->
+          L.build_call printf_func [| nonewline_str; arg |] "printf" builder
+      | _ -> raise (Failure "panic! invalid print arg type!")
+    in
+
     let rec expr (builder : L.llbuilder) ((t, e) : s_expr) : L.llvalue =
       match e with
       | SIntLiteral i -> L.const_int i32_t i
@@ -663,9 +727,7 @@ let translate (things, pipes) ownership_map m_external =
           in
 
           let casted_gep =
-            L.build_bitcast gepped
-              (ltype_of_typ t)
-              "casted_gep" builder
+            L.build_bitcast gepped (ltype_of_typ t) "casted_gep" builder
           in
           casted_gep
       | SThingValue (t_name, children) ->
@@ -824,66 +886,13 @@ let translate (things, pipes) ownership_map m_external =
           in
           let _ = expr builder (Unit, SPipeIn ("Printnl", [ msg ])) in
           L.build_call panic_func [| L.const_int i32_t 1 |] "" builder
-      | SPipeIn ("Print", [ (t, sx) ]) -> (
+      | SPipeIn ("Print", [ (t, sx) ]) ->
           let arg = expr builder (t, sx) in
-          match t with
-          | Borrow (t, _) | MutBorrow (t, _) -> (
-              let loaded_arg = L.build_load arg "print arg" builder in
-              match t with
-              | Int | Bool ->
-                  L.build_call printf_func
-                    [| nonewline_int_format_str; loaded_arg |]
-                    "printf" builder
-              | Float ->
-                  L.build_call printf_func
-                    [| nonewline_float_format_str; loaded_arg |]
-                    "printf" builder
-              | String | Str ->
-                  L.build_call printf_func
-                    [| nonewline_str; loaded_arg |]
-                    "printf" builder
-              | _ -> raise (Failure "panic! invalid arg type!"))
-          | Int | Bool ->
-              L.build_call printf_func
-                [| nonewline_int_format_str; arg |]
-                "printf" builder
-          | Float ->
-              L.build_call printf_func
-                [| nonewline_float_format_str; arg |]
-                "printf" builder
-          | String ->
-              L.build_call printf_func [| nonewline_str; arg |] "printf" builder
-          | _ -> raise (Failure "panic! invalid printnl arg type!"))
-      | SPipeIn ("Printnl", [ (t, sx) ]) -> (
+          print_helper t arg builder
+      | SPipeIn ("Printnl", [ (t, sx) ]) ->
           let arg = expr builder (t, sx) in
-          match t with
-          | Borrow (t, _) | MutBorrow (t, _) -> (
-              let loaded_arg = L.build_load arg "printnl arg" builder in
-              match t with
-              | Int | Bool ->
-                  L.build_call printf_func
-                    [| newline_int_format_str; loaded_arg |]
-                    "printf" builder
-              | Float ->
-                  L.build_call printf_func
-                    [| newline_float_format_str; loaded_arg |]
-                    "printf" builder
-              | String | Str ->
-                  L.build_call printf_func
-                    [| newline_str; loaded_arg |]
-                    "printf" builder
-              | _ -> raise (Failure "panic! invalid arg type!"))
-          | Int | Bool ->
-              L.build_call printf_func
-                [| newline_int_format_str; arg |]
-                "printf" builder
-          | Float ->
-              L.build_call printf_func
-                [| newline_float_format_str; arg |]
-                "printf" builder
-          | String ->
-              L.build_call printf_func [| newline_str; arg |] "printf" builder
-          | _ -> raise (Failure "panic! invalid printnl arg type!"))
+          let _ = print_helper t arg builder in
+          L.build_call printf_func [| newline_str; empty_str |] "printf" builder
       | SPipeIn ("Rng_init", [ seed ]) ->
           L.build_call rng_init_func [| expr builder seed |] "" builder
       | SPipeIn ("Rng_generate", [ min; max ]) ->
@@ -1017,10 +1026,101 @@ let translate (things, pipes) ownership_map m_external =
       | SPipeIn ("Str_push", [ str; c ]) ->
           L.build_call str_push_func
             [|
-              L.build_load (expr builder str) "loaded_str" builder;
+              expr builder str;
               expr builder c;
             |]
             "" builder
+      | SPipeIn ("Int", [ (t, e) ]) -> (
+          let e' = expr builder (t, e) in
+          match t with
+          | Float -> L.build_fptosi e' i32_t "casted_to_int" builder
+          | _ -> L.build_intcast e' i32_t "casted_to_int" builder)
+      | SPipeIn ("Float", [ (t, e) ]) -> (
+          let e' = expr builder (t, e) in
+          match t with
+          | Float -> e'
+          | _ -> L.build_sitofp e' float_t "casted_to_float" builder)
+      | SPipeIn ("Str", [ (t, e) ]) ->
+          (* alloca a i8 array of length 24 *)
+          (* https://stackoverflow.com/questions/1701055/what-is-the-maximum-length-in-chars-needed-to-represent-any-double-value *)
+          let e' = expr builder (t, e) in
+          let dest_array =
+            L.build_array_alloca i8_t (L.const_int i32_t 24) "dog_thresher"
+              builder
+          in
+          let dest_ptr =
+            L.build_gep dest_array
+              [| L.const_int i32_t 0 |]
+              "tongue_of_steel" builder
+          in
+          (* match on t to sprintf with correct format string into array *)
+          let ptr_for_str =
+            match t with
+            (* TODO print char as char instead of ASCII and bool as 'true' or 'false' instead of 1 or 0 *)
+            (* do we need to build a fucking if statement here?! for bool to string I mean. *)
+            | Bool ->
+                let pred =
+                  L.build_icmp L.Icmp.Eq (L.const_int i1_t 1) e' "tmp" builder
+                in
+                let then_bb = L.append_block context "then" the_pipe in
+                let else_bb = L.append_block context "else" the_pipe in
+                let merge_bb = L.append_block context "merge" the_pipe in
+
+                let bool_string =
+                  L.build_alloca string_t "the_boiler_room" builder
+                in
+
+                let _ = L.build_cond_br pred then_bb else_bb builder in
+                let branch_instr = L.build_br merge_bb in
+
+                (* do then block *)
+                let _ = L.position_at_end then_bb builder in
+                let true_global =
+                  L.build_global_stringptr "true" "true_str" builder
+                in
+                let _ = L.build_store true_global bool_string builder in
+                let _ = add_terminal builder branch_instr in
+
+                (* do else block *)
+                let _ = L.position_at_end else_bb builder in
+                let false_global =
+                  L.build_global_stringptr "false" "false_str" builder
+                in
+                let _ = L.build_store false_global bool_string builder in
+                let _ = add_terminal builder branch_instr in
+
+                let _ = L.position_at_end merge_bb builder in
+
+                L.build_load bool_string "head_of_house" builder
+            | Int ->
+                let _ =
+                  L.build_call sprintf_func
+                    [| dest_ptr; nonewline_int_format_str; e' |]
+                    "sprintf" builder
+                in
+                dest_ptr
+            | Char ->
+                let _ =
+                  L.build_call sprintf_func
+                    [| dest_ptr; nonewline_char_format_str; e' |]
+                    "sprintf" builder
+                in
+                dest_ptr
+            | Float ->
+                let _ =
+                  L.build_call sprintf_func
+                    [| dest_ptr; nonewline_float_format_str; e' |]
+                    "sprintf" builder
+                in
+                dest_ptr
+            | _ ->
+                raise
+                  (Failure
+                     ("unexpected type " ^ A.string_of_typ t
+                    ^ " in Str cast pipe"))
+          in
+          (* call Str_new, passing in i8 array *)
+          L.build_call str_new_func [| ptr_for_str |] "wrath_of_george" builder
       | SPipeIn (pname, args) ->
           let pdef, pdecl = StringMap.find pname pipe_decls in
           let llargs = List.rev (List.map (expr builder) (List.rev args)) in

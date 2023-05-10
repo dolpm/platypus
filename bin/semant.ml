@@ -1,3 +1,4 @@
+(* Dylan M. | Ronit S. | Tony H. | Abe P. *)
 open Ast
 open Sast
 open Borrow
@@ -7,7 +8,7 @@ let check (_opens, things, pipes) verbosity =
   let cur_sblock_id = ref 0 in
 
   (* built in pipe definitions *)
-  (* (name, [param(is_mut, type, name)], ret_type) *)
+  (* (name, lifetime, [param(is_mut, type, name)], body, ret_type) *)
   let stdlib_pipe_decls =
     [
       (* print *)
@@ -73,6 +74,10 @@ let check (_opens, things, pipes) verbosity =
         [ (true, MutBorrow (Str, "'_"), "x"); (false, Char, "y") ],
         [ PipeOut NoExpr ],
         Unit );
+      (* type casting *)
+      ("Int", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Int);
+      ("Float", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Float);
+      ("Str", [], [ (false, Generic, "x") ], [ PipeOut NoExpr ], Str);
     ]
   in
 
@@ -141,7 +146,7 @@ let check (_opens, things, pipes) verbosity =
 
   (* make sure there aren't any duplicate bindings in functions *)
   let check_bindings to_check =
-    let name_compare (_, _, n1) (_, _, n2) = compare n1 n2 in
+    let name_compare (_, _, n1) (_, _, n2) = compare n1 n2 in 
     let check_it checked binding =
       let _, _, n1 = binding in
       let dup_err = "duplicate binding: " ^ n1 in
@@ -162,6 +167,11 @@ let check (_opens, things, pipes) verbosity =
         List.iter
           (fun (_, typ, _) ->
             match typ with
+            | Unit ->
+              raise (Failure
+                     ("Illegal type! Thing " ^ t.tname
+                    ^ " contains a unit type. Thing delcarations can't \
+                       contain units."))
             | Borrow _ | MutBorrow _ ->
                 raise
                   (Failure
@@ -184,6 +194,11 @@ let check (_opens, things, pipes) verbosity =
     (* make sure lhs and rhs of assignments and re-assignments are of eq type *)
     let rec check_assign lvaluet rvaluet err =
       match (lvaluet, rvaluet) with
+       Vector Unit, _
+      | Box Unit, _
+      | _, Vector Unit
+      | _, Box Unit ->
+          raise (Failure "Illegal type. Composite types can't contain units.")
       (* make sure can't put borrows in boxes/vecs *)
       | Vector (MutBorrow _), _
       | Vector (Borrow _), _
@@ -204,7 +219,14 @@ let check (_opens, things, pipes) verbosity =
           MutBorrow (check_assign lt rt err, l1)
       | Borrow (lt, l1), Borrow (rt, _l2) -> Borrow (check_assign lt rt err, l1)
       | Tuple tl1, Tuple tl2 ->
-          Tuple (List.map2 (fun t1 t2 -> check_assign t1 t2 err) tl1 tl2)
+          Tuple 
+          (List.map2 
+            (fun t1 t2 -> 
+              match t1,t2 with
+              | Unit,_ | _,Unit ->
+                 raise (Failure "Illegal type. Tuples cannot contain units.")
+              | _ -> check_assign t1 t2 err) 
+          tl1 tl2)
       | _ -> if lvaluet = rvaluet then lvaluet else raise (Failure err)
     in
 
@@ -496,6 +518,7 @@ let check (_opens, things, pipes) verbosity =
                     | _ -> accum_t)
                   Generic pd.formals args_checked
               in
+
               let rec generic_sub_helper ft =
                 match ft with
                 | Generic -> generic_type
@@ -522,47 +545,127 @@ let check (_opens, things, pipes) verbosity =
                   | Borrow (t, _) | MutBorrow (t, _) -> (
                       match t with
                       | Int | Bool | Float | String | Str -> Unit
-                      | _ -> raise (Failure ("unexpected arg type in " ^ pname))
-                      )
+                      | _ ->
+                          raise
+                            (Failure
+                               ("unexpected arg type "
+                               ^ string_of_typ first_arg_type
+                               ^ " in " ^ pname)))
                   | Int | Bool | Float | String -> Unit
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Box_new" -> Box first_arg_type
               | "Box_unbox" -> (
                   match first_arg_type with
                   | Borrow (Box t, lt) -> Borrow (t, lt)
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Box_unbox_mut" -> (
                   match first_arg_type with
                   | MutBorrow (Box t, lt) -> MutBorrow (t, lt)
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_length" -> (
                   match first_arg_type with
                   | Borrow (Vector _t, _lt) -> Int
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_get" -> (
                   match first_arg_type with
                   | Borrow (Vector t, lt) -> Borrow (t, lt)
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_update" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, _lt) ->
                       let t3 = fst (List.nth args' 2) in
                       if t3 <> t then
-                        raise (Failure ("unexpected arg type in " ^ pname))
+                        raise
+                          (Failure
+                             ("unexpected arg type "
+                             ^ string_of_typ first_arg_type
+                             ^ " in " ^ pname))
                       else Unit
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_get_mut" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, lt) -> MutBorrow (t, lt)
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_pop" -> (
                   match first_arg_type with
                   | MutBorrow (Vector t, _) -> t
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | "Vector_push" -> (
                   match first_arg_type with
                   | MutBorrow (Vector _t, _lt) -> Unit
-                  | _ -> raise (Failure ("unexpected arg type in " ^ pname)))
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
+              | "Int" -> (
+                  match first_arg_type with
+                  | Int | Bool | Char | Float -> Int
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
+              | "Float" -> (
+                  match first_arg_type with
+                  | Int | Bool | Char | Float -> Float
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
+              | "Str" -> (
+                  match first_arg_type with
+                  | Int | Bool | Char | Float -> Str
+                  | _ ->
+                      raise
+                        (Failure
+                           ("unexpected arg type "
+                           ^ string_of_typ first_arg_type
+                           ^ " in " ^ pname)))
               | _ -> pd.return_type
             in
             let ret_type =

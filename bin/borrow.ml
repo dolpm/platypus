@@ -1,3 +1,4 @@
+(* Dylan M. | Ronit S. *)
 open Sast
 open Ast
 module StringMap = Map.Make (String)
@@ -13,6 +14,8 @@ type graph_node =
       (* rest *)
       owned_vars : string list;
       assoc_sblock_id : string option;
+      is_ifelse_block : int;
+          (* 0 if neither, 1 if is then clause of, 2 if is else clause*)
     }
   | Binding of {
       parent : string option;
@@ -157,6 +160,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                    owned_vars = [];
                    assoc_sblock_id =
                      (if sblock_id = "-1" then None else Some sblock_id);
+                   is_ifelse_block = 0;
                  })
               updated_graph )
       | SAssign (is_mut, typ, name, expr) ->
@@ -248,6 +252,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                       children = [ sex_id; block_id ];
                       owned_vars = [];
                       assoc_sblock_id = None;
+                      is_ifelse_block = 0;
                     }
                 in
 
@@ -300,10 +305,67 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                     (SBlock (stmts1, sblock_id1))
                     graph'
                 in
+
+                (* tag if block when there is an else after it *)
+                let graph' =
+                  if List.length stmts2 > 0 then
+                    let then_block_id = node_id ^ ".1" in
+                    let then_block_node = StringMap.find then_block_id graph' in
+                    match then_block_node with
+                    | Lifetime lt ->
+                        let then_block_node' =
+                          Lifetime
+                            {
+                              parent = lt.parent;
+                              depth = lt.depth;
+                              loop = lt.loop;
+                              node_id = lt.node_id;
+                              children = lt.children;
+                              owned_vars = lt.owned_vars;
+                              assoc_sblock_id = lt.assoc_sblock_id;
+                              is_ifelse_block = 1;
+                            }
+                        in
+                        StringMap.add then_block_id then_block_node' graph'
+                    | _ ->
+                        raise
+                          (Failure
+                             ("Then block " ^ then_block_id
+                            ^ " is not a lifetime?"))
+                  else graph'
+                in
+
                 let _, graph' =
                   gen_children node_id (parent_depth + 1) parent_loop 2
                     (SBlock (stmts2, sblock_id2))
                     graph'
+                in
+
+                (* tag else block *)
+                let graph' =
+                  let else_block_id = node_id ^ ".2" in
+                  let else_block_node = StringMap.find else_block_id graph' in
+                  match else_block_node with
+                  | Lifetime lt ->
+                      let else_block_node' =
+                        Lifetime
+                          {
+                            parent = lt.parent;
+                            depth = lt.depth;
+                            loop = lt.loop;
+                            node_id = lt.node_id;
+                            children = lt.children;
+                            owned_vars = lt.owned_vars;
+                            assoc_sblock_id = lt.assoc_sblock_id;
+                            is_ifelse_block = 2;
+                          }
+                      in
+                      StringMap.add else_block_id else_block_node' graph'
+                  | _ ->
+                      raise
+                        (Failure
+                           ("Else block " ^ else_block_id
+                          ^ " is not a lifetime?"))
                 in
 
                 (true, graph', [ sex_id; block1_id; block2_id ])
@@ -325,6 +387,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                         [ sex1_id; sex2_id; ident_id; sex3_id; block_id ];
                       owned_vars = [];
                       assoc_sblock_id = None;
+                      is_ifelse_block = 0;
                     }
                 in
                 let sex_nodes =
@@ -405,6 +468,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                      children;
                      owned_vars = [];
                      assoc_sblock_id = None;
+                     is_ifelse_block = 0;
                    })
                 graph' )
     in
@@ -437,6 +501,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
              node_id = pipe.sname;
              owned_vars = [];
              assoc_sblock_id = Some (pipe.sname ^ "_with_args");
+             is_ifelse_block = 0;
            })
         graph_with_pipe_body
     in
@@ -732,12 +797,37 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                           -1 - (List.length p.slifetimes - idx_of_lt)
                         in
                         let d, lt', _ = StringMap.find n !ident_assoc_lt_map in
+                        let _ =
+                          if lt = "'_" then
+                            raise
+                              (Failure
+                                 ("return type "
+                                 ^ string_of_typ p.sreturn_type
+                                 ^ " of pipe " ^ p.sname
+                                 ^ " has unspecified lifetime; when a pipe \
+                                    returns a reference, it must have explicit \
+                                    lifetimes."))
+                        in
                         if d > depth_of_ret_lt then
-                          raise
-                            (Failure
-                               ("return value " ^ n ^ " has lifetime " ^ lt'
-                              ^ ", which is smaller than return lifetime " ^ lt
-                               ))
+                          let lt_in_def =
+                            List.find_opt (fun plt -> lt' = plt) p.slifetimes
+                          in
+                          if
+                            (match lt_in_def with
+                            | None -> true
+                            | Some _ -> false)
+                            && lt' <> "'_"
+                          then
+                            raise
+                              (Failure
+                                 ("lifetime " ^ lt' ^ " used but not defined in "
+                                ^ p.sname))
+                          else
+                            raise
+                              (Failure
+                                 ("return value " ^ n ^ " has lifetime " ^ lt'
+                                ^ ", which is smaller than return lifetime "
+                                ^ lt))
                     | _ -> ()
                   in
                   explore_assocs n (StringSet.add n ret_vals)
@@ -921,13 +1011,56 @@ let borrow_ck pipes built_in_pipe_decls verbose =
 
     let rec check_children current_node symbol_table active_refs graph =
       let current_node = StringMap.find current_node graph in
+
+      let held_state = ref None in
+
       match current_node with
       | Lifetime l ->
           (* process ownership of child nodes -- this will remove all variables who are owned in lower lifetimes *)
           let symbol_table', _active_refs', graph' =
             List.fold_left
               (fun (st, active_refs, graph) child ->
-                check_children child st active_refs graph)
+                let child_node = StringMap.find child graph in
+
+                let if_else_block =
+                  match child_node with
+                  | Lifetime lt -> lt.is_ifelse_block
+                  | _ -> 0
+                in
+
+                if if_else_block = 1 then
+                  let _ = held_state := Some (st, active_refs, graph) in
+                  check_children child st active_refs graph
+                else
+                  match !held_state with
+                  | Some (st_held, active_refs_held, graph_held) ->
+                      let st', _active_refs', _graph' =
+                        check_children child st_held active_refs_held graph_held
+                      in
+                      let _ = held_state := None in
+                      let owned_by_if =
+                        StringMap.filter
+                          (fun k _v -> not (StringMap.mem k st))
+                          st'
+                      in
+                      let owned_by_else =
+                        StringMap.filter
+                          (fun k _v -> not (StringMap.mem k st'))
+                          st
+                      in
+                      let owned_by_ifelse =
+                        StringMap.union
+                          (fun _k v1 _v2 -> Some v1)
+                          owned_by_if owned_by_else
+                      in
+
+                      let remaining_after_ifelse =
+                        StringMap.filter
+                          (fun k _v -> not (StringMap.mem k owned_by_ifelse))
+                          st_held
+                      in
+                      (remaining_after_ifelse, active_refs_held, graph_held)
+                  | None -> check_children child st active_refs graph)
               (symbol_table, active_refs, graph)
               l.children
           in
@@ -961,6 +1094,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                    parent = l.parent;
                    owned_vars = children_responsible_for_dealloc;
                    assoc_sblock_id = l.assoc_sblock_id;
+                   is_ifelse_block = l.is_ifelse_block;
                  })
               graph' )
       | Binding b ->
@@ -1133,7 +1267,31 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                 then make_err (err_gave_ownership n))
               names
           in
-          (symbol_table, active_refs, graph)
+
+          let symbol_table' =
+            match v with
+            | Rebinding rb -> (
+                match rb.expr with
+                (* don't need to worry about ownership transfer if it is a borrow *)
+                | MutBorrow _, _ | Borrow _, _ -> symbol_table
+                | _, SIdent n ->
+                    let n_node =
+                      StringMap.find (StringMap.find n symbol_table) graph
+                    in
+                    let _, _, _, n_loop = node_common_data n_node in
+                    let _ =
+                      if rb.loop <> n_loop then
+                        raise
+                          (Failure
+                             ("ownership of " ^ n
+                            ^ " could be taken in a previous loop iteration"))
+                    in
+                    StringMap.remove n symbol_table
+                | _ -> symbol_table)
+            | _ -> symbol_table
+          in
+
+          (symbol_table', active_refs, graph)
     in
 
     check_children pipe.sname StringMap.empty StringSet.empty graph_for_pipe
@@ -1200,47 +1358,58 @@ let borrow_ck pipes built_in_pipe_decls verbose =
       "lifetime " ^ lt ^ " used but not defined in " ^ p.sname
     and make_err er = raise (Failure er) in
 
-    (* we are kinda gonna have to limit returned values to args *)
-    (* vs. allowing re-bindings of refs of args to also be returned *)
-    let possible_ret_vars, ident_assoc_lt_map =
-      get_possible_ret_args p ret_v_map
-    in
-
-    let pos_ret_borrows_idxs =
-      match p.sreturn_type with
-      | Borrow _ | MutBorrow _ ->
-          List.rev
-            (snd
-               (List.fold_left
-                  (fun (idx, filtered_idxs) (_, _, formal_name) ->
-                    if List.mem formal_name possible_ret_vars then
-                      (idx + 1, idx :: filtered_idxs)
-                    else (idx + 1, filtered_idxs))
-                  (0, []) p.sformals))
-      | _ -> []
-    in
-
-    (* make sure dev isnt' overly verbose with lifetime decls *)
-    (* a.k.a they aren't adding explicit lifetimes when not necessary *)
-    let _ =
-      List.iter
-        (fun (_, typ, n) ->
-          if not (List.mem n possible_ret_vars) then
-            match typ with
+    if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
+    then
+      let _ =
+        List.iter
+          (fun (_, t, n) ->
+            match t with
             | MutBorrow (_, lt) | Borrow (_, lt) ->
                 if lt <> "'_" then make_err (err_unnecessary_lifetime n)
             | _ -> ())
-        p.sformals
-    in
+          p.sformals
+      in
 
-    if match p.sreturn_type with MutBorrow _ | Borrow _ -> false | _ -> true
-    then pos_ret_borrows_idxs
+      []
     else
       let lt_of_return =
         match p.sreturn_type with
         | MutBorrow (_, lt) | Borrow (_, lt) -> lt
         | _ ->
             make_err "if returning a borrow, it must have an explicit lifetime"
+      in
+
+      (* we are kinda gonna have to limit returned values to args *)
+      (* vs. allowing re-bindings of refs of args to also be returned *)
+      let possible_ret_vars, ident_assoc_lt_map =
+        get_possible_ret_args p ret_v_map
+      in
+
+      (* make sure dev isnt' overly verbose with lifetime decls *)
+      (* a.k.a they aren't adding explicit lifetimes when not necessary *)
+      let _ =
+        List.iter
+          (fun (_, typ, n) ->
+            if not (List.mem n possible_ret_vars) then
+              match typ with
+              | MutBorrow (_, lt) | Borrow (_, lt) ->
+                  if lt <> "'_" then make_err (err_unnecessary_lifetime n)
+              | _ -> ())
+          p.sformals
+      in
+
+      let pos_ret_borrows_idxs =
+        match p.sreturn_type with
+        | Borrow _ | MutBorrow _ ->
+            List.rev
+              (snd
+                 (List.fold_left
+                    (fun (idx, filtered_idxs) (_, _, formal_name) ->
+                      if List.mem formal_name possible_ret_vars then
+                        (idx + 1, idx :: filtered_idxs)
+                      else (idx + 1, filtered_idxs))
+                    (0, []) p.sformals))
+        | _ -> []
       in
 
       let possible_lts =
@@ -1287,9 +1456,9 @@ let borrow_ck pipes built_in_pipe_decls verbose =
         let ret_ty_is_mutborrow =
           match p.sreturn_type with MutBorrow _ -> true | _ -> false
         in
-        
+
         let idxs =
-          if (not is_builtin) || (is_builtin && ret_ty_is_mutborrow) then 
+          if (not is_builtin) || (is_builtin && ret_ty_is_mutborrow) then
             validate_arg_lifetimes p ret_v_map
           else []
         in
@@ -1817,8 +1986,7 @@ let borrow_ck pipes built_in_pipe_decls verbose =
                       if is_mut then
                         match sex with
                         | _, SUnop (Ref, _) | _, SUnop (MutRef, _) ->
-                            make_err
-                              ("HEHEDARUMA " ^ err_borrow_after_mut_borrow n)
+                            make_err (err_borrow_after_mut_borrow n)
                         | _ ->
                             StringMap.add n
                               (true, (b.node_id, max_arg_depth) :: borrows)
@@ -1839,12 +2007,29 @@ let borrow_ck pipes built_in_pipe_decls verbose =
               borrow_table'
           (* TODO: IDENT THAT IS A REF *)
           (* if the rhs is an arbitrary expr, check for borrows *)
-          | e -> ck_expr borrow_table b.node_id cur_depth e)
+          | e ->
+              let _ = ck_expr borrow_table b.node_id cur_depth e in
+              borrow_table)
       | Rebinding rb -> (
           (* make sure original binding is mutable *)
           let origin_node, origin_depth =
             get_depth_of_defn graph_for_pipe rb.node_id rb.name
           in
+
+          let _ =
+            match rb.expr with
+            | Borrow _, SUnop (_, (_, SIdent n)) | Borrow _, SIdent n ->
+                let _origin_of_n, origin_depth_of_n =
+                  get_depth_of_defn graph_for_pipe rb.node_id n
+                in
+                if origin_depth_of_n > origin_depth then
+                  make_err
+                    ("Immutable borrow " ^ string_of_s_expr rb.expr
+                   ^ " has larger lifetime than " ^ rb.name ^ ", so " ^ rb.name
+                   ^ " cannot be rebound.")
+            | _ -> ()
+          in
+
           let _ =
             match origin_node with
             | Some (Binding b) ->

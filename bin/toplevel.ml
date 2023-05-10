@@ -1,3 +1,4 @@
+(* Dylan M. | Ronit S. | Tony H. *)
 module StringSet = Set.Make (String)
 
 type action = Ast | Sast | LLVM_IR | Compile | Exec
@@ -108,7 +109,7 @@ let () =
               in
               let _ =
                 Llvm_passmgr_builder.populate_lto_pass_manager lto_passmgr
-                  ~internalize:false ~run_inliner:false pm_builder
+                  ~internalize:true ~run_inliner:true pm_builder
               in
 
               (* run the optimizations *)
@@ -127,7 +128,7 @@ let () =
               let _ =
                 Sys.command
                   ("llc -filetype=obj " ^ !f_name ^ ".bc -o  " ^ !f_name
-                 ^ ".o && clang  " ^ !f_name ^ ".o -o " ^ !f_name)
+                 ^ ".o && clang -no-pie " ^ !f_name ^ ".o -o " ^ !f_name)
               in
               (* clean up tmp files if -k not present *)
               if not !keep then
