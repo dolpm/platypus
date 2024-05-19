@@ -59,3 +59,10 @@ check out some examples [here](https://github.com/dolpm/platypus/tree/main/examp
 #### testing mechanisms
 For all test types, the testing program will validate the output of
 a compiler command on a ```.ppus``` input file matches the expected output -- the desired output can be found in the ```.out``` file for each test.  For integration tests, we use llvm's executionengine to fetch this output (```-e```) to avoid the maintenance of auxiliary files during the usual compilation process (```-c```). If a program can't be compiled, the stderr output of the compiler command will be compared to the desired output.
+
+#
+
+#### more info
+for a mroe in-depth overview of the language, its features, and implementation, take a look at the [LRM](https://github.com/dolpm/platypus/tree/main/platypus.pdf)!
+
+#
