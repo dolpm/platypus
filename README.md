@@ -63,6 +63,4 @@ a compiler command on a ```.ppus``` input file matches the expected output -- th
 #
 
 #### more info
-for a mroe in-depth overview of the language, its features, and implementation, take a look at the [LRM](https://github.com/dolpm/platypus/tree/main/platypus.pdf)!
-
-#
+for a more in-depth overview of the language, its features, and implementation, take a look at the [LRM](https://github.com/dolpm/platypus/tree/main/platypus.pdf)!
